@@ -1,38 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
-/* ═══════════════════════════════════════════════════════════
-   CRYPTO
-═══════════════════════════════════════════════════════════ */
-async function sha256(msg) {
-  const buf = new TextEncoder().encode(msg);
-  const hash = await crypto.subtle.digest("SHA-256", buf);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
+import { supabase } from "./supabase";   // ← add this line
 
-/* ═══════════════════════════════════════════════════════════
-   STORAGE
-═══════════════════════════════════════════════════════════ */
-const K = { users: "tez_users", session: "tez_session", profiles: "tez_profiles" };
-const ls = {
-  get: (k) => {
-    try {
-      return JSON.parse(localStorage.getItem(k));
-    } catch {
-      return null;
-    }
-  },
-  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
-  del: (k) => localStorage.removeItem(k),
-};
-const getUsers = () => ls.get(K.users) || [];
-const saveUsers = (u) => ls.set(K.users, u);
-const getSession = () => ls.get(K.session);
-const saveSession = (s) => ls.set(K.session, s);
-const clearSession = () => ls.del(K.session);
-const getProfile = (uid) => ls.get(K.profiles + "_" + uid) || {};
-const saveProfile = (uid, p) => ls.set(K.profiles + "_" + uid, p);
+
+
 
 /* ═══════════════════════════════════════════════════════════
    VALIDATION
@@ -3250,41 +3221,29 @@ function SignUpPage({ onNav }) {
     else if (form.password !== form.confirm) e.confirm = "Passwords do not match.";
     return e;
   };
-
-  const submit = async () => {
-    const e = validate();
-    if (Object.keys(e).length) {
-      setErrs(e);
-      return;
+const submit = async () => {
+  const e = validate();
+  if (Object.keys(e).length) {
+    setErrs(e);
+    return;
+  }
+  setLoading(true);
+  const { error } = await supabase.auth.signUp({
+    email: clean(form.email).toLowerCase(),
+    password: form.password,
+    options: {
+      data: { name: clean(form.name) }
     }
-    setLoading(true);
-    try {
-      const email = clean(form.email).toLowerCase();
-      const users = getUsers();
-      if (users.find((u) => u.email === email)) {
-        setErrs({ email: "Account already exists." });
-        setLoading(false);
-        return;
-      }
-      const passwordHash = await sha256(form.password);
-      saveUsers([
-        ...users,
-        {
-          id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          name: clean(form.name),
-          email,
-          passwordHash,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-      setDone(true);
-      setLoading(false);
-      setTimeout(() => onNav("signin", { prefill: email }), 2000);
-    } catch {
-      setGErr("Something went wrong.");
-      setLoading(false);
-    }
-  };
+  });
+  if (error) {
+    setGErr(error.message);
+    setLoading(false);
+    return;
+  }
+  setDone(true);
+  setLoading(false);
+  setTimeout(() => onNav("signin", { prefill: clean(form.email).toLowerCase() }), 2000);
+};
 
   if (done)
     return (
@@ -3457,41 +3416,30 @@ function SignInPage({ onNav, onLogin, prefill = "" }) {
   };
 
   const submit = async () => {
-    const e = {};
-    if (!form.email.trim()) e.email = "Email is required.";
-    else if (!isEmail(form.email)) e.email = "Enter a valid email.";
-    if (!form.password) e.password = "Password is required.";
-    if (Object.keys(e).length) {
-      setErrs(e);
-      return;
-    }
-    setLoading(true);
-    try {
-      const email = clean(form.email).toLowerCase();
-      const user = getUsers().find((u) => u.email === email);
-      if (!user) {
-        setGErr("Account not found. Please sign up first.");
-        setLoading(false);
-        return;
-      }
-      if ((await sha256(form.password)) !== user.passwordHash) {
-        setErrs({ password: "Invalid password." });
-        setLoading(false);
-        return;
-      }
-      const sess = {
-        userId: user.id,
-        name: user.name,
-        email: user.email,
-        loginAt: new Date().toISOString(),
-      };
-      saveSession(sess);
-      onLogin(sess);
-    } catch {
-      setGErr("Something went wrong.");
-      setLoading(false);
-    }
-  };
+  const e = {};
+  if (!form.email.trim()) e.email = "Email is required.";
+  else if (!isEmail(form.email)) e.email = "Enter a valid email.";
+  if (!form.password) e.password = "Password is required.";
+  if (Object.keys(e).length) {
+    setErrs(e);
+    return;
+  }
+  setLoading(true);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: clean(form.email).toLowerCase(),
+    password: form.password,
+  });
+  if (error) {
+    setGErr(error.message);
+    setLoading(false);
+    return;
+  }
+  onLogin({
+    userId: data.user.id,
+    name: data.user.user_metadata.name,
+    email: data.user.email,
+  });
+};
 
   return (
     <div
@@ -3594,16 +3542,83 @@ function SignInPage({ onNav, onLogin, prefill = "" }) {
 ═══════════════════════════════════════════════════════════ */
 function AppShell({ session, onLogout }) {
   const [page, setPage] = useState("dashboard");
-  const [profile, setProfile] = useState(() => getProfile(session.userId));
+  const [profile, setProfile] = useState({});
+
+useEffect(() => {
+  supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", session.userId)
+    .single()
+    .then(({ data }) => {
+      if (data) {
+        setProfile({
+          name: data.name || "",
+          photo: data.photo || "",
+          cover: data.cover || "",
+          designation: data.designation || "",
+          bio: data.bio || "",
+          location: data.location || "",
+          company: data.company || "",
+          companyLogo: data.company_logo || "",
+          industry: data.industry || "",
+          category: data.category || "",
+          experience: data.experience || "",
+          teamSize: data.team_size || "",
+          website: data.website || "",
+          mobile: data.mobile || "",
+          whatsapp: data.whatsapp || "",
+          linkedin: data.linkedin || "",
+          facebook: data.facebook || "",
+          instagram: data.instagram || "",
+          twitter: data.twitter || "",
+          youtube: data.youtube || "",
+          skills: data.skills || [],
+          services: data.services || [],
+          achievements: data.achievements || [],
+          portfolio: data.portfolio || [],
+          certifications: data.certifications || [],
+        });
+      }
+    });
+}, [session.userId]);
   const [editingProfile, setEditingProfile] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
 
-  const handleSaveProfile = (p) => {
-    const merged = { ...profile, ...p };
-    setProfile(merged);
-    saveProfile(session.userId, merged);
-  };
+  const handleSaveProfile = async (p) => {
+  const merged = { ...profile, ...p };
+  setProfile(merged);
+  await supabase.from("profiles").upsert({
+    id: session.userId,
+    name: merged.name,
+    designation: merged.designation,
+    bio: merged.bio,
+    location: merged.location,
+    photo: merged.photo,
+    cover: merged.cover,
+    company: merged.company,
+    company_logo: merged.companyLogo,
+    industry: merged.industry,
+    category: merged.category,
+    experience: merged.experience,
+    team_size: merged.teamSize,
+    website: merged.website,
+    mobile: merged.mobile,
+    whatsapp: merged.whatsapp,
+    linkedin: merged.linkedin,
+    facebook: merged.facebook,
+    instagram: merged.instagram,
+    twitter: merged.twitter,
+    youtube: merged.youtube,
+    skills: merged.skills,
+    services: merged.services,
+    achievements: merged.achievements,
+    portfolio: merged.portfolio,
+    certifications: merged.certifications,
+    updated_at: new Date().toISOString(),
+  });
+};
 
   const renderPage = () => {
     if (page === "profile") {
@@ -3840,27 +3855,41 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [navData, setNavData] = useState({});
 
-  useEffect(() => {
-    const s = getSession();
-    if (s) {
-      setSession(s);
+ useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session) {
+      setSession({
+        userId: session.user.id,
+        name: session.user.user_metadata.name,
+        email: session.user.email,
+      });
       setPage("app");
     } else {
       setPage("signin");
     }
-  }, []);
+  });
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    if (!session) {
+      setSession(null);
+      setPage("signin");
+    }
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
 
   const login = useCallback((s) => {
     setSession(s);
     setPage("app");
   }, []);
 
-  const logout = useCallback(() => {
-    clearSession();
-    setSession(null);
-    setNavData({});
-    setPage("signin");
-  }, []);
+  const logout = useCallback(async () => {
+  await supabase.auth.signOut();
+  setSession(null);
+  setNavData({});
+  setPage("signin");
+}, []);
 
   const nav = useCallback((to, data = {}) => {
     setNavData(data);
