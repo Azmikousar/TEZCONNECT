@@ -1,0 +1,3899 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+
+/* ═══════════════════════════════════════════════════════════
+   CRYPTO
+═══════════════════════════════════════════════════════════ */
+async function sha256(msg) {
+  const buf = new TextEncoder().encode(msg);
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STORAGE
+═══════════════════════════════════════════════════════════ */
+const K = { users: "tez_users", session: "tez_session", profiles: "tez_profiles" };
+const ls = {
+  get: (k) => {
+    try {
+      return JSON.parse(localStorage.getItem(k));
+    } catch {
+      return null;
+    }
+  },
+  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+  del: (k) => localStorage.removeItem(k),
+};
+const getUsers = () => ls.get(K.users) || [];
+const saveUsers = (u) => ls.set(K.users, u);
+const getSession = () => ls.get(K.session);
+const saveSession = (s) => ls.set(K.session, s);
+const clearSession = () => ls.del(K.session);
+const getProfile = (uid) => ls.get(K.profiles + "_" + uid) || {};
+const saveProfile = (uid, p) => ls.set(K.profiles + "_" + uid, p);
+
+/* ═══════════════════════════════════════════════════════════
+   VALIDATION
+═══════════════════════════════════════════════════════════ */
+const isEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+const clean = (s) => s.trim().replace(/[<>]/g, "");
+
+/* ═══════════════════════════════════════════════════════════
+   TOKENS — Orange × Deep Navy
+═══════════════════════════════════════════════════════════ */
+const T = {
+  bg: "#06070d",
+  bgCard: "#0b0d17",
+  bgInput: "#0f1120",
+  bgHover: "#141726",
+  border: "#1a1f35",
+  borderHi: "#f9731633",
+  orange: "#f97316",
+  orangeHi: "#fb923c",
+  orangeLo: "#f9731612",
+  orangeMd: "#f9731625",
+  amber: "#fbbf24",
+  text: "#eef0f8",
+  textMid: "#6b7594",
+  textLow: "#343c58",
+  success: "#22c55e",
+  successLo: "#22c55e12",
+  error: "#f87171",
+  errorLo: "#f8717112",
+  info: "#38bdf8",
+  infoLo: "#38bdf812",
+  sidebar: "#080a15",
+  sidebarBorder: "#141830",
+};
+
+/* ═══════════════════════════════════════════════════════════
+   GLOBAL CSS
+═══════════════════════════════════════════════════════════ */
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#06070d;font-family:'Plus Jakarta Sans',sans-serif;color:#eef0f8;-webkit-font-smoothing:antialiased}
+input,button,select,textarea{font-family:'Plus Jakarta Sans',sans-serif}
+@keyframes fadeUp  {from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn  {from{opacity:0}to{opacity:1}}
+@keyframes scaleIn {from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+@keyframes spin    {to{transform:rotate(360deg)}}
+@keyframes slideR  {from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+@keyframes playPulse{0%,100%{box-shadow:0 0 0 0 #f9731644}70%{box-shadow:0 0 0 10px #f9731600}}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#1a1f35;border-radius:4px}
+`;
+
+function GlobalStyles() {
+  useEffect(() => {
+    const id = "tez-g";
+    if (!document.getElementById(id)) {
+      const s = document.createElement("style");
+      s.id = id;
+      s.textContent = CSS;
+      document.head.appendChild(s);
+    }
+  }, []);
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BACKGROUND
+═══════════════════════════════════════════════════════════ */
+function Background() {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        pointerEvents: "none",
+        overflow: "hidden",
+      }}
+    >
+      <svg
+        width="100%"
+        height="100%"
+        style={{ position: "absolute", inset: 0, opacity: 0.03 }}
+      >
+        <defs>
+          <pattern
+            id="g"
+            width="28"
+            height="28"
+            patternUnits="userSpaceOnUse"
+          >
+            <circle cx="1" cy="1" r="1" fill="#f97316" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#g)" />
+      </svg>
+      <div
+        style={{
+          position: "absolute",
+          top: "-20%",
+          right: "-10%",
+          width: 700,
+          height: 700,
+          borderRadius: "50%",
+          background:
+            "radial-gradient(circle,#f9731608 0%,transparent 65%)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          bottom: "-15%",
+          left: "-5%",
+          width: 500,
+          height: 500,
+          borderRadius: "50%",
+          background:
+            "radial-gradient(circle,#fbbf2405 0%,transparent 65%)",
+        }}
+      />
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LOGO
+═══════════════════════════════════════════════════════════ */
+function Logo({ size = "md", collapsed = false }) {
+  const s = {
+    sm: { icon: 26, brand: 16, sub: 8 },
+    md: { icon: 34, brand: 20, sub: 9 },
+    lg: { icon: 48, brand: 28, sub: 10 },
+  }[size];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 10 }}>
+      <div
+        style={{
+          width: s.icon,
+          height: s.icon,
+          borderRadius: s.icon * 0.26,
+          background: "linear-gradient(145deg,#f97316,#ea6008)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: s.icon * 0.46,
+          flexShrink: 0,
+          boxShadow: `0 0 ${s.icon}px #f9731644`,
+        }}
+      >
+        ⚡
+      </div>
+      {!collapsed && (
+        <div>
+          <div
+            style={{
+              fontWeight: 800,
+              fontSize: s.brand,
+              color: T.text,
+              letterSpacing: "-0.04em",
+              lineHeight: 1,
+            }}
+          >
+            Tez<span style={{ color: T.orange }}>Connect</span>
+          </div>
+          {size !== "sm" && (
+            <div
+              style={{
+                fontSize: s.sub,
+                color: T.textLow,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                marginTop: 2,
+                fontWeight: 600,
+              }}
+            >
+              B2B Professional Network
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ATOMS
+═══════════════════════════════════════════════════════════ */
+function Spinner({ size = 18, color = T.orange }) {
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        border: `2px solid ${color}33`,
+        borderTopColor: color,
+        borderRadius: "50%",
+        animation: "spin .7s linear infinite",
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
+function StarRating({ v = 4, max = 5, size = 14, interactive = false, onChange }) {
+  const [hov, setHov] = useState(0);
+  return (
+    <div style={{ display: "flex", gap: 2 }}>
+      {Array.from({ length: max }, (_, i) => {
+        const on = interactive ? (hov || v) > i : v > i;
+        return (
+          <span
+            key={i}
+            onClick={() => interactive && onChange && onChange(i + 1)}
+            onMouseEnter={() => interactive && setHov(i + 1)}
+            onMouseLeave={() => interactive && setHov(0)}
+            style={{
+              fontSize: size,
+              color: on ? T.amber : T.textLow,
+              cursor: interactive ? "pointer" : "default",
+              transition: "color .15s",
+            }}
+          >
+            ★
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function Btn({
+  children,
+  onClick,
+  loading = false,
+  disabled = false,
+  variant = "primary",
+  fullWidth = false,
+  small = false,
+  icon,
+}) {
+  const p = variant === "primary";
+  const g = variant === "ghost";
+  const d = variant === "danger";
+  return (
+    <button
+      onClick={!loading && !disabled ? onClick : undefined}
+      disabled={disabled || loading}
+      style={{
+        width: fullWidth ? "100%" : "auto",
+        padding: small ? "8px 14px" : "12px 20px",
+        background: p
+          ? disabled || loading
+            ? "#1a1f35"
+            : "linear-gradient(135deg,#f97316,#ea6008)"
+          : g
+          ? "transparent"
+          : d
+          ? T.errorLo
+          : "transparent",
+        color: p ? (disabled || loading ? T.textLow : "#fff") : d ? T.error : T.textMid,
+        border: p ? "none" : d ? `1px solid ${T.error}44` : `1px solid ${T.border}`,
+        borderRadius: 9,
+        fontSize: small ? 11 : 13,
+        fontWeight: 700,
+        cursor: disabled || loading ? "not-allowed" : "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        transition: "all .2s",
+        boxShadow:
+          p && !disabled && !loading ? "0 4px 20px #f9731440" : "none",
+        letterSpacing: "-.01em",
+        flexShrink: 0,
+      }}
+    >
+      {loading ? (
+        <>
+          <Spinner size={13} color={p ? "#fff" : T.orange} />
+          Processing…
+        </>
+      ) : (
+        <>
+          {icon && <span>{icon}</span>}
+          {children}
+        </>
+      )}
+    </button>
+  );
+}
+
+function Alert({ type = "error", children, onDismiss }) {
+  const c = {
+    error: { bg: T.errorLo, border: T.error, ico: "✕", col: T.error },
+    success: { bg: T.successLo, border: T.success, ico: "✓", col: T.success },
+    info: { bg: T.infoLo, border: T.info, ico: "i", col: T.info },
+  }[type];
+  return (
+    <div
+      style={{
+        background: c.bg,
+        border: `1px solid ${c.border}44`,
+        borderRadius: 10,
+        padding: "11px 14px",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 9,
+        animation: "scaleIn .2s ease",
+      }}
+    >
+      <div
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: "50%",
+          background: c.border + "22",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 9,
+          fontWeight: 800,
+          color: c.col,
+          flexShrink: 0,
+        }}
+      >
+        {c.ico}
+      </div>
+      <div style={{ flex: 1, fontSize: 12, color: c.col, lineHeight: 1.5 }}>
+        {children}
+      </div>
+      {onDismiss && (
+        <button
+          onClick={onDismiss}
+          style={{
+            background: "none",
+            border: "none",
+            color: c.col,
+            cursor: "pointer",
+            fontSize: 15,
+            padding: 0,
+          }}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Divider({ label }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ flex: 1, height: 1, background: T.border }} />
+      {label && (
+        <span
+          style={{
+            fontSize: 10,
+            color: T.textLow,
+            whiteSpace: "nowrap",
+            letterSpacing: ".08em",
+            textTransform: "uppercase",
+          }}
+        >
+          {label}
+        </span>
+      )}
+      <div style={{ flex: 1, height: 1, background: T.border }} />
+    </div>
+  );
+}
+
+function Tag({ children, color = T.orange, onRemove }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        background: color + "18",
+        border: `1px solid ${color}33`,
+        color,
+        borderRadius: 20,
+        padding: "4px 10px",
+        fontSize: 11,
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+      {onRemove && (
+        <span
+          onClick={onRemove}
+          style={{ cursor: "pointer", fontSize: 13, lineHeight: 1, opacity: 0.7 }}
+        >
+          ×
+        </span>
+      )}
+    </span>
+  );
+}
+
+function SectionLabel({ children }) {
+  return (
+    <div
+      style={{
+        fontSize: 10,
+        fontWeight: 700,
+        color: T.textLow,
+        textTransform: "uppercase",
+        letterSpacing: ".1em",
+        marginBottom: 12,
+        marginTop: 4,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INPUT FIELD
+═══════════════════════════════════════════════════════════ */
+function Field({
+  label,
+  type = "text",
+  value,
+  onChange,
+  error,
+  placeholder,
+  icon,
+  multiline = false,
+  select = false,
+  options = [],
+  hint,
+  disabled = false,
+}) {
+  const [foc, setFoc] = useState(false);
+  const base = {
+    width: "100%",
+    background: foc ? T.bgHover : T.bgInput,
+    border: `1.5px solid ${error ? T.error : foc ? T.orange : T.border}`,
+    borderRadius: 9,
+    padding: `11px ${type === "password" ? 46 : 14}px 11px ${icon ? 38 : 14}px`,
+    color: T.text,
+    fontSize: 13,
+    outline: "none",
+    transition: "all .2s",
+    boxShadow: foc ? `0 0 0 3px ${error ? T.error : T.orange}15` : "none",
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      {label && (
+        <label
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: foc ? T.orangeHi : T.textMid,
+            textTransform: "uppercase",
+            letterSpacing: ".08em",
+            transition: "color .2s",
+          }}
+        >
+          {label}
+        </label>
+      )}
+      <div style={{ position: "relative" }}>
+        {icon && (
+          <span
+            style={{
+              position: "absolute",
+              left: 12,
+              top: "50%",
+              transform: "translateY(-50%)",
+              fontSize: 14,
+              color: foc ? T.orange : T.textLow,
+              pointerEvents: "none",
+            }}
+          >
+            {icon}
+          </span>
+        )}
+        {multiline ? (
+          <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            rows={3}
+            disabled={disabled}
+            onFocus={() => setFoc(true)}
+            onBlur={() => setFoc(false)}
+            style={{ ...base, resize: "vertical", paddingTop: 12, paddingBottom: 12 }}
+          />
+        ) : select ? (
+          <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={() => setFoc(true)}
+            onBlur={() => setFoc(false)}
+            style={{ ...base, appearance: "none" }}
+          >
+            {options.map((o) => (
+              <option key={o.v || o} value={o.v || o}>
+                {o.l || o}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type={type}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            disabled={disabled}
+            onFocus={() => setFoc(true)}
+            onBlur={() => setFoc(false)}
+            style={base}
+          />
+        )}
+      </div>
+      {error && (
+        <div
+          style={{
+            color: T.error,
+            fontSize: 11,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            animation: "slideR .2s ease",
+          }}
+        >
+          <span>⚠</span>
+          {error}
+        </div>
+      )}
+      {hint && !error && (
+        <div style={{ color: T.textLow, fontSize: 11 }}>{hint}</div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TAG INPUT
+═══════════════════════════════════════════════════════════ */
+function TagInput({ label, values = [], onChange, placeholder, color = T.orange, max = 20 }) {
+  const [input, setInput] = useState("");
+  const add = () => {
+    const v = input.trim();
+    if (v && !values.includes(v) && values.length < max) {
+      onChange([...values, v]);
+      setInput("");
+    }
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {label && (
+        <label
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: T.textMid,
+            textTransform: "uppercase",
+            letterSpacing: ".08em",
+          }}
+        >
+          {label}
+        </label>
+      )}
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={placeholder}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          style={{
+            flex: 1,
+            background: T.bgInput,
+            border: `1.5px solid ${T.border}`,
+            borderRadius: 9,
+            padding: "10px 14px",
+            color: T.text,
+            fontSize: 13,
+            outline: "none",
+          }}
+          onFocus={(e) => (e.target.style.borderColor = T.orange)}
+          onBlur={(e) => (e.target.style.borderColor = T.border)}
+        />
+        <button
+          onClick={add}
+          style={{
+            background: T.orangeMd,
+            border: `1px solid ${T.orange}44`,
+            borderRadius: 9,
+            padding: "10px 16px",
+            color: T.orange,
+            fontWeight: 700,
+            fontSize: 12,
+            cursor: "pointer",
+            flexShrink: 0,
+          }}
+        >
+          + Add
+        </button>
+      </div>
+      {values.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+          {values.map((v) => (
+            <Tag key={v} color={color} onRemove={() => onChange(values.filter((x) => x !== v))}>
+              {v}
+            </Tag>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PHOTO UPLOAD
+═══════════════════════════════════════════════════════════ */
+function PhotoUpload({ value, onChange, label, size = 80, round = true, icon = "📷" }) {
+  const ref = useRef();
+  const load = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = (ev) => onChange(ev.target.result);
+    r.readAsDataURL(f);
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div
+        onClick={() => ref.current.click()}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: round ? "50%" : 14,
+          border: `2px dashed ${T.orange}55`,
+          background: T.bgInput,
+          overflow: "hidden",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+          transition: "border-color .2s",
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.borderColor = T.orange)}
+        onMouseLeave={(e) => (e.currentTarget.style.borderColor = T.orange + "55")}
+      >
+        {value ? (
+          <img src={value} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <div style={{ textAlign: "center", padding: 8 }}>
+            <div style={{ fontSize: size * 0.28 }}>{icon}</div>
+            <div style={{ fontSize: 9, color: T.textLow, marginTop: 4, fontWeight: 600 }}>
+              Upload
+            </div>
+          </div>
+        )}
+        {value && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "#000a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: 0,
+              transition: "opacity .2s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = 0)}
+          >
+            <span style={{ fontSize: 20 }}>✏️</span>
+          </div>
+        )}
+      </div>
+      {label && (
+        <div style={{ fontSize: 11, color: T.textLow, fontWeight: 600 }}>{label}</div>
+      )}
+      <input ref={ref} type="file" accept="image/*" onChange={load} style={{ display: "none" }} />
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PROFILE COMPLETENESS BAR
+═══════════════════════════════════════════════════════════ */
+function ProfileCompleteness({ profile }) {
+  const checks = [
+    !!profile.name,
+    !!profile.photo,
+    !!profile.designation,
+    !!profile.bio,
+    !!profile.location,
+    !!profile.company,
+    !!profile.industry,
+    !!profile.experience,
+    !!profile.mobile,
+    !!profile.email,
+    !!(profile.skills?.length),
+    !!(profile.services?.length),
+    !!(profile.linkedin || profile.instagram || profile.facebook),
+  ];
+  const pct = Math.round((checks.filter(Boolean).length / checks.length) * 100);
+  const col = pct < 40 ? T.error : pct < 70 ? T.amber : pct < 100 ? T.orange : T.success;
+  return (
+    <div
+      style={{
+        background: T.bgCard,
+        border: `1px solid ${T.border}`,
+        borderRadius: 12,
+        padding: "14px 16px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 8,
+        }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>Profile Completeness</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: col }}>{pct}%</span>
+      </div>
+      <div
+        style={{ height: 6, background: T.bgInput, borderRadius: 4, overflow: "hidden" }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${pct}%`,
+            background: `linear-gradient(90deg,${T.orange},${col})`,
+            borderRadius: 4,
+            transition: "width .6s ease",
+          }}
+        />
+      </div>
+      {pct < 100 && (
+        <div style={{ fontSize: 11, color: T.textLow, marginTop: 6 }}>
+          Complete your profile to unlock full visibility
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PROFILE VIEW (read-only public view)
+═══════════════════════════════════════════════════════════ */
+function ProfileView({ profile, onEdit }) {
+  const [tab, setTab] = useState("about");
+  const tabs = [
+    ["about", "About"],
+    ["business", "Business"],
+    ["professional", "Professional"],
+    ["contact", "Contact"],
+  ];
+
+  const SocialIcon = ({ href, icon, label }) =>
+    href ? (
+      <a
+        href={href.startsWith("http") ? href : "https://" + href}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          background: T.bgInput,
+          border: `1px solid ${T.border}`,
+          borderRadius: 8,
+          padding: "8px 12px",
+          color: T.text,
+          textDecoration: "none",
+          fontSize: 12,
+          fontWeight: 600,
+          transition: "border-color .2s",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.borderColor = T.orange + "55")}
+        onMouseLeave={(e) => (e.currentTarget.style.borderColor = T.border)}
+      >
+        <span style={{ fontSize: 16 }}>{icon}</span>
+        {label}
+      </a>
+    ) : null;
+
+  const initials = (profile.name || "?")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <div
+      style={{ display: "flex", flexDirection: "column", gap: 0, animation: "fadeUp .35s ease" }}
+    >
+      {/* Cover */}
+      <div
+        style={{
+          height: 180,
+          borderRadius: "16px 16px 0 0",
+          background: profile.cover
+            ? `url(${profile.cover}) center/cover`
+            : "linear-gradient(135deg,#0d1020,#1a0a05,#0f0a00)",
+          position: "relative",
+          overflow: "hidden",
+          flexShrink: 0,
+        }}
+      >
+        {!profile.cover && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "radial-gradient(ellipse at 70% 50%,#f9731618,transparent 60%)",
+            }}
+          />
+        )}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 1,
+            background: "linear-gradient(90deg,transparent,#f9731655,transparent)",
+          }}
+        />
+        <div style={{ position: "absolute", top: 16, right: 16 }}>
+          <Btn onClick={onEdit} small icon="✏️">
+            Edit Profile
+          </Btn>
+        </div>
+      </div>
+
+      {/* Avatar + name row */}
+      <div
+        style={{
+          background: T.bgCard,
+          borderLeft: `1px solid ${T.border}`,
+          borderRight: `1px solid ${T.border}`,
+          padding: "0 24px 0",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            gap: 16,
+            transform: "translateY(-44px)",
+            marginBottom: -24,
+          }}
+        >
+          <div
+            style={{
+              width: 88,
+              height: 88,
+              borderRadius: "50%",
+              border: `3px solid ${T.bgCard}`,
+              overflow: "hidden",
+              background: "linear-gradient(135deg,#f97316,#ea6008)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 30,
+              fontWeight: 800,
+              color: "#fff",
+              flexShrink: 0,
+              boxShadow: "0 8px 24px #00000066",
+            }}
+          >
+            {profile.photo ? (
+              <img
+                src={profile.photo}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              initials
+            )}
+          </div>
+          {profile.companyLogo && (
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 10,
+                border: `2px solid ${T.border}`,
+                overflow: "hidden",
+                background: T.bgInput,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 8,
+              }}
+            >
+              <img
+                src={profile.companyLogo}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              />
+            </div>
+          )}
+        </div>
+        <div style={{ paddingBottom: 20 }}>
+          <div style={{ fontWeight: 800, fontSize: 22, color: T.text, letterSpacing: "-.03em" }}>
+            {profile.name || <span style={{ color: T.textLow }}>Your Name</span>}
+          </div>
+          {profile.designation && (
+            <div style={{ fontSize: 14, color: T.orange, fontWeight: 600, marginTop: 2 }}>
+              {profile.designation}
+            </div>
+          )}
+          {profile.company && (
+            <div style={{ fontSize: 13, color: T.textMid, marginTop: 2 }}>
+              {profile.company}
+              {profile.industry ? " · " + profile.industry : ""}
+            </div>
+          )}
+          {profile.location && (
+            <div style={{ fontSize: 12, color: T.textLow, marginTop: 4 }}>
+              📍 {profile.location}
+            </div>
+          )}
+          {/* quick stats */}
+          <div style={{ display: "flex", gap: 20, marginTop: 14, flexWrap: "wrap" }}>
+            {[
+              [profile.skills?.length || 0, "Skills"],
+              [profile.services?.length || 0, "Services"],
+              [profile.certifications?.length || 0, "Certs"],
+            ].map(([v, l]) => (
+              <div key={l} style={{ textAlign: "center" }}>
+                <div style={{ fontWeight: 800, fontSize: 18, color: T.orange }}>{v}</div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: T.textLow,
+                    textTransform: "uppercase",
+                    letterSpacing: ".07em",
+                  }}
+                >
+                  {l}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div
+        style={{
+          background: T.bgCard,
+          borderLeft: `1px solid ${T.border}`,
+          borderRight: `1px solid ${T.border}`,
+          borderBottom: `1px solid ${T.border}`,
+          display: "flex",
+          padding: "0 16px",
+          gap: 4,
+          overflowX: "auto",
+        }}
+      >
+        {tabs.map(([id, lbl]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            style={{
+              background: "none",
+              border: "none",
+              borderBottom: `2px solid ${tab === id ? T.orange : "transparent"}`,
+              color: tab === id ? T.text : T.textMid,
+              fontWeight: tab === id ? 700 : 500,
+              fontSize: 13,
+              padding: "12px 16px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              transition: "all .2s",
+            }}
+          >
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div
+        style={{
+          background: T.bgCard,
+          border: `1px solid ${T.border}`,
+          borderTop: "none",
+          borderRadius: "0 0 16px 16px",
+          padding: "24px",
+        }}
+      >
+        {tab === "about" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {profile.bio && (
+              <div>
+                <SectionLabel>Bio</SectionLabel>
+                <p style={{ color: "#c8cce0", fontSize: 14, lineHeight: 1.8 }}>{profile.bio}</p>
+              </div>
+            )}
+            {profile.skills?.length > 0 && (
+              <div>
+                <SectionLabel>Skills</SectionLabel>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {profile.skills.map((s) => (
+                    <Tag key={s}>{s}</Tag>
+                  ))}
+                </div>
+              </div>
+            )}
+            {profile.achievements?.length > 0 && (
+              <div>
+                <SectionLabel>Achievements</SectionLabel>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {profile.achievements.map((a, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 10,
+                        background: T.bgInput,
+                        borderRadius: 10,
+                        padding: "12px 14px",
+                      }}
+                    >
+                      <span style={{ color: T.amber, fontSize: 16, flexShrink: 0 }}>🏆</span>
+                      <div style={{ fontSize: 13, color: T.textMid, lineHeight: 1.5 }}>{a}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "business" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {[
+              ["Company", profile.company],
+              ["Industry", profile.industry],
+              ["Category", profile.category],
+              ["Experience", profile.experience],
+              ["Team Size", profile.teamSize],
+              ["Website", profile.website],
+            ]
+              .filter(([, v]) => v)
+              .map(([l, v]) => (
+                <div
+                  key={l}
+                  style={{
+                    display: "flex",
+                    gap: 12,
+                    padding: "10px 0",
+                    borderBottom: `1px solid ${T.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 120,
+                      fontSize: 12,
+                      color: T.textLow,
+                      fontWeight: 600,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {l}
+                  </div>
+                  <div style={{ fontSize: 13, color: T.text }}>
+                    {l === "Website" ? (
+                      <a
+                        href={v.startsWith("http") ? v : "https://" + v}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: T.orange }}
+                      >
+                        {v}
+                      </a>
+                    ) : (
+                      v
+                    )}
+                  </div>
+                </div>
+              ))}
+            {profile.services?.length > 0 && (
+              <div>
+                <SectionLabel>Services</SectionLabel>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                  {profile.services.map((s) => (
+                    <Tag key={s} color={T.info}>
+                      {s}
+                    </Tag>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "professional" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {profile.portfolio?.length > 0 && (
+              <div>
+                <SectionLabel>Portfolio</SectionLabel>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+                    gap: 12,
+                  }}
+                >
+                  {profile.portfolio.map((p, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background: T.bgInput,
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 12,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {p.image && (
+                        <img
+                          src={p.image}
+                          alt={p.title}
+                          style={{ width: "100%", height: 120, objectFit: "cover" }}
+                        />
+                      )}
+                      <div style={{ padding: "12px" }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 4 }}>
+                          {p.title}
+                        </div>
+                        {p.desc && (
+                          <div style={{ fontSize: 11, color: T.textMid, lineHeight: 1.5 }}>
+                            {p.desc}
+                          </div>
+                        )}
+                        {p.link && (
+                          <a
+                            href={p.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: 11, color: T.orange, marginTop: 6, display: "block" }}
+                          >
+                            View Project →
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {profile.certifications?.length > 0 && (
+              <div>
+                <SectionLabel>Certifications</SectionLabel>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {profile.certifications.map((c, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        background: T.bgInput,
+                        borderRadius: 10,
+                        padding: "12px 14px",
+                      }}
+                    >
+                      <span style={{ fontSize: 18, flexShrink: 0 }}>🎓</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{c.name}</div>
+                        {c.issuer && (
+                          <div style={{ fontSize: 11, color: T.textMid }}>
+                            {c.issuer}
+                            {c.year ? " · " + c.year : ""}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "contact" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {profile.mobile && <ContactRow icon="📱" label="Mobile" value={profile.mobile} />}
+              {profile.whatsapp && (
+                <ContactRow icon="💬" label="WhatsApp" value={profile.whatsapp} />
+              )}
+              {profile.email && <ContactRow icon="✉" label="Email" value={profile.email} />}
+              {profile.website && (
+                <ContactRow icon="🌐" label="Website" value={profile.website} link />
+              )}
+            </div>
+            {(profile.linkedin ||
+              profile.facebook ||
+              profile.instagram ||
+              profile.twitter ||
+              profile.youtube) && (
+              <div>
+                <SectionLabel>Social Links</SectionLabel>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <SocialIcon href={profile.linkedin} icon="🔗" label="LinkedIn" />
+                  <SocialIcon href={profile.facebook} icon="📘" label="Facebook" />
+                  <SocialIcon href={profile.instagram} icon="📸" label="Instagram" />
+                  <SocialIcon href={profile.twitter} icon="🐦" label="X / Twitter" />
+                  <SocialIcon href={profile.youtube} icon="▶" label="YouTube" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ContactRow({ icon, label, value, link }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        background: T.bgInput,
+        border: `1px solid ${T.border}`,
+        borderRadius: 9,
+        padding: "10px 14px",
+      }}
+    >
+      <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 10,
+            color: T.textLow,
+            textTransform: "uppercase",
+            letterSpacing: ".07em",
+            marginBottom: 2,
+          }}
+        >
+          {label}
+        </div>
+        {link ? (
+          <a
+            href={value.startsWith("http") ? value : "https://" + value}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: 13, fontWeight: 600, color: T.orange, wordBreak: "break-all" }}
+          >
+            {value}
+          </a>
+        ) : (
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{value}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PROFILE EDITOR
+═══════════════════════════════════════════════════════════ */
+function ProfileEditor({ profile, onSave, onCancel }) {
+  const [p, setP] = useState({
+    name: "",
+    photo: "",
+    cover: "",
+    designation: "",
+    bio: "",
+    location: "",
+    company: "",
+    companyLogo: "",
+    industry: "",
+    category: "",
+    experience: "",
+    teamSize: "",
+    mobile: "",
+    whatsapp: "",
+    email: "",
+    website: "",
+    linkedin: "",
+    facebook: "",
+    instagram: "",
+    twitter: "",
+    youtube: "",
+    skills: [],
+    services: [],
+    portfolio: [],
+    certifications: [],
+    achievements: [],
+    ...profile,
+  });
+  const [section, setSection] = useState("personal");
+  const [saved, setSaved] = useState(false);
+  const [addPortfolio, setAddPortfolio] = useState(false);
+  const [pItem, setPItem] = useState({ title: "", desc: "", link: "", image: "" });
+  const [addCert, setAddCert] = useState(false);
+  const [cItem, setCItem] = useState({ name: "", issuer: "", year: "" });
+
+  const set = (k, v) => setP((prev) => ({ ...prev, [k]: v }));
+
+  const handleSave = () => {
+    onSave(p);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const sections = [
+    { id: "personal", icon: "👤", label: "Personal" },
+    { id: "business", icon: "🏢", label: "Business" },
+    { id: "contact", icon: "📞", label: "Contact" },
+    { id: "social", icon: "🔗", label: "Social Links" },
+    { id: "professional", icon: "💼", label: "Professional" },
+  ];
+
+  const INDUSTRIES = [
+    "Technology", "Finance", "Healthcare", "Education", "Real Estate",
+    "Manufacturing", "Retail", "Media", "Consulting", "Other",
+  ];
+  const CATEGORIES = [
+    "B2B Services", "SaaS", "Agency", "Startup", "Enterprise",
+    "Freelancer", "Investor", "Recruiter", "Coach", "Other",
+  ];
+  const EXPERIENCE = [
+    "0-1 years", "1-3 years", "3-5 years", "5-10 years", "10-15 years", "15+ years",
+  ];
+  const TEAM_SIZES = ["Solo", "2-5", "6-10", "11-25", "26-50", "51-100", "100+"];
+
+  return (
+    <div
+      style={{ display: "flex", flexDirection: "column", gap: 0, animation: "fadeUp .35s ease" }}
+    >
+      {/* Editor header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 20, color: T.text, letterSpacing: "-.03em" }}>
+            Edit Profile
+          </div>
+          <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>
+            Build your professional B2B presence
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn variant="ghost" onClick={onCancel} small>
+            Cancel
+          </Btn>
+          <Btn onClick={handleSave} small icon={saved ? "✓" : "💾"}>
+            {saved ? "Saved!" : "Save Changes"}
+          </Btn>
+        </div>
+      </div>
+
+      {/* Section tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          marginBottom: 20,
+          overflowX: "auto",
+          paddingBottom: 4,
+        }}
+      >
+        {sections.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setSection(s.id)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              background: section === s.id ? T.orangeMd : T.bgCard,
+              border: `1px solid ${section === s.id ? T.orange + "55" : T.border}`,
+              borderRadius: 9,
+              padding: "8px 14px",
+              color: section === s.id ? T.orange : T.textMid,
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              transition: "all .2s",
+              flexShrink: 0,
+            }}
+          >
+            <span>{s.icon}</span>
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Section content */}
+      <div
+        style={{
+          background: T.bgCard,
+          border: `1px solid ${T.border}`,
+          borderRadius: 16,
+          padding: "24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+        }}
+      >
+        {/* ── PERSONAL ── */}
+        {section === "personal" && (
+          <>
+            <SectionLabel>Photos</SectionLabel>
+            <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+                <PhotoUpload
+                  value={p.photo}
+                  onChange={(v) => set("photo", v)}
+                  round
+                  label="Profile Photo"
+                  size={90}
+                />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+                <PhotoUpload
+                  value={p.cover}
+                  onChange={(v) => set("cover", v)}
+                  round={false}
+                  label="Cover Photo"
+                  size={90}
+                  icon="🖼️"
+                />
+              </div>
+            </div>
+            <Divider />
+            <SectionLabel>Personal Information</SectionLabel>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Field
+                label="Full Name *"
+                value={p.name}
+                onChange={(v) => set("name", v)}
+                placeholder="e.g. Arjun Mehta"
+                icon="👤"
+              />
+              <Field
+                label="Designation / Title"
+                value={p.designation}
+                onChange={(v) => set("designation", v)}
+                placeholder="e.g. CEO & Founder"
+                icon="💼"
+              />
+              <Field
+                label="Location"
+                value={p.location}
+                onChange={(v) => set("location", v)}
+                placeholder="e.g. Mumbai, India"
+                icon="📍"
+              />
+            </div>
+            <Field
+              label="Bio"
+              value={p.bio}
+              onChange={(v) => set("bio", v)}
+              placeholder="Tell your professional story — who you are, what you do, what you offer..."
+              multiline
+              icon="📝"
+            />
+          </>
+        )}
+
+        {/* ── BUSINESS ── */}
+        {section === "business" && (
+          <>
+            <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <PhotoUpload
+                value={p.companyLogo}
+                onChange={(v) => set("companyLogo", v)}
+                round={false}
+                label="Company Logo"
+                size={80}
+                icon="🏢"
+              />
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 200,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                }}
+              >
+                <Field
+                  label="Company Name"
+                  value={p.company}
+                  onChange={(v) => set("company", v)}
+                  placeholder="e.g. TechVentures India"
+                  icon="🏢"
+                />
+                <Field
+                  label="Website"
+                  value={p.website}
+                  onChange={(v) => set("website", v)}
+                  placeholder="https://yourcompany.com"
+                  icon="🌐"
+                />
+              </div>
+            </div>
+            <Divider />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Field
+                label="Industry"
+                value={p.industry}
+                onChange={(v) => set("industry", v)}
+                select
+                options={["", ...INDUSTRIES].map((o) => ({ v: o, l: o || "Select Industry" }))}
+                icon="🏭"
+              />
+              <Field
+                label="Business Category"
+                value={p.category}
+                onChange={(v) => set("category", v)}
+                select
+                options={["", ...CATEGORIES].map((o) => ({ v: o, l: o || "Select Category" }))}
+                icon="📂"
+              />
+              <Field
+                label="Experience"
+                value={p.experience}
+                onChange={(v) => set("experience", v)}
+                select
+                options={["", ...EXPERIENCE].map((o) => ({ v: o, l: o || "Select Experience" }))}
+                icon="📅"
+              />
+              <Field
+                label="Team Size"
+                value={p.teamSize}
+                onChange={(v) => set("teamSize", v)}
+                select
+                options={["", ...TEAM_SIZES].map((o) => ({ v: o, l: o || "Select Team Size" }))}
+                icon="👥"
+              />
+            </div>
+          </>
+        )}
+
+        {/* ── CONTACT ── */}
+        {section === "contact" && (
+          <>
+            <SectionLabel>Contact Information</SectionLabel>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <Field
+                label="Mobile Number"
+                value={p.mobile}
+                onChange={(v) => set("mobile", v)}
+                placeholder="+91 98765 43210"
+                icon="📱"
+                type="tel"
+              />
+              <Field
+                label="WhatsApp Number"
+                value={p.whatsapp}
+                onChange={(v) => set("whatsapp", v)}
+                placeholder="+91 98765 43210"
+                icon="💬"
+                type="tel"
+              />
+              <Field
+                label="Email"
+                value={p.email}
+                onChange={(v) => set("email", v)}
+                placeholder="you@company.com"
+                icon="✉"
+                type="email"
+              />
+              <Field
+                label="Website"
+                value={p.website}
+                onChange={(v) => set("website", v)}
+                placeholder="https://yourwebsite.com"
+                icon="🌐"
+              />
+            </div>
+          </>
+        )}
+
+        {/* ── SOCIAL ── */}
+        {section === "social" && (
+          <>
+            <SectionLabel>Social Media Links</SectionLabel>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <Field
+                label="LinkedIn"
+                value={p.linkedin}
+                onChange={(v) => set("linkedin", v)}
+                placeholder="linkedin.com/in/yourname"
+                icon="🔗"
+              />
+              <Field
+                label="Facebook"
+                value={p.facebook}
+                onChange={(v) => set("facebook", v)}
+                placeholder="facebook.com/yourpage"
+                icon="📘"
+              />
+              <Field
+                label="Instagram"
+                value={p.instagram}
+                onChange={(v) => set("instagram", v)}
+                placeholder="instagram.com/yourhandle"
+                icon="📸"
+              />
+              <Field
+                label="X / Twitter"
+                value={p.twitter}
+                onChange={(v) => set("twitter", v)}
+                placeholder="x.com/yourhandle"
+                icon="🐦"
+              />
+              <Field
+                label="YouTube"
+                value={p.youtube}
+                onChange={(v) => set("youtube", v)}
+                placeholder="youtube.com/@yourchannel"
+                icon="▶"
+              />
+            </div>
+          </>
+        )}
+
+        {/* ── PROFESSIONAL ── */}
+        {section === "professional" && (
+          <>
+            <TagInput
+              label="Skills"
+              values={p.skills}
+              onChange={(v) => set("skills", v)}
+              placeholder="e.g. Business Development (press Enter)"
+              color={T.orange}
+            />
+            <Divider />
+            <TagInput
+              label="Services Offered"
+              values={p.services}
+              onChange={(v) => set("services", v)}
+              placeholder="e.g. Lead Generation (press Enter)"
+              color={T.info}
+            />
+            <Divider />
+            <TagInput
+              label="Achievements"
+              values={p.achievements}
+              onChange={(v) => set("achievements", v)}
+              placeholder="e.g. Scaled to ₹1Cr revenue in 2 years"
+              color={T.amber}
+            />
+            <Divider />
+            {/* Certifications */}
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                }}
+              >
+                <SectionLabel>Certifications</SectionLabel>
+                <button
+                  onClick={() => setAddCert(true)}
+                  style={{
+                    background: T.orangeMd,
+                    border: `1px solid ${T.orange}44`,
+                    borderRadius: 7,
+                    padding: "5px 12px",
+                    color: T.orange,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  + Add
+                </button>
+              </div>
+              {p.certifications?.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {p.certifications.map((c, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        background: T.bgInput,
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 10,
+                        padding: "10px 14px",
+                      }}
+                    >
+                      <span style={{ fontSize: 18 }}>🎓</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{c.name}</div>
+                        <div style={{ fontSize: 11, color: T.textMid }}>
+                          {c.issuer}
+                          {c.year ? " · " + c.year : ""}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() =>
+                          set(
+                            "certifications",
+                            p.certifications.filter((_, j) => j !== i)
+                          )
+                        }
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: T.error,
+                          cursor: "pointer",
+                          fontSize: 16,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: T.textLow,
+                    textAlign: "center",
+                    padding: "16px 0",
+                  }}
+                >
+                  No certifications added yet.
+                </div>
+              )}
+            </div>
+            <Divider />
+            {/* Portfolio */}
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                }}
+              >
+                <SectionLabel>Portfolio</SectionLabel>
+                <button
+                  onClick={() => setAddPortfolio(true)}
+                  style={{
+                    background: T.orangeMd,
+                    border: `1px solid ${T.orange}44`,
+                    borderRadius: 7,
+                    padding: "5px 12px",
+                    color: T.orange,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  + Add
+                </button>
+              </div>
+              {p.portfolio?.length > 0 ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))",
+                    gap: 10,
+                  }}
+                >
+                  {p.portfolio.map((item, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background: T.bgInput,
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 10,
+                        overflow: "hidden",
+                        position: "relative",
+                      }}
+                    >
+                      {item.image && (
+                        <img
+                          src={item.image}
+                          alt={item.title}
+                          style={{ width: "100%", height: 90, objectFit: "cover" }}
+                        />
+                      )}
+                      <div style={{ padding: "10px 12px" }}>
+                        <div style={{ fontWeight: 700, fontSize: 12, color: T.text }}>
+                          {item.title}
+                        </div>
+                        {item.desc && (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: T.textMid,
+                              marginTop: 2,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {item.desc}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() =>
+                          set(
+                            "portfolio",
+                            p.portfolio.filter((_, j) => j !== i)
+                          )
+                        }
+                        style={{
+                          position: "absolute",
+                          top: 6,
+                          right: 6,
+                          width: 22,
+                          height: 22,
+                          borderRadius: "50%",
+                          background: "#000a",
+                          border: "none",
+                          color: "#fff",
+                          cursor: "pointer",
+                          fontSize: 13,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: T.textLow,
+                    textAlign: "center",
+                    padding: "16px 0",
+                  }}
+                >
+                  No portfolio items yet.
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Save button at bottom */}
+        <div style={{ paddingTop: 8, borderTop: `1px solid ${T.border}` }}>
+          <Btn onClick={handleSave} fullWidth icon={saved ? "✓" : "💾"}>
+            {saved ? "Profile Saved!" : "Save Changes"}
+          </Btn>
+        </div>
+      </div>
+
+      {/* Portfolio Add Modal */}
+      {addPortfolio && (
+        <div
+          onClick={() => setAddPortfolio(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "#000c",
+            zIndex: 300,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: T.bgCard,
+              border: `1px solid ${T.border}`,
+              borderRadius: 16,
+              padding: "24px",
+              width: "100%",
+              maxWidth: 420,
+              animation: "scaleIn .2s ease",
+            }}
+          >
+            <div style={{ fontWeight: 800, fontSize: 16, color: T.text, marginBottom: 16 }}>
+              Add Portfolio Item
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <Field
+                label="Project Title *"
+                value={pItem.title}
+                onChange={(v) => setPItem((x) => ({ ...x, title: v }))}
+                placeholder="e.g. E-commerce App"
+              />
+              <Field
+                label="Description"
+                value={pItem.desc}
+                onChange={(v) => setPItem((x) => ({ ...x, desc: v }))}
+                placeholder="Brief project description..."
+                multiline
+              />
+              <Field
+                label="Project Link"
+                value={pItem.link}
+                onChange={(v) => setPItem((x) => ({ ...x, link: v }))}
+                placeholder="https://myproject.com"
+                icon="🔗"
+              />
+              <PhotoUpload
+                value={pItem.image}
+                onChange={(v) => setPItem((x) => ({ ...x, image: v }))}
+                round={false}
+                label="Project Screenshot"
+                size={60}
+                icon="🖼️"
+              />
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <Btn variant="ghost" onClick={() => setAddPortfolio(false)}>
+                Cancel
+              </Btn>
+              <Btn
+                onClick={() => {
+                  if (!pItem.title.trim()) return;
+                  set("portfolio", [...(p.portfolio || []), pItem]);
+                  setPItem({ title: "", desc: "", link: "", image: "" });
+                  setAddPortfolio(false);
+                }}
+              >
+                Add Item
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cert Add Modal */}
+      {addCert && (
+        <div
+          onClick={() => setAddCert(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "#000c",
+            zIndex: 300,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: T.bgCard,
+              border: `1px solid ${T.border}`,
+              borderRadius: 16,
+              padding: "24px",
+              width: "100%",
+              maxWidth: 380,
+              animation: "scaleIn .2s ease",
+            }}
+          >
+            <div style={{ fontWeight: 800, fontSize: 16, color: T.text, marginBottom: 16 }}>
+              Add Certification
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <Field
+                label="Certification Name *"
+                value={cItem.name}
+                onChange={(v) => setCItem((x) => ({ ...x, name: v }))}
+                placeholder="e.g. Google Analytics Certified"
+              />
+              <Field
+                label="Issuing Organization"
+                value={cItem.issuer}
+                onChange={(v) => setCItem((x) => ({ ...x, issuer: v }))}
+                placeholder="e.g. Google"
+                icon="🏛️"
+              />
+              <Field
+                label="Year"
+                value={cItem.year}
+                onChange={(v) => setCItem((x) => ({ ...x, year: v }))}
+                placeholder="e.g. 2024"
+                icon="📅"
+              />
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <Btn variant="ghost" onClick={() => setAddCert(false)}>
+                Cancel
+              </Btn>
+              <Btn
+                onClick={() => {
+                  if (!cItem.name.trim()) return;
+                  set("certifications", [...(p.certifications || []), cItem]);
+                  setCItem({ name: "", issuer: "", year: "" });
+                  setAddCert(false);
+                }}
+              >
+                Add Cert
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TESTIMONIALS
+═══════════════════════════════════════════════════════════ */
+const FIXED_T = {
+  id: "fixed_1",
+  name: "Ms. Ritupruna Sharma",
+  role: "Senior HR Manager",
+  company: "TezConnect Member",
+  rating: 4,
+  quote:
+    "Collaboration with Raj Sir was a great idea and has benefited me infinitely. I suggest you all to collaborate with him and build your career!",
+  youtubeId: "bO4Uswvy-DE",
+  avatarInitials: "RS",
+  verified: true,
+  date: "May 2025",
+};
+
+function VideoCard({ t }) {
+  const [hov, setHov] = useState(false);
+  const thumb = `https://img.youtube.com/vi/${t.youtubeId}/hqdefault.jpg`;
+  return (
+    <div
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        background: T.bgCard,
+        border: `1px solid ${hov ? T.orange + "66" : T.border}`,
+        borderRadius: 16,
+        overflow: "hidden",
+        transition: "all .25s",
+        transform: hov ? "translateY(-3px)" : "none",
+        flexShrink: 0,
+        width: 300,
+      }}
+    >
+      <div
+        onClick={() => window.open(`https://www.youtube.com/shorts/${t.youtubeId}`, "_blank")}
+        style={{
+          position: "relative",
+          height: 170,
+          overflow: "hidden",
+          cursor: "pointer",
+          background: "#111",
+        }}
+      >
+        <img
+          src={thumb}
+          alt={t.name}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            opacity: hov ? 0.85 : 0.7,
+            transition: "opacity .25s",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "linear-gradient(to top,#07080ccc 0%,transparent 50%)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg,#f97316,#ea6008)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 0 28px #f9731666",
+              animation: "playPulse 2s ease infinite",
+            }}
+          >
+            <span style={{ fontSize: 20, marginLeft: 3, color: "#fff" }}>▶</span>
+          </div>
+        </div>
+        {t.verified && (
+          <div
+            style={{
+              position: "absolute",
+              top: 10,
+              right: 10,
+              background: "#f9731622",
+              border: "1px solid #f9731644",
+              borderRadius: 20,
+              padding: "2px 9px",
+              fontSize: 10,
+              fontWeight: 700,
+              color: T.orange,
+            }}
+          >
+            ✓ Verified
+          </div>
+        )}
+        <div style={{ position: "absolute", bottom: 10, left: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>{t.name}</div>
+          <div style={{ fontSize: 10, color: "#ffffffaa" }}>{t.role}</div>
+        </div>
+      </div>
+      <div style={{ padding: "14px 16px 16px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 10,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                background: "linear-gradient(135deg,#f97316,#ea6008)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 12,
+                fontWeight: 800,
+                color: "#fff",
+                flexShrink: 0,
+              }}
+            >
+              {t.avatarInitials}
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 12, color: T.text }}>{t.name}</div>
+              <div style={{ fontSize: 10, color: T.textMid }}>{t.role}</div>
+            </div>
+          </div>
+          <div>
+            <StarRating v={t.rating} />
+            <div style={{ fontSize: 10, color: T.textLow, textAlign: "right" }}>
+              {t.rating}/5
+            </div>
+          </div>
+        </div>
+        <div
+          style={{
+            background: T.bgInput,
+            border: `1px solid ${T.border}`,
+            borderRadius: 8,
+            padding: "10px 12px",
+            position: "relative",
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              top: -1,
+              left: 10,
+              fontSize: 24,
+              color: T.orange,
+              lineHeight: 1,
+              fontFamily: "Georgia,serif",
+            }}
+          >
+            "
+          </span>
+          <p
+            style={{
+              color: "#c8cce0",
+              fontSize: 12,
+              lineHeight: 1.7,
+              paddingTop: 8,
+              fontStyle: "italic",
+            }}
+          >
+            {t.quote}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SIDEBAR NAV
+═══════════════════════════════════════════════════════════ */
+const NAV = [
+  { id: "dashboard", icon: "⊞", label: "Dashboard" },
+  { id: "profile", icon: "👤", label: "My Profile" },
+  { id: "network", icon: "🌐", label: "Network" },
+  { id: "leads", icon: "🎯", label: "Leads" },
+  { id: "events", icon: "📅", label: "Events" },
+  { id: "messages", icon: "💬", label: "Messages", badge: 3 },
+  { id: "testimonials", icon: "🎬", label: "Testimonials" },
+  { id: "settings", icon: "⚙", label: "Settings" },
+];
+
+function ProfilePct(p) {
+  const checks = [
+    !!p.name,
+    !!p.photo,
+    !!p.designation,
+    !!p.bio,
+    !!p.location,
+    !!p.company,
+    !!p.industry,
+    !!p.experience,
+    !!p.mobile,
+    !!p.email,
+    !!(p.skills?.length),
+    !!(p.services?.length),
+    !!(p.linkedin || p.instagram || p.facebook),
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function Sidebar({ active, onNav, session, profile, collapsed, onCollapse, onLogout }) {
+  const initials = (session.name || "?")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const pct = ProfilePct(profile);
+
+  return (
+    <div
+      style={{
+        width: collapsed ? 68 : 240,
+        height: "100vh",
+        background: T.sidebar,
+        borderRight: `1px solid ${T.sidebarBorder}`,
+        display: "flex",
+        flexDirection: "column",
+        transition: "width .25s ease",
+        flexShrink: 0,
+        position: "sticky",
+        top: 0,
+        zIndex: 40,
+        overflowX: "hidden",
+        overflowY: "auto",
+      }}
+    >
+      {/* Logo */}
+      <div
+        style={{
+          padding: collapsed ? "16px 18px" : "18px 20px",
+          borderBottom: `1px solid ${T.sidebarBorder}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          minHeight: 70,
+        }}
+      >
+        <Logo size="sm" collapsed={collapsed} />
+        <button
+          onClick={onCollapse}
+          style={{
+            background: "none",
+            border: "none",
+            color: T.textLow,
+            cursor: "pointer",
+            fontSize: 18,
+            padding: 4,
+            flexShrink: 0,
+            display: "flex",
+          }}
+        >
+          {collapsed ? "→" : "←"}
+        </button>
+      </div>
+
+      {/* User mini */}
+      {!collapsed && (
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: `1px solid ${T.sidebarBorder}`,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 10,
+            }}
+          >
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                background: "linear-gradient(135deg,#f97316,#ea6008)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 13,
+                fontWeight: 800,
+                color: "#fff",
+                flexShrink: 0,
+                overflow: "hidden",
+              }}
+            >
+              {profile.photo ? (
+                <img
+                  src={profile.photo}
+                  alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                initials
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: 13,
+                  color: T.text,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {session.name}
+              </div>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: T.textLow,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {profile.designation || session.email}
+              </div>
+            </div>
+          </div>
+          {/* completeness mini bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div
+              style={{
+                flex: 1,
+                height: 3,
+                background: T.border,
+                borderRadius: 4,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${pct}%`,
+                  background: "linear-gradient(90deg,#f97316,#fbbf24)",
+                  borderRadius: 4,
+                  transition: "width .5s",
+                }}
+              />
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 700, color: T.orange, flexShrink: 0 }}>
+              {pct}%
+            </span>
+          </div>
+          <div style={{ fontSize: 10, color: T.textLow, marginTop: 3 }}>Profile complete</div>
+        </div>
+      )}
+
+      {/* Nav items */}
+      <nav
+        style={{
+          flex: 1,
+          padding: "12px 10px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
+        {NAV.map((item) => {
+          const isActive = active === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => onNav(item.id)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: collapsed ? "12px 0" : "10px 12px",
+                justifyContent: collapsed ? "center" : "flex-start",
+                background: isActive ? T.orangeMd : "transparent",
+                border: `1px solid ${isActive ? T.orange + "44" : "transparent"}`,
+                borderRadius: 9,
+                color: isActive ? T.orange : T.textMid,
+                fontWeight: isActive ? 700 : 500,
+                fontSize: 13,
+                cursor: "pointer",
+                transition: "all .18s",
+                position: "relative",
+                width: "100%",
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = T.bgHover;
+                  e.currentTarget.style.color = T.text;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = T.textMid;
+                }
+              }}
+            >
+              <span style={{ fontSize: 17, flexShrink: 0 }}>{item.icon}</span>
+              {!collapsed && <span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>}
+              {!collapsed && item.badge && (
+                <span
+                  style={{
+                    background: T.orange,
+                    color: "#fff",
+                    borderRadius: 20,
+                    fontSize: 9,
+                    fontWeight: 800,
+                    padding: "1px 7px",
+                  }}
+                >
+                  {item.badge}
+                </span>
+              )}
+              {collapsed && item.badge && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    width: 8,
+                    height: 8,
+                    background: T.orange,
+                    borderRadius: "50%",
+                  }}
+                />
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Logout */}
+      <div style={{ padding: "12px 10px", borderTop: `1px solid ${T.sidebarBorder}` }}>
+        <button
+          onClick={onLogout}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: collapsed ? "12px 0" : "10px 12px",
+            justifyContent: collapsed ? "center" : "flex-start",
+            background: "transparent",
+            border: "1px solid transparent",
+            borderRadius: 9,
+            color: T.error,
+            fontWeight: 600,
+            fontSize: 13,
+            cursor: "pointer",
+            transition: "all .18s",
+            width: "100%",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = T.errorLo;
+            e.currentTarget.style.borderColor = T.error + "33";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.borderColor = "transparent";
+          }}
+        >
+          <span style={{ fontSize: 17, flexShrink: 0 }}>⏏</span>
+          {!collapsed && <span>Sign Out</span>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AIMS DATA
+═══════════════════════════════════════════════════════════ */
+const AIMS = [
+  {
+    icon: "🤝",
+    title: "Build Professional Connections",
+    desc: "Connect with verified B2B professionals and industry leaders across sectors.",
+    color: "#f97316",
+    tag: "Networking",
+  },
+  {
+    icon: "🎯",
+    title: "Generate Business Leads",
+    desc: "Discover high-intent prospects and turn introductions into revenue opportunities.",
+    color: "#3b82f6",
+    tag: "Leads",
+  },
+  {
+    icon: "📣",
+    title: "Promote Services & Products",
+    desc: "Showcase your offerings to a targeted professional audience.",
+    color: "#22c55e",
+    tag: "Marketing",
+  },
+  {
+    icon: "🏘️",
+    title: "Join Business Communities",
+    desc: "Engage in industry groups, share expertise, and grow your reputation.",
+    color: "#a78bfa",
+    tag: "Community",
+  },
+  {
+    icon: "📅",
+    title: "Attend Networking Events",
+    desc: "RSVP to B2B conferences, workshops, and virtual meetups.",
+    color: "#fbbf24",
+    tag: "Events",
+  },
+  {
+    icon: "💡",
+    title: "Share Opportunities",
+    desc: "Post and discover partnerships, projects, and co-founder opportunities.",
+    color: "#f87171",
+    tag: "Opportunities",
+  },
+  {
+    icon: "🔗",
+    title: "Conduct B2B Collaborations",
+    desc: "Find strategic partners, vendors, and collaborators to scale your business.",
+    color: "#06b6d4",
+    tag: "Collaboration",
+  },
+  {
+    icon: "💬",
+    title: "WhatsApp Communication",
+    desc: "Continue conversations on WhatsApp — fast, direct, and personal.",
+    color: "#25d366",
+    tag: "Messaging",
+  },
+  {
+    icon: "🪪",
+    title: "Digital Business Profiles",
+    desc: "Build a rich, searchable profile that works as your digital business card.",
+    color: "#f97316",
+    tag: "Profile",
+  },
+];
+
+/* ═══════════════════════════════════════════════════════════
+   PAGE SCREENS
+═══════════════════════════════════════════════════════════ */
+function DashboardScreen({ session, profile, onGoProfile }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 28, animation: "fadeUp .35s ease" }}>
+      {/* Welcome */}
+      <div
+        style={{
+          background: "linear-gradient(135deg,#0d1020,#0c0e1a)",
+          border: `1px solid ${T.orange}33`,
+          borderRadius: 20,
+          padding: "32px 36px",
+          position: "relative",
+          overflow: "hidden",
+          boxShadow: "0 0 60px #f9731608",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: -50,
+            right: -50,
+            width: 200,
+            height: 200,
+            borderRadius: "50%",
+            background: T.orange + "07",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 1,
+            background: "linear-gradient(90deg,transparent,#f9731644,transparent)",
+          }}
+        />
+        <div style={{ position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: T.success,
+                boxShadow: `0 0 8px ${T.success}`,
+              }}
+            />
+            <span
+              style={{
+                fontSize: 11,
+                color: T.success,
+                fontWeight: 700,
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+              }}
+            >
+              Active Session
+            </span>
+          </div>
+          <h2
+            style={{
+              fontFamily: "'Instrument Serif',serif",
+              fontStyle: "italic",
+              fontWeight: 400,
+              fontSize: 30,
+              color: T.text,
+              marginBottom: 10,
+              lineHeight: 1.2,
+            }}
+          >
+            Welcome back, <span style={{ color: T.orange }}>{session.name.split(" ")[0]}</span> 👋
+          </h2>
+          <p
+            style={{
+              color: T.textMid,
+              fontSize: 14,
+              marginBottom: 20,
+              maxWidth: 500,
+              lineHeight: 1.7,
+            }}
+          >
+            Your TezConnect B2B dashboard. Build connections, generate leads, and grow your
+            business.
+          </p>
+          <ProfileCompleteness profile={profile} />
+          {ProfilePct(profile) < 50 && (
+            <div style={{ marginTop: 14 }}>
+              <Btn onClick={onGoProfile} small icon="✏️">
+                Complete Your Profile
+              </Btn>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+        {[
+          { label: "Connections", val: "382", icon: "👥", color: T.orange },
+          { label: "Leads", val: "38", icon: "🎯", color: "#3b82f6" },
+          { label: "Events", val: "12", icon: "📅", color: "#22c55e" },
+          { label: "Cities", val: "85+", icon: "🗺️", color: "#a78bfa" },
+        ].map((s, i) => (
+          <div
+            key={s.label}
+            style={{
+              background: T.bgCard,
+              border: `1px solid ${T.border}`,
+              borderRadius: 14,
+              padding: "18px 16px",
+              animation: `fadeUp .4s ease ${i * 70}ms both`,
+            }}
+          >
+            <div style={{ fontSize: 22, marginBottom: 6 }}>{s.icon}</div>
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: 22,
+                color: s.color,
+                letterSpacing: "-.03em",
+              }}
+            >
+              {s.val}
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: T.textLow,
+                textTransform: "uppercase",
+                letterSpacing: ".07em",
+                marginTop: 3,
+              }}
+            >
+              {s.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Aims grid */}
+      <div>
+        <div
+          style={{
+            fontSize: 11,
+            color: T.textLow,
+            fontWeight: 700,
+            letterSpacing: ".1em",
+            textTransform: "uppercase",
+            marginBottom: 8,
+          }}
+        >
+          Platform Capabilities
+        </div>
+        <h3
+          style={{
+            fontWeight: 800,
+            fontSize: 20,
+            color: T.text,
+            letterSpacing: "-.03em",
+            marginBottom: 16,
+          }}
+        >
+          What You Can Do on <span style={{ color: T.orange }}>TezConnect</span>
+        </h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+          {AIMS.map((aim, i) => {
+            const [h, sH] = useState(false);
+            return (
+              <div
+                key={aim.title}
+                onMouseEnter={() => sH(true)}
+                onMouseLeave={() => sH(false)}
+                style={{
+                  background: h ? T.bgHover : T.bgCard,
+                  border: `1px solid ${h ? aim.color + "55" : T.border}`,
+                  borderRadius: 14,
+                  padding: "18px 16px",
+                  transition: "all .22s",
+                  transform: h ? "translateY(-2px)" : "none",
+                  boxShadow: h ? `0 10px 30px ${aim.color}15` : "none",
+                  animation: `fadeUp .4s ease ${i * 40}ms both`,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    marginBottom: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      background: aim.color + "18",
+                      border: `1px solid ${aim.color}33`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 18,
+                    }}
+                  >
+                    {aim.icon}
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      letterSpacing: ".09em",
+                      textTransform: "uppercase",
+                      color: aim.color,
+                      background: aim.color + "18",
+                      border: `1px solid ${aim.color}33`,
+                      borderRadius: 20,
+                      padding: "2px 8px",
+                    }}
+                  >
+                    {aim.tag}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 13,
+                    color: T.text,
+                    marginBottom: 5,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {aim.title}
+                </div>
+                <div style={{ fontSize: 12, color: T.textMid, lineHeight: 1.6 }}>{aim.desc}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TestimonialsScreen() {
+  const [list, setList] = useState([FIXED_T]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState({ name: "", role: "", quote: "", url: "", rating: 5 });
+  const [addErr, setAddErr] = useState("");
+
+  const extractYT = (s) => {
+    const m = s.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/);
+    return m ? m[1] : null;
+  };
+
+  const handleAdd = () => {
+    if (!addForm.name.trim() || !addForm.quote.trim()) {
+      setAddErr("Name and quote are required.");
+      return;
+    }
+    const ytId = extractYT(addForm.url.trim());
+    if (addForm.url && !ytId) {
+      setAddErr("Please enter a valid YouTube URL.");
+      return;
+    }
+    const ini = addForm.name
+      .trim()
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+    setList((prev) => [
+      ...prev,
+      {
+        id: "t_" + Date.now(),
+        name: addForm.name.trim(),
+        role: addForm.role.trim() || "TezConnect Member",
+        company: "",
+        rating: addForm.rating,
+        quote: addForm.quote.trim(),
+        youtubeId: ytId || "",
+        avatarInitials: ini,
+        verified: false,
+        date: new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
+      },
+    ]);
+    setAddForm({ name: "", role: "", quote: "", url: "", rating: 5 });
+    setAddErr("");
+    setShowAdd(false);
+  };
+
+  return (
+    <div style={{ animation: "fadeUp .35s ease" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "space-between",
+          marginBottom: 24,
+          flexWrap: "wrap",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: 11,
+              color: T.textLow,
+              fontWeight: 700,
+              letterSpacing: ".1em",
+              textTransform: "uppercase",
+              marginBottom: 6,
+            }}
+          >
+            🎬 Video Testimonials
+          </div>
+          <h3 style={{ fontWeight: 800, fontSize: 22, color: T.text, letterSpacing: "-.03em" }}>
+            What Our Members <span style={{ color: T.orange }}>Say</span>
+          </h3>
+        </div>
+        <Btn onClick={() => setShowAdd(true)} small icon="+">
+          Add Testimonial
+        </Btn>
+      </div>
+      <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
+        {list.map((t) => (
+          <VideoCard key={t.id} t={t} />
+        ))}
+        <div
+          onClick={() => setShowAdd(true)}
+          style={{
+            flexShrink: 0,
+            width: 200,
+            background: T.bgCard,
+            border: `2px dashed ${T.border}`,
+            borderRadius: 16,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            padding: 20,
+            cursor: "pointer",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = T.orange + "66")}
+          onMouseLeave={(e) => (e.currentTarget.style.borderColor = T.border)}
+        >
+          <div
+            style={{
+              width: 50,
+              height: 50,
+              borderRadius: "50%",
+              background: T.orangeLo,
+              border: `1px solid ${T.orange}33`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 22,
+            }}
+          >
+            🎬
+          </div>
+          <div style={{ textAlign: "center", fontSize: 12, color: T.textMid, lineHeight: 1.5 }}>
+            Share your TezConnect success story
+          </div>
+          <div
+            style={{
+              background: "linear-gradient(135deg,#f97316,#ea6008)",
+              borderRadius: 8,
+              padding: "7px 16px",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#fff",
+            }}
+          >
+            + Add Yours
+          </div>
+        </div>
+      </div>
+      {showAdd && (
+        <div
+          onClick={() => setShowAdd(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "#000c",
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: T.bgCard,
+              border: `1px solid ${T.border}`,
+              borderRadius: 16,
+              padding: "24px",
+              width: "100%",
+              maxWidth: 420,
+              animation: "scaleIn .2s ease",
+            }}
+          >
+            <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 16 }}>
+              Add Your Testimonial
+            </div>
+            {addErr && (
+              <Alert type="error" onDismiss={() => setAddErr("")}>
+                {addErr}
+              </Alert>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: addErr ? 14 : 0 }}>
+              <Field
+                label="Your Name *"
+                value={addForm.name}
+                onChange={(v) => setAddForm((f) => ({ ...f, name: v }))}
+                placeholder="e.g. Priya Sharma"
+                icon="👤"
+              />
+              <Field
+                label="Your Role"
+                value={addForm.role}
+                onChange={(v) => setAddForm((f) => ({ ...f, role: v }))}
+                placeholder="e.g. Startup Founder"
+                icon="💼"
+              />
+              <Field
+                label="YouTube Video URL"
+                value={addForm.url}
+                onChange={(v) => setAddForm((f) => ({ ...f, url: v }))}
+                placeholder="https://youtu.be/... or youtube.com/shorts/..."
+                icon="🔗"
+              />
+              <Field
+                label="Your Quote *"
+                value={addForm.quote}
+                onChange={(v) => setAddForm((f) => ({ ...f, quote: v }))}
+                placeholder="Share your experience..."
+                multiline
+                icon="💬"
+              />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: T.textMid,
+                    textTransform: "uppercase",
+                    letterSpacing: ".08em",
+                  }}
+                >
+                  Rating
+                </label>
+                <StarRating
+                  v={addForm.rating}
+                  interactive
+                  onChange={(v) => setAddForm((f) => ({ ...f, rating: v }))}
+                  size={22}
+                />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <Btn variant="ghost" onClick={() => setShowAdd(false)}>
+                Cancel
+              </Btn>
+              <Btn onClick={handleAdd}>Submit 🚀</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlaceholderScreen({ icon, title, desc }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 400,
+        textAlign: "center",
+        gap: 16,
+        animation: "fadeUp .3s ease",
+      }}
+    >
+      <div style={{ fontSize: 60 }}>{icon}</div>
+      <div style={{ fontWeight: 800, fontSize: 22, color: T.text }}>{title}</div>
+      <div style={{ color: T.textMid, fontSize: 14, maxWidth: 360, lineHeight: 1.7 }}>{desc}</div>
+      <div
+        style={{
+          background: T.orangeLo,
+          border: `1px solid ${T.orange}33`,
+          borderRadius: 10,
+          padding: "10px 20px",
+          fontSize: 12,
+          color: T.orange,
+          fontWeight: 700,
+        }}
+      >
+        Coming Soon
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AUTH SCREENS
+═══════════════════════════════════════════════════════════ */
+function AuthCard({ children }) {
+  return (
+    <div
+      style={{
+        background: T.bgCard,
+        border: `1px solid ${T.border}`,
+        borderRadius: 20,
+        padding: "32px 28px",
+        width: "100%",
+        maxWidth: 420,
+        animation: "fadeUp .4s ease",
+        position: "relative",
+        zIndex: 1,
+        boxShadow: "0 40px 80px #00000077",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: "8%",
+          right: "8%",
+          height: 1,
+          background: "linear-gradient(90deg,transparent,#f9731666,transparent)",
+        }}
+      />
+      {children}
+    </div>
+  );
+}
+
+function PasswordStrength({ pwd }) {
+  if (!pwd) return null;
+  const c = [
+    { ok: pwd.length >= 8, l: "8+ chars" },
+    { ok: /[A-Z]/.test(pwd), l: "Uppercase" },
+    { ok: /\d/.test(pwd), l: "Number" },
+    { ok: /[^a-zA-Z0-9]/.test(pwd), l: "Symbol" },
+  ];
+  const score = c.filter((x) => x.ok).length;
+  const cols = ["", T.error, "#f59e0b", T.orange, T.success];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      <div style={{ display: "flex", gap: 4 }}>
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              height: 3,
+              borderRadius: 4,
+              background: i <= score ? cols[score] : T.border,
+              transition: "background .3s",
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {c.map((x) => (
+          <span
+            key={x.l}
+            style={{
+              fontSize: 10,
+              color: x.ok ? T.success : T.textLow,
+              display: "flex",
+              alignItems: "center",
+              gap: 3,
+            }}
+          >
+            <span>{x.ok ? "✓" : "○"}</span>
+            {x.l}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SignUpPage({ onNav }) {
+  const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
+  const [errs, setErrs] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [gErr, setGErr] = useState("");
+  const [done, setDone] = useState(false);
+  const setF = (k) => (v) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    setErrs((e) => ({ ...e, [k]: "" }));
+    setGErr("");
+  };
+
+  const validate = () => {
+    const e = {};
+    if (!clean(form.name)) e.name = "Full name is required.";
+    else if (clean(form.name).length < 2) e.name = "Min. 2 characters.";
+    if (!form.email.trim()) e.email = "Email is required.";
+    else if (!isEmail(form.email)) e.email = "Please enter a valid email.";
+    if (!form.password) e.password = "Password is required.";
+    else if (form.password.length < 8) e.password = "Min. 8 characters.";
+    if (!form.confirm) e.confirm = "Please confirm password.";
+    else if (form.password !== form.confirm) e.confirm = "Passwords do not match.";
+    return e;
+  };
+
+  const submit = async () => {
+    const e = validate();
+    if (Object.keys(e).length) {
+      setErrs(e);
+      return;
+    }
+    setLoading(true);
+    try {
+      const email = clean(form.email).toLowerCase();
+      const users = getUsers();
+      if (users.find((u) => u.email === email)) {
+        setErrs({ email: "Account already exists." });
+        setLoading(false);
+        return;
+      }
+      const passwordHash = await sha256(form.password);
+      saveUsers([
+        ...users,
+        {
+          id: `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          name: clean(form.name),
+          email,
+          passwordHash,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      setDone(true);
+      setLoading(false);
+      setTimeout(() => onNav("signin", { prefill: email }), 2000);
+    } catch {
+      setGErr("Something went wrong.");
+      setLoading(false);
+    }
+  };
+
+  if (done)
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+        }}
+      >
+        <Background />
+        <div style={{ textAlign: "center", zIndex: 1, animation: "scaleIn .4s ease" }}>
+          <div
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: "50%",
+              background: T.successLo,
+              border: `2px solid ${T.success}44`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 34,
+              margin: "0 auto 16px",
+            }}
+          >
+            ✓
+          </div>
+          <div style={{ fontWeight: 800, fontSize: 22, color: T.text, marginBottom: 6 }}>
+            Account Created!
+          </div>
+          <div style={{ color: T.success, fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
+            Account created successfully.
+          </div>
+          <div
+            style={{
+              color: T.textLow,
+              fontSize: 12,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+          >
+            <Spinner size={12} color={T.textLow} />
+            Redirecting to Sign In…
+          </div>
+        </div>
+      </div>
+    );
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "28px 20px",
+        position: "relative",
+      }}
+    >
+      <Background />
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          zIndex: 1,
+          display: "flex",
+          flexDirection: "column",
+          gap: 22,
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ marginBottom: 20 }}>
+            <Logo size="lg" />
+          </div>
+          <h1
+            style={{
+              fontFamily: "'Instrument Serif',serif",
+              fontStyle: "italic",
+              fontWeight: 400,
+              fontSize: 28,
+              color: T.text,
+              marginBottom: 6,
+            }}
+          >
+            Join the Network
+          </h1>
+          <p style={{ color: T.textMid, fontSize: 13 }}>
+            Create your B2B profile and start connecting.
+          </p>
+        </div>
+        <AuthCard>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {gErr && (
+              <Alert type="error" onDismiss={() => setGErr("")}>
+                {gErr}
+              </Alert>
+            )}
+            <Field
+              label="Full Name"
+              value={form.name}
+              onChange={setF("name")}
+              placeholder="e.g. Arjun Mehta"
+              icon="👤"
+              error={errs.name}
+            />
+            <Field
+              label="Email"
+              type="email"
+              value={form.email}
+              onChange={setF("email")}
+              placeholder="you@company.com"
+              icon="✉"
+              error={errs.email}
+            />
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <Field
+                label="Password"
+                type="password"
+                value={form.password}
+                onChange={setF("password")}
+                placeholder="Min. 8 characters"
+                icon="🔒"
+                error={errs.password}
+              />
+              <PasswordStrength pwd={form.password} />
+            </div>
+            <Field
+              label="Confirm Password"
+              type="password"
+              value={form.confirm}
+              onChange={setF("confirm")}
+              placeholder="Repeat your password"
+              icon="🔒"
+              error={errs.confirm}
+            />
+            <div style={{ paddingTop: 4 }}>
+              <Btn onClick={submit} loading={loading} fullWidth>
+                Create Account
+              </Btn>
+            </div>
+            <Divider label="already a member?" />
+            <Btn variant="ghost" onClick={() => onNav("signin")} fullWidth>
+              Sign In Instead
+            </Btn>
+          </div>
+        </AuthCard>
+        <p style={{ textAlign: "center", fontSize: 10, color: T.textLow, zIndex: 1 }}>
+          Passwords hashed with SHA-256 · Never stored as plain text
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SignInPage({ onNav, onLogin, prefill = "" }) {
+  const [form, setForm] = useState({ email: prefill, password: "" });
+  const [errs, setErrs] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [gErr, setGErr] = useState("");
+  const justReg = !!prefill;
+  const setF = (k) => (v) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    setErrs((e) => ({ ...e, [k]: "" }));
+    setGErr("");
+  };
+
+  const submit = async () => {
+    const e = {};
+    if (!form.email.trim()) e.email = "Email is required.";
+    else if (!isEmail(form.email)) e.email = "Enter a valid email.";
+    if (!form.password) e.password = "Password is required.";
+    if (Object.keys(e).length) {
+      setErrs(e);
+      return;
+    }
+    setLoading(true);
+    try {
+      const email = clean(form.email).toLowerCase();
+      const user = getUsers().find((u) => u.email === email);
+      if (!user) {
+        setGErr("Account not found. Please sign up first.");
+        setLoading(false);
+        return;
+      }
+      if ((await sha256(form.password)) !== user.passwordHash) {
+        setErrs({ password: "Invalid password." });
+        setLoading(false);
+        return;
+      }
+      const sess = {
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        loginAt: new Date().toISOString(),
+      };
+      saveSession(sess);
+      onLogin(sess);
+    } catch {
+      setGErr("Something went wrong.");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "28px 20px",
+        position: "relative",
+      }}
+    >
+      <Background />
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          zIndex: 1,
+          display: "flex",
+          flexDirection: "column",
+          gap: 22,
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ marginBottom: 20 }}>
+            <Logo size="lg" />
+          </div>
+          <h1
+            style={{
+              fontFamily: "'Instrument Serif',serif",
+              fontStyle: "italic",
+              fontWeight: 400,
+              fontSize: 28,
+              color: T.text,
+              marginBottom: 6,
+            }}
+          >
+            Welcome Back
+          </h1>
+          <p style={{ color: T.textMid, fontSize: 13 }}>Sign in to your B2B dashboard.</p>
+        </div>
+        <AuthCard>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {justReg && (
+              <Alert type="success">Account created successfully — sign in to continue.</Alert>
+            )}
+            {gErr && (
+              <Alert type="error" onDismiss={() => setGErr("")}>
+                {gErr}
+                {gErr.includes("sign up") && (
+                  <span
+                    onClick={() => onNav("signup")}
+                    style={{ color: T.orangeHi, cursor: "pointer", marginLeft: 4, fontWeight: 700 }}
+                  >
+                    Create one →
+                  </span>
+                )}
+              </Alert>
+            )}
+            <div onKeyDown={(e) => e.key === "Enter" && submit()}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <Field
+                  label="Email"
+                  type="email"
+                  value={form.email}
+                  onChange={setF("email")}
+                  placeholder="you@company.com"
+                  icon="✉"
+                  error={errs.email}
+                />
+                <Field
+                  label="Password"
+                  type="password"
+                  value={form.password}
+                  onChange={setF("password")}
+                  placeholder="Your password"
+                  icon="🔒"
+                  error={errs.password}
+                />
+              </div>
+            </div>
+            <div style={{ paddingTop: 4 }}>
+              <Btn onClick={submit} loading={loading} fullWidth>
+                Sign In
+              </Btn>
+            </div>
+            <Divider label="new to TezConnect?" />
+            <Btn variant="ghost" onClick={() => onNav("signup")} fullWidth>
+              Create an Account
+            </Btn>
+          </div>
+        </AuthCard>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN APP SHELL
+═══════════════════════════════════════════════════════════ */
+function AppShell({ session, onLogout }) {
+  const [page, setPage] = useState("dashboard");
+  const [profile, setProfile] = useState(() => getProfile(session.userId));
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [logoutModal, setLogoutModal] = useState(false);
+
+  const handleSaveProfile = (p) => {
+    const merged = { ...profile, ...p };
+    setProfile(merged);
+    saveProfile(session.userId, merged);
+  };
+
+  const renderPage = () => {
+    if (page === "profile") {
+      return editingProfile ? (
+        <ProfileEditor
+          profile={profile}
+          onSave={(p) => {
+            handleSaveProfile(p);
+          }}
+          onCancel={() => setEditingProfile(false)}
+        />
+      ) : (
+        <ProfileView profile={profile} onEdit={() => setEditingProfile(true)} />
+      );
+    }
+    if (page === "dashboard")
+      return (
+        <DashboardScreen
+          session={session}
+          profile={profile}
+          onGoProfile={() => {
+            setPage("profile");
+            setEditingProfile(true);
+          }}
+        />
+      );
+    if (page === "testimonials") return <TestimonialsScreen />;
+    if (page === "network")
+      return (
+        <PlaceholderScreen
+          icon="🌐"
+          title="Network"
+          desc="Discover and connect with B2B professionals across India."
+        />
+      );
+    if (page === "leads")
+      return (
+        <PlaceholderScreen
+          icon="🎯"
+          title="Leads"
+          desc="Manage your business leads and opportunities."
+        />
+      );
+    if (page === "events")
+      return (
+        <PlaceholderScreen
+          icon="📅"
+          title="Events"
+          desc="Find and register for B2B events and meetups."
+        />
+      );
+    if (page === "messages")
+      return (
+        <PlaceholderScreen
+          icon="💬"
+          title="Messages"
+          desc="Your B2B conversations and WhatsApp integrations."
+        />
+      );
+    if (page === "settings")
+      return (
+        <PlaceholderScreen
+          icon="⚙"
+          title="Settings"
+          desc="Manage your account settings and preferences."
+        />
+      );
+    return null;
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        minHeight: "100vh",
+        background: T.bg,
+        position: "relative",
+      }}
+    >
+      <Background />
+      {/* Sidebar */}
+      <Sidebar
+        active={page}
+        onNav={(p) => {
+          setPage(p);
+          if (p !== "profile") setEditingProfile(false);
+        }}
+        session={session}
+        profile={profile}
+        collapsed={collapsed}
+        onCollapse={() => setCollapsed(!collapsed)}
+        onLogout={() => setLogoutModal(true)}
+      />
+      {/* Main */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 0,
+          overflowX: "hidden",
+        }}
+      >
+        {/* Top bar */}
+        <div
+          style={{
+            background: "#06070dcc",
+            backdropFilter: "blur(16px)",
+            borderBottom: `1px solid ${T.border}`,
+            padding: "12px 24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            position: "sticky",
+            top: 0,
+            zIndex: 30,
+          }}
+        >
+          <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>
+            {page === "dashboard"
+              ? "Dashboard"
+              : page === "profile"
+              ? editingProfile
+                ? "Edit Profile"
+                : "My Profile"
+              : NAV.find((n) => n.id === page)?.label || ""}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: T.success,
+                boxShadow: `0 0 6px ${T.success}`,
+              }}
+            />
+            <span style={{ fontSize: 12, color: T.textMid }}>Online</span>
+          </div>
+        </div>
+        {/* Content */}
+        <div
+          style={{
+            flex: 1,
+            padding: "28px 28px",
+            maxWidth: 1040,
+            width: "100%",
+            margin: "0 auto",
+            zIndex: 1,
+            position: "relative",
+          }}
+        >
+          {renderPage()}
+        </div>
+      </div>
+
+      {/* Logout modal */}
+      {logoutModal && (
+        <div
+          onClick={() => setLogoutModal(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "#000000cc",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: T.bgCard,
+              border: `1px solid ${T.border}`,
+              borderRadius: 16,
+              padding: "28px 24px",
+              maxWidth: 340,
+              width: "100%",
+              animation: "scaleIn .2s ease",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
+                background: T.errorLo,
+                border: `1px solid ${T.error}33`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 24,
+                margin: "0 auto 14px",
+              }}
+            >
+              ⏏
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 8 }}>
+              Sign Out?
+            </div>
+            <div
+              style={{
+                color: T.textMid,
+                fontSize: 13,
+                lineHeight: 1.7,
+                marginBottom: 20,
+              }}
+            >
+              Your session will end and you'll be returned to the sign-in page.
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Btn variant="ghost" onClick={() => setLogoutModal(false)} fullWidth>
+                Cancel
+              </Btn>
+              <Btn onClick={onLogout} fullWidth>
+                Yes, Sign Out
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ROOT
+═══════════════════════════════════════════════════════════ */
+export default function App() {
+  const [page, setPage] = useState("loading");
+  const [session, setSession] = useState(null);
+  const [navData, setNavData] = useState({});
+
+  useEffect(() => {
+    const s = getSession();
+    if (s) {
+      setSession(s);
+      setPage("app");
+    } else {
+      setPage("signin");
+    }
+  }, []);
+
+  const login = useCallback((s) => {
+    setSession(s);
+    setPage("app");
+  }, []);
+
+  const logout = useCallback(() => {
+    clearSession();
+    setSession(null);
+    setNavData({});
+    setPage("signin");
+  }, []);
+
+  const nav = useCallback((to, data = {}) => {
+    setNavData(data);
+    setPage(to);
+  }, []);
+
+  if (page === "loading")
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: T.bg,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          gap: 20,
+        }}
+      >
+        <Logo size="lg" />
+        <Spinner size={28} />
+      </div>
+    );
+
+  return (
+    <>
+      <GlobalStyles />
+      {page === "signup" && <SignUpPage onNav={nav} />}
+      {page === "signin" && (
+        <SignInPage onNav={nav} onLogin={login} prefill={navData.prefill || ""} />
+      )}
+      {page === "app" && session && <AppShell session={session} onLogout={logout} />}
+      {page === "app" && !session && (() => { nav("signin"); return null; })()}
+    </>
+  );
+}
