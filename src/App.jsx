@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 import { supabase } from "./supabase";   // ← add this line
+import { uploadPhoto } from "./uploadPhoto";
 
 
 
@@ -631,19 +632,36 @@ function TagInput({ label, values = [], onChange, placeholder, color = T.orange,
 /* ═══════════════════════════════════════════════════════════
    PHOTO UPLOAD
 ═══════════════════════════════════════════════════════════ */
-function PhotoUpload({ value, onChange, label, size = 80, round = true, icon = "📷" }) {
+function PhotoUpload({ value, onChange, label, size = 80, round = true, icon = "📷", bucket = "avatars", userId }) {
   const ref = useRef();
-  const load = (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = (ev) => onChange(ev.target.result);
-    r.readAsDataURL(f);
+  const [uploading, setUploading] = useState(false);
+
+  const load = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!userId) {
+      const r = new FileReader();
+      r.onload = (ev) => onChange(ev.target.result);
+      r.readAsDataURL(file);
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const url = await uploadPhoto(file, userId, bucket);
+      onChange(url);
+    } catch (err) {
+      console.error("Upload failed:", err.message);
+    } finally {
+      setUploading(false);
+    }
   };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
       <div
-        onClick={() => ref.current.click()}
+        onClick={() => !uploading && ref.current.click()}
         style={{
           width: size,
           height: size,
@@ -651,7 +669,7 @@ function PhotoUpload({ value, onChange, label, size = 80, round = true, icon = "
           border: `2px dashed ${T.orange}55`,
           background: T.bgInput,
           overflow: "hidden",
-          cursor: "pointer",
+          cursor: uploading ? "wait" : "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -662,7 +680,9 @@ function PhotoUpload({ value, onChange, label, size = 80, round = true, icon = "
         onMouseEnter={(e) => (e.currentTarget.style.borderColor = T.orange)}
         onMouseLeave={(e) => (e.currentTarget.style.borderColor = T.orange + "55")}
       >
-        {value ? (
+        {uploading ? (
+          <Spinner size={size * 0.35} />
+        ) : value ? (
           <img src={value} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
           <div style={{ textAlign: "center", padding: 8 }}>
@@ -672,7 +692,7 @@ function PhotoUpload({ value, onChange, label, size = 80, round = true, icon = "
             </div>
           </div>
         )}
-        {value && (
+        {value && !uploading && (
           <div
             style={{
               position: "absolute",
@@ -698,7 +718,6 @@ function PhotoUpload({ value, onChange, label, size = 80, round = true, icon = "
     </div>
   );
 }
-
 /* ═══════════════════════════════════════════════════════════
    PROFILE COMPLETENESS BAR
 ═══════════════════════════════════════════════════════════ */
@@ -1287,7 +1306,7 @@ function ContactRow({ icon, label, value, link }) {
 /* ═══════════════════════════════════════════════════════════
    PROFILE EDITOR
 ═══════════════════════════════════════════════════════════ */
-function ProfileEditor({ profile, onSave, onCancel }) {
+function ProfileEditor({ profile, onSave, onCancel, session }) {
   const [p, setP] = useState({
     name: "",
     photo: "",
@@ -1445,7 +1464,10 @@ function ProfileEditor({ profile, onSave, onCancel }) {
                   round
                   label="Profile Photo"
                   size={90}
+                  bucket="avatars"
+                  userId={session?.userId}
                 />
+
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
                 <PhotoUpload
@@ -1455,6 +1477,8 @@ function ProfileEditor({ profile, onSave, onCancel }) {
                   label="Cover Photo"
                   size={90}
                   icon="🖼️"
+                  bucket="covers"
+                  userId={session?.userId}
                 />
               </div>
             </div>
@@ -1505,6 +1529,8 @@ function ProfileEditor({ profile, onSave, onCancel }) {
                 label="Company Logo"
                 size={80}
                 icon="🏢"
+                bucket="logos"
+                userId={session?.userId}
               />
               <div
                 style={{
@@ -3242,61 +3268,36 @@ const submit = async () => {
   }
   setDone(true);
   setLoading(false);
-  setTimeout(() => onNav("signin", { prefill: clean(form.email).toLowerCase() }), 2000);
+  
 };
 
   if (done)
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-        }}
-      >
-        <Background />
-        <div style={{ textAlign: "center", zIndex: 1, animation: "scaleIn .4s ease" }}>
-          <div
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: "50%",
-              background: T.successLo,
-              border: `2px solid ${T.success}44`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 34,
-              margin: "0 auto 16px",
-            }}
-          >
-            ✓
-          </div>
-          <div style={{ fontWeight: 800, fontSize: 22, color: T.text, marginBottom: 6 }}>
-            Account Created!
-          </div>
-          <div style={{ color: T.success, fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-            Account created successfully.
-          </div>
-          <div
-            style={{
-              color: T.textLow,
-              fontSize: 12,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-            }}
-          >
-            <Spinner size={12} color={T.textLow} />
-            Redirecting to Sign In…
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+      <Background />
+      <div style={{ textAlign: "center", zIndex: 1, animation: "scaleIn .4s ease", maxWidth: 400, padding: "0 20px" }}>
+        <div style={{ width: 80, height: 80, borderRadius: "50%", background: T.successLo, border: `2px solid ${T.success}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, margin: "0 auto 16px" }}>
+          ✉
+        </div>
+        <div style={{ fontWeight: 800, fontSize: 22, color: T.text, marginBottom: 8 }}>
+          Check your email!
+        </div>
+        <div style={{ color: T.textMid, fontSize: 14, lineHeight: 1.7, marginBottom: 20 }}>
+          We sent a verification link to <span style={{ color: T.orange, fontWeight: 700 }}>{form.email}</span>. Click the link in that email to activate your account.
+        </div>
+        <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "16px", marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: T.textLow, lineHeight: 1.8 }}>
+            ✅ Check your spam folder if you don't see it<br/>
+            ✅ The link expires in 24 hours<br/>
+            ✅ After verifying, come back and sign in
           </div>
         </div>
+        <Btn onClick={() => onNav("signin")} fullWidth>
+          Go to Sign In
+        </Btn>
       </div>
-    );
-
+    </div>
+  );
   return (
     <div
       style={{
@@ -3430,10 +3431,14 @@ function SignInPage({ onNav, onLogin, prefill = "" }) {
     password: form.password,
   });
   if (error) {
+  if (error.message.toLowerCase().includes("email not confirmed")) {
+    setGErr("Please verify your email first. Check your inbox for the confirmation link.");
+  } else {
     setGErr(error.message);
-    setLoading(false);
-    return;
   }
+  setLoading(false);
+  return;
+}
   onLogin({
     userId: data.user.id,
     name: data.user.user_metadata.name,
@@ -3497,6 +3502,22 @@ function SignInPage({ onNav, onLogin, prefill = "" }) {
                     Create one →
                   </span>
                 )}
+                {gErr.includes("verify your email") && (
+  <div style={{ textAlign: "center" }}>
+    <button
+      onClick={async () => {
+        await supabase.auth.resend({
+          type: "signup",
+          email: form.email.trim().toLowerCase(),
+        });
+        setGErr("Verification email resent — check your inbox.");
+      }}
+      style={{ background: "none", border: "none", color: T.orange, fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}
+    >
+      Resend verification email
+    </button>
+  </div>
+)}
               </Alert>
             )}
             <div onKeyDown={(e) => e.key === "Enter" && submit()}>
@@ -3625,6 +3646,7 @@ useEffect(() => {
       return editingProfile ? (
         <ProfileEditor
           profile={profile}
+          session={session}
           onSave={(p) => {
             handleSaveProfile(p);
           }}
