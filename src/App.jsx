@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 import { supabase } from "./supabase";   // ← add this line
 import { uploadPhoto } from "./uploadPhoto";
+import NetworkPage from "./NetworkPage";
 
 
 
@@ -3668,14 +3669,8 @@ useEffect(() => {
         />
       );
     if (page === "testimonials") return <TestimonialsScreen />;
-    if (page === "network")
-      return (
-        <PlaceholderScreen
-          icon="🌐"
-          title="Network"
-          desc="Discover and connect with B2B professionals across India."
-        />
-      );
+   if (page === "network")
+  return <NetworkPage session={session} />;
     if (page === "leads")
       return (
         <PlaceholderScreen
