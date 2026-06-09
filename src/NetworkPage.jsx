@@ -1,5 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
+import ConnectButton from "./ConnectButton";
+import RequestsPanel from "./RequestsPanel";
+import { useConnections } from "./useConnections";
+
+import SentRequestsPanel from "./SentRequestsPanel";
+import ConnectedPanel from "./ConnectedPanel";
 
 const T = {
   bg: "#06070d", bgCard: "#0b0d17", bgInput: "#0f1120", bgHover: "#141726",
@@ -21,9 +27,10 @@ function Tag({ children, color = T.orange }) {
   );
 }
 
-function MemberCard({ member, currentUserId }) {
+function MemberCard({ member, currentUserId, connectionProps }) {
   const [hov, setHov] = useState(false);
-  const initials = (member.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+  const initials = (member.name || "?")
+    .split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
   const isMe = member.id === currentUserId;
 
   return (
@@ -37,10 +44,9 @@ function MemberCard({ member, currentUserId }) {
         transition: "all .22s",
         transform: hov ? "translateY(-3px)" : "none",
         boxShadow: hov ? "0 12px 40px #f9731615" : "none",
-        animation: "fadeUp .35s ease",
       }}
     >
-      {/* Cover strip */}
+      {/* Cover */}
       <div style={{
         height: 70,
         background: member.cover
@@ -72,7 +78,8 @@ function MemberCard({ member, currentUserId }) {
           boxShadow: "0 4px 16px #00000055",
         }}>
           {member.photo
-            ? <img src={member.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ? <img src={member.photo} alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             : initials
           }
         </div>
@@ -98,8 +105,6 @@ function MemberCard({ member, currentUserId }) {
             📍 {member.location}
           </div>
         )}
-
-        {/* Skills */}
         {member.skills?.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 12 }}>
             {member.skills.slice(0, 3).map(s => <Tag key={s}>{s}</Tag>)}
@@ -109,63 +114,61 @@ function MemberCard({ member, currentUserId }) {
           </div>
         )}
 
-        {/* Actions */}
-        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          {member.whatsapp && (
-            <a
-              href={`https://wa.me/${member.whatsapp.replace(/[^0-9]/g, "")}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                flex: 1, background: "#25d36618", border: "1px solid #25d36633",
-                borderRadius: 8, padding: "8px 0",
-                color: "#25d366", fontSize: 12, fontWeight: 700,
-                textDecoration: "none", textAlign: "center",
-                transition: "all .2s",
-              }}
-            >
-              💬 WhatsApp
-            </a>
-          )}
-          {member.linkedin && (
-            <a
-              href={member.linkedin.startsWith("http") ? member.linkedin : "https://" + member.linkedin}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                flex: 1, background: T.bgInput, border: `1px solid ${T.border}`,
-                borderRadius: 8, padding: "8px 0",
-                color: T.textMid, fontSize: 12, fontWeight: 700,
-                textDecoration: "none", textAlign: "center",
-                transition: "all .2s",
-              }}
-            >
-              🔗 LinkedIn
-            </a>
-          )}
-        </div>
+        {/* Connect button */}
+        <ConnectButton
+          userId={currentUserId}
+          targetId={member.id}
+          getStatus={connectionProps.getStatus}
+          sendRequest={connectionProps.sendRequest}
+          acceptRequest={connectionProps.acceptRequest}
+          rejectRequest={connectionProps.rejectRequest}
+          removeConnection={connectionProps.removeConnection}
+        />
       </div>
     </div>
   );
 }
 
 export default function NetworkPage({ session }) {
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [members, setMembers]           = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState(null);
+  const [search, setSearch]             = useState("");
   const [filterIndustry, setFilterIndustry] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
+  const [tab, setTab]                   = useState("discover");
+  const mountedRef                      = useRef(true);
+
+  const {
+    getStatus, sendRequest, acceptRequest,
+    rejectRequest, removeConnection, pendingReceived,
+    pendingSent,accepted    
+  } = useConnections(session.userId);
 
   useEffect(() => {
-    supabase
-      .from("profiles")
-      .select("*")
-      .not("name", "is", null)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
+    mountedRef.current = true;
+
+    async function fetchMembers() {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .not("name", "is", null)
+          .order("created_at", { ascending: false });
+
+        if (!mountedRef.current) return;
+        if (error) { setError(error.message); setLoading(false); return; }
         setMembers(data || []);
         setLoading(false);
-      });
+      } catch (err) {
+        if (!mountedRef.current) return;
+        setError(err.message);
+        setLoading(false);
+      }
+    }
+
+    fetchMembers();
+    return () => { mountedRef.current = false; };
   }, []);
 
   const industries = [...new Set(members.map(m => m.industry).filter(Boolean))];
@@ -173,12 +176,12 @@ export default function NetworkPage({ session }) {
 
   const filtered = members.filter(m => {
     const q = search.toLowerCase();
-    const matchSearch = !q ||
-      m.name?.toLowerCase().includes(q) ||
-      m.designation?.toLowerCase().includes(q) ||
-      m.company?.toLowerCase().includes(q) ||
-      m.location?.toLowerCase().includes(q) ||
-      m.skills?.some(s => s.toLowerCase().includes(q));
+    const matchSearch = !q
+      || m.name?.toLowerCase().includes(q)
+      || m.designation?.toLowerCase().includes(q)
+      || m.company?.toLowerCase().includes(q)
+      || m.location?.toLowerCase().includes(q)
+      || m.skills?.some(s => s.toLowerCase().includes(q));
     const matchIndustry = !filterIndustry || m.industry === filterIndustry;
     const matchCategory = !filterCategory || m.category === filterCategory;
     return matchSearch && matchIndustry && matchCategory;
@@ -188,10 +191,27 @@ export default function NetworkPage({ session }) {
     background: T.bgInput, border: `1px solid ${T.border}`,
     borderRadius: 9, padding: "10px 14px",
     color: T.text, fontSize: 13, outline: "none",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
   };
 
+  if (error) return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 16, textAlign: "center" }}>
+      <div style={{ fontSize: 48 }}>⚠️</div>
+      <div style={{ fontWeight: 700, fontSize: 16, color: T.text }}>Failed to load network</div>
+      <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 20px", fontSize: 12, color: T.textMid, maxWidth: 400 }}>
+        {error}
+      </div>
+      <button
+        onClick={() => { setError(null); setLoading(true); }}
+        style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 9, padding: "10px 24px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+      >
+        Try Again
+      </button>
+    </div>
+  );
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24, animation: "fadeUp .35s ease" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
       {/* Header */}
       <div>
@@ -206,75 +226,136 @@ export default function NetworkPage({ session }) {
         </p>
       </div>
 
-      {/* Search + Filters */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="🔍  Search by name, skill, company, location…"
-          style={{ ...inputStyle, flex: 1, minWidth: 200 }}
-          onFocus={e => e.target.style.borderColor = T.orange}
-          onBlur={e => e.target.style.borderColor = T.border}
-        />
-        <select
-          value={filterIndustry}
-          onChange={e => setFilterIndustry(e.target.value)}
-          style={{ ...inputStyle, minWidth: 150 }}
-        >
-          <option value="">All Industries</option>
-          {industries.map(i => <option key={i} value={i}>{i}</option>)}
-        </select>
-        <select
-          value={filterCategory}
-          onChange={e => setFilterCategory(e.target.value)}
-          style={{ ...inputStyle, minWidth: 150 }}
-        >
-          <option value="">All Categories</option>
-          {categories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        {(search || filterIndustry || filterCategory) && (
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 6 }}>
+        {[
+          ["discover", "🌐 Discover"],
+          ["requests", `🤝 Requests${pendingReceived.length > 0 ? ` (${pendingReceived.length})` : ""}`],
+           ["sent", `📤 Sent${pendingSent.length > 0 ? ` (${pendingSent.length})` : ""}`],
+  ["connected", `✓ Connected (${accepted.length})`],
+        ].map(([id, label]) => (
           <button
-            onClick={() => { setSearch(""); setFilterIndustry(""); setFilterCategory(""); }}
+            key={id}
+            onClick={() => setTab(id)}
             style={{
-              background: T.orangeLo, border: `1px solid ${T.orange}33`,
-              borderRadius: 9, padding: "10px 16px",
-              color: T.orange, fontSize: 12, fontWeight: 700, cursor: "pointer",
+              background: tab === id ? T.orangeMd : "transparent",
+              border: `1px solid ${tab === id ? T.orange + "55" : T.border}`,
+              borderRadius: 9, padding: "8px 16px",
+              color: tab === id ? T.orange : T.textMid,
+              fontWeight: 700, fontSize: 13, cursor: "pointer",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              transition: "all .2s",
             }}
           >
-            Clear ×
+            {label}
           </button>
-        )}
+        ))}
       </div>
 
-      {/* Grid */}
-      {loading ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
-          {[1,2,3,4,5,6].map(i => (
-            <div key={i} style={{
-              background: T.bgCard, border: `1px solid ${T.border}`,
-              borderRadius: 16, height: 260,
-              animation: "fadeUp .4s ease",
-              opacity: 0.5,
-            }}/>
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px 0" }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🔍</div>
-          <div style={{ fontWeight: 700, fontSize: 16, color: T.text, marginBottom: 6 }}>
-            No members found
-          </div>
-          <div style={{ color: T.textMid, fontSize: 13 }}>
-            Try a different search term or clear your filters
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
-          {filtered.map(member => (
-            <MemberCard key={member.id} member={member} currentUserId={session.user.id} />
-          ))}
-        </div>
+      {/* Requests tab */}
+      {tab === "requests" && (
+        <RequestsPanel
+          pendingReceived={pendingReceived}
+          acceptRequest={acceptRequest}
+          rejectRequest={rejectRequest}
+        />
       )}
+      {/* Sent tab */}
+{tab === "sent" && (
+  <SentRequestsPanel
+    pendingSent={pendingSent}
+    removeConnection={removeConnection}
+  />
+)}
+
+{/* Connected tab */}
+{tab === "connected" && (
+  <ConnectedPanel
+    accepted={accepted}
+    userId={session.userId}
+    removeConnection={removeConnection}
+  />
+)}
+
+      {/* Discover tab */}
+      {tab === "discover" && (
+        <>
+          {/* Search + Filters */}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="🔍  Search by name, skill, company, location…"
+              style={{ ...inputStyle, flex: 1, minWidth: 200 }}
+              onFocus={e => e.target.style.borderColor = T.orange}
+              onBlur={e => e.target.style.borderColor = T.border}
+            />
+            <select
+              value={filterIndustry}
+              onChange={e => setFilterIndustry(e.target.value)}
+              style={{ ...inputStyle, minWidth: 150 }}
+            >
+              <option value="">All Industries</option>
+              {industries.map(i => <option key={i} value={i}>{i}</option>)}
+            </select>
+            <select
+              value={filterCategory}
+              onChange={e => setFilterCategory(e.target.value)}
+              style={{ ...inputStyle, minWidth: 150 }}
+            >
+              <option value="">All Categories</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {(search || filterIndustry || filterCategory) && (
+              <button
+                onClick={() => { setSearch(""); setFilterIndustry(""); setFilterCategory(""); }}
+                style={{ background: T.orangeLo, border: `1px solid ${T.orange}33`, borderRadius: 9, padding: "10px 16px", color: T.orange, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              >
+                Clear ×
+              </button>
+            )}
+          </div>
+
+          {/* Loading skeletons */}
+          {loading && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, height: 260, opacity: 0.4 }} />
+              ))}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loading && filtered.length === 0 && (
+            <div style={{ textAlign: "center", padding: "60px 0" }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>🔍</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: T.text, marginBottom: 6 }}>No members found</div>
+              <div style={{ color: T.textMid, fontSize: 13 }}>Try a different search or clear your filters</div>
+            </div>
+          )}
+
+          {/* Member grid */}
+          {!loading && filtered.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
+              {filtered.map(member => (
+                <MemberCard
+                  key={member.id}
+                  member={member}
+                  currentUserId={session.userId}
+                  connectionProps={{
+                    getStatus,
+                    sendRequest,
+                    acceptRequest,
+                    rejectRequest,
+                    removeConnection,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
     </div>
   );
 }

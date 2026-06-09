@@ -3,6 +3,15 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./supabase";   // ← add this line
 import { uploadPhoto } from "./uploadPhoto";
 import NetworkPage from "./NetworkPage";
+import { useConnections } from "./useConnections";
+import { useDashboardStats } from "./useDashboardStats";
+import LeadsPage from "./LeadsPage";
+import EventsPage from "./EventsPage";
+import MessagesPage from "./MessagesPage";
+import PublicProfilePage from "./PublicProfilePage";
+import SettingsPage from "./SettingsPage";
+
+
 
 
 
@@ -2291,7 +2300,7 @@ function ProfilePct(p) {
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
 
-function Sidebar({ active, onNav, session, profile, collapsed, onCollapse, onLogout }) {
+function Sidebar({ active, onNav, session, profile, collapsed, onCollapse, onLogout,pendingCount=0,unreadMessages=0 }) {
   const initials = (session.name || "?")
     .split(" ")
     .map((n) => n[0])
@@ -2492,7 +2501,11 @@ function Sidebar({ active, onNav, session, profile, collapsed, onCollapse, onLog
             >
               <span style={{ fontSize: 17, flexShrink: 0 }}>{item.icon}</span>
               {!collapsed && <span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>}
-              {!collapsed && item.badge && (
+
+              {!collapsed && (
+  (item.id === "network" && pendingCount > 0) ||
+  (item.id === "messages" && unreadMessages > 0)
+) && (
                 <span
                   style={{
                     background: T.orange,
@@ -2503,7 +2516,7 @@ function Sidebar({ active, onNav, session, profile, collapsed, onCollapse, onLog
                     padding: "1px 7px",
                   }}
                 >
-                  {item.badge}
+                  {item.id==="network" ?pendingCount:unreadMessages}
                 </span>
               )}
               {collapsed && item.badge && (
@@ -2633,7 +2646,51 @@ const AIMS = [
 /* ═══════════════════════════════════════════════════════════
    PAGE SCREENS
 ═══════════════════════════════════════════════════════════ */
+function AimCard({ aim, i }) {
+  const [h, setH] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        background: h ? T.bgHover : T.bgCard,
+        border: `1px solid ${h ? aim.color + "55" : T.border}`,
+        borderRadius: 14,
+        padding: "18px 16px",
+        transition: "all .22s",
+        transform: h ? "translateY(-2px)" : "none",
+        boxShadow: h ? `0 10px 30px ${aim.color}15` : "none",
+        animation: `fadeUp .4s ease ${i * 40}ms both`,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+        <div style={{
+          width: 38, height: 38, borderRadius: 10,
+          background: aim.color + "18", border: `1px solid ${aim.color}33`,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
+        }}>
+          {aim.icon}
+        </div>
+        <span style={{
+          fontSize: 9, fontWeight: 700, letterSpacing: ".09em",
+          textTransform: "uppercase", color: aim.color,
+          background: aim.color + "18", border: `1px solid ${aim.color}33`,
+          borderRadius: 20, padding: "2px 8px",
+        }}>
+          {aim.tag}
+        </span>
+      </div>
+      <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 5, lineHeight: 1.3 }}>
+        {aim.title}
+      </div>
+      <div style={{ fontSize: 12, color: T.textMid, lineHeight: 1.6 }}>
+        {aim.desc}
+      </div>
+    </div>
+  );
+}
 function DashboardScreen({ session, profile, onGoProfile }) {
+  const stats = useDashboardStats(session.userId);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28, animation: "fadeUp .35s ease" }}>
       {/* Welcome */}
@@ -2730,12 +2787,12 @@ function DashboardScreen({ session, profile, onGoProfile }) {
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
-        {[
-          { label: "Connections", val: "382", icon: "👥", color: T.orange },
-          { label: "Leads", val: "38", icon: "🎯", color: "#3b82f6" },
-          { label: "Events", val: "12", icon: "📅", color: "#22c55e" },
-          { label: "Cities", val: "85+", icon: "🗺️", color: "#a78bfa" },
-        ].map((s, i) => (
+       {[
+  { label: "Connections", val: stats.loading ? "—" : stats.connections, icon: "👥", color: T.orange },
+  { label: "Leads",       val: stats.loading ? "—" : stats.leads,       icon: "🎯", color: "#3b82f6" },
+  { label: "Events",      val: stats.loading ? "—" : stats.events,       icon: "📅", color: "#22c55e" },
+  { label: "Cities",      val: stats.loading ? "—" : stats.cities,       icon: "🗺️", color: "#a78bfa" },
+].map((s, i) => (
           <div
             key={s.label}
             style={{
@@ -2797,97 +2854,40 @@ function DashboardScreen({ session, profile, onGoProfile }) {
         >
           What You Can Do on <span style={{ color: T.orange }}>TezConnect</span>
         </h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-          {AIMS.map((aim, i) => {
-            const [h, sH] = useState(false);
-            return (
-              <div
-                key={aim.title}
-                onMouseEnter={() => sH(true)}
-                onMouseLeave={() => sH(false)}
-                style={{
-                  background: h ? T.bgHover : T.bgCard,
-                  border: `1px solid ${h ? aim.color + "55" : T.border}`,
-                  borderRadius: 14,
-                  padding: "18px 16px",
-                  transition: "all .22s",
-                  transform: h ? "translateY(-2px)" : "none",
-                  boxShadow: h ? `0 10px 30px ${aim.color}15` : "none",
-                  animation: `fadeUp .4s ease ${i * 40}ms both`,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: 10,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      background: aim.color + "18",
-                      border: `1px solid ${aim.color}33`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 18,
-                    }}
-                  >
-                    {aim.icon}
-                  </div>
-                  <span
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 700,
-                      letterSpacing: ".09em",
-                      textTransform: "uppercase",
-                      color: aim.color,
-                      background: aim.color + "18",
-                      border: `1px solid ${aim.color}33`,
-                      borderRadius: 20,
-                      padding: "2px 8px",
-                    }}
-                  >
-                    {aim.tag}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    fontWeight: 700,
-                    fontSize: 13,
-                    color: T.text,
-                    marginBottom: 5,
-                    lineHeight: 1.3,
-                  }}
-                >
-                  {aim.title}
-                </div>
-                <div style={{ fontSize: 12, color: T.textMid, lineHeight: 1.6 }}>{aim.desc}</div>
-              </div>
-            );
-          })}
-        </div>
+     <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+  {AIMS.map((aim, i) => (
+    <AimCard key={aim.title} aim={aim} i={i} />
+  ))}
+</div>
       </div>
     </div>
   );
 }
 
-function TestimonialsScreen() {
-  const [list, setList] = useState([FIXED_T]);
+function TestimonialsScreen({ session }) {
+  const [list, setList] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({ name: "", role: "", quote: "", url: "", rating: 5 });
   const [addErr, setAddErr] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const fetchTestimonials = async () => {
+    const { data } = await supabase
+      .from("testimonials")
+      .select("*")
+      .order("created_at", { ascending: false });
+    setList(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchTestimonials(); }, []);
 
   const extractYT = (s) => {
     const m = s.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/);
     return m ? m[1] : null;
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!addForm.name.trim() || !addForm.quote.trim()) {
       setAddErr("Name and quote are required.");
       return;
@@ -2897,209 +2897,87 @@ function TestimonialsScreen() {
       setAddErr("Please enter a valid YouTube URL.");
       return;
     }
-    const ini = addForm.name
-      .trim()
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase();
-    setList((prev) => [
-      ...prev,
-      {
-        id: "t_" + Date.now(),
-        name: addForm.name.trim(),
-        role: addForm.role.trim() || "TezConnect Member",
-        company: "",
-        rating: addForm.rating,
-        quote: addForm.quote.trim(),
-        youtubeId: ytId || "",
-        avatarInitials: ini,
-        verified: false,
-        date: new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
-      },
-    ]);
+    const { error } = await supabase.from("testimonials").insert({
+      user_id: session.userId,
+      name: addForm.name.trim(),
+      role: addForm.role.trim() || "TezConnect Member",
+      quote: addForm.quote.trim(),
+      youtube_id: ytId || "",
+      rating: addForm.rating,
+      verified: false,
+    });
+    if (error) { setAddErr(error.message); return; }
     setAddForm({ name: "", role: "", quote: "", url: "", rating: 5 });
     setAddErr("");
     setShowAdd(false);
+    fetchTestimonials();
   };
+
+  // Map DB rows to VideoCard format
+  const mapped = list.map(t => ({
+    id: t.id,
+    name: t.name,
+    role: t.role,
+    rating: t.rating,
+    quote: t.quote,
+    youtubeId: t.youtube_id,
+    avatarInitials: (t.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase(),
+    verified: t.verified,
+    date: new Date(t.created_at).toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
+  }));
 
   return (
     <div style={{ animation: "fadeUp .35s ease" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "space-between",
-          marginBottom: 24,
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div
-            style={{
-              fontSize: 11,
-              color: T.textLow,
-              fontWeight: 700,
-              letterSpacing: ".1em",
-              textTransform: "uppercase",
-              marginBottom: 6,
-            }}
-          >
+          <div style={{ fontSize: 11, color: T.textLow, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 6 }}>
             🎬 Video Testimonials
           </div>
           <h3 style={{ fontWeight: 800, fontSize: 22, color: T.text, letterSpacing: "-.03em" }}>
             What Our Members <span style={{ color: T.orange }}>Say</span>
           </h3>
         </div>
-        <Btn onClick={() => setShowAdd(true)} small icon="+">
-          Add Testimonial
-        </Btn>
+        <Btn onClick={() => setShowAdd(true)} small icon="+">Add Testimonial</Btn>
       </div>
-      <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
-        {list.map((t) => (
-          <VideoCard key={t.id} t={t} />
-        ))}
-        <div
-          onClick={() => setShowAdd(true)}
-          style={{
-            flexShrink: 0,
-            width: 200,
-            background: T.bgCard,
-            border: `2px dashed ${T.border}`,
-            borderRadius: 16,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            padding: 20,
-            cursor: "pointer",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.borderColor = T.orange + "66")}
-          onMouseLeave={(e) => (e.currentTarget.style.borderColor = T.border)}
-        >
+
+      {loading ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "40px 0" }}>
+          <div style={{ width: 20, height: 20, border: "2px solid #f9731633", borderTopColor: "#f97316", borderRadius: "50%", animation: "spin .7s linear infinite" }} />
+          <span style={{ color: T.textMid, fontSize: 13 }}>Loading testimonials…</span>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
+          {mapped.map(t => <VideoCard key={t.id} t={t} />)}
           <div
-            style={{
-              width: 50,
-              height: 50,
-              borderRadius: "50%",
-              background: T.orangeLo,
-              border: `1px solid ${T.orange}33`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 22,
-            }}
+            onClick={() => setShowAdd(true)}
+            style={{ flexShrink: 0, width: 200, background: T.bgCard, border: `2px dashed ${T.border}`, borderRadius: 16, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 20, cursor: "pointer" }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = T.orange + "66"}
+            onMouseLeave={e => e.currentTarget.style.borderColor = T.border}
           >
-            🎬
-          </div>
-          <div style={{ textAlign: "center", fontSize: 12, color: T.textMid, lineHeight: 1.5 }}>
-            Share your TezConnect success story
-          </div>
-          <div
-            style={{
-              background: "linear-gradient(135deg,#f97316,#ea6008)",
-              borderRadius: 8,
-              padding: "7px 16px",
-              fontSize: 11,
-              fontWeight: 700,
-              color: "#fff",
-            }}
-          >
-            + Add Yours
+            <div style={{ width: 50, height: 50, borderRadius: "50%", background: T.orangeLo, border: `1px solid ${T.orange}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🎬</div>
+            <div style={{ textAlign: "center", fontSize: 12, color: T.textMid, lineHeight: 1.5 }}>Share your TezConnect success story</div>
+            <div style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", borderRadius: 8, padding: "7px 16px", fontSize: 11, fontWeight: 700, color: "#fff" }}>+ Add Yours</div>
           </div>
         </div>
-      </div>
+      )}
+
       {showAdd && (
-        <div
-          onClick={() => setShowAdd(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "#000c",
-            zIndex: 200,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: T.bgCard,
-              border: `1px solid ${T.border}`,
-              borderRadius: 16,
-              padding: "24px",
-              width: "100%",
-              maxWidth: 420,
-              animation: "scaleIn .2s ease",
-            }}
-          >
-            <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 16 }}>
-              Add Your Testimonial
-            </div>
-            {addErr && (
-              <Alert type="error" onDismiss={() => setAddErr("")}>
-                {addErr}
-              </Alert>
-            )}
+        <div onClick={() => setShowAdd(false)} style={{ position: "fixed", inset: 0, background: "#000c", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "24px", width: "100%", maxWidth: 420 }}>
+            <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 16 }}>Add Your Testimonial</div>
+            {addErr && <Alert type="error" onDismiss={() => setAddErr("")}>{addErr}</Alert>}
             <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: addErr ? 14 : 0 }}>
-              <Field
-                label="Your Name *"
-                value={addForm.name}
-                onChange={(v) => setAddForm((f) => ({ ...f, name: v }))}
-                placeholder="e.g. Priya Sharma"
-                icon="👤"
-              />
-              <Field
-                label="Your Role"
-                value={addForm.role}
-                onChange={(v) => setAddForm((f) => ({ ...f, role: v }))}
-                placeholder="e.g. Startup Founder"
-                icon="💼"
-              />
-              <Field
-                label="YouTube Video URL"
-                value={addForm.url}
-                onChange={(v) => setAddForm((f) => ({ ...f, url: v }))}
-                placeholder="https://youtu.be/... or youtube.com/shorts/..."
-                icon="🔗"
-              />
-              <Field
-                label="Your Quote *"
-                value={addForm.quote}
-                onChange={(v) => setAddForm((f) => ({ ...f, quote: v }))}
-                placeholder="Share your experience..."
-                multiline
-                icon="💬"
-              />
+              <Field label="Your Name *" value={addForm.name} onChange={v => setAddForm(f => ({ ...f, name: v }))} placeholder="e.g. Priya Sharma" icon="👤" />
+              <Field label="Your Role" value={addForm.role} onChange={v => setAddForm(f => ({ ...f, role: v }))} placeholder="e.g. Startup Founder" icon="💼" />
+              <Field label="YouTube Video URL" value={addForm.url} onChange={v => setAddForm(f => ({ ...f, url: v }))} placeholder="https://youtu.be/..." icon="🔗" />
+              <Field label="Your Quote *" value={addForm.quote} onChange={v => setAddForm(f => ({ ...f, quote: v }))} placeholder="Share your experience..." multiline icon="💬" />
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: T.textMid,
-                    textTransform: "uppercase",
-                    letterSpacing: ".08em",
-                  }}
-                >
-                  Rating
-                </label>
-                <StarRating
-                  v={addForm.rating}
-                  interactive
-                  onChange={(v) => setAddForm((f) => ({ ...f, rating: v }))}
-                  size={22}
-                />
+                <label style={{ fontSize: 11, fontWeight: 700, color: T.textMid, textTransform: "uppercase", letterSpacing: ".08em" }}>Rating</label>
+                <StarRating v={addForm.rating} interactive onChange={v => setAddForm(f => ({ ...f, rating: v }))} size={22} />
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-              <Btn variant="ghost" onClick={() => setShowAdd(false)}>
-                Cancel
-              </Btn>
+              <Btn variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Btn>
               <Btn onClick={handleAdd}>Submit 🚀</Btn>
             </div>
           </div>
@@ -3565,6 +3443,10 @@ function SignInPage({ onNav, onLogin, prefill = "" }) {
 function AppShell({ session, onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [profile, setProfile] = useState({});
+const [profileLoading, setProfileLoading] = useState(true);
+
+const { pendingReceived, accepted, getStatus, sendRequest,
+        acceptRequest, rejectRequest, removeConnection } = useConnections(session.userId);
 
 useEffect(() => {
   supabase
@@ -3602,6 +3484,7 @@ useEffect(() => {
           certifications: data.certifications || [],
         });
       }
+      setProfileLoading(false);
     });
 }, [session.userId]);
   const [editingProfile, setEditingProfile] = useState(false);
@@ -3641,6 +3524,33 @@ useEffect(() => {
     updated_at: new Date().toISOString(),
   });
 };
+const [unreadMessages, setUnreadMessages] = useState(0);
+
+useEffect(() => {
+  if (!session?.userId) return;
+  supabase
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("receiver_id", session.userId)
+    .eq("read", false)
+    .then(({ count }) => setUnreadMessages(count || 0));
+
+  const sub = supabase
+    .channel("unread_channel")
+    .on("postgres_changes", {
+      event: "*", schema: "public", table: "messages",
+    }, () => {
+      supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("receiver_id", session.userId)
+        .eq("read", false)
+        .then(({ count }) => setUnreadMessages(count || 0));
+    })
+    .subscribe();
+
+  return () => supabase.removeChannel(sub);
+}, [session?.userId]);
 
   const renderPage = () => {
     if (page === "profile") {
@@ -3668,39 +3578,20 @@ useEffect(() => {
           }}
         />
       );
-    if (page === "testimonials") return <TestimonialsScreen />;
+   if (page === "testimonials") return <TestimonialsScreen session={session} />;
    if (page === "network")
   return <NetworkPage session={session} />;
-    if (page === "leads")
-      return (
-        <PlaceholderScreen
-          icon="🎯"
-          title="Leads"
-          desc="Manage your business leads and opportunities."
-        />
-      );
-    if (page === "events")
-      return (
-        <PlaceholderScreen
-          icon="📅"
-          title="Events"
-          desc="Find and register for B2B events and meetups."
-        />
-      );
-    if (page === "messages")
-      return (
-        <PlaceholderScreen
-          icon="💬"
-          title="Messages"
-          desc="Your B2B conversations and WhatsApp integrations."
-        />
-      );
+    if (page === "leads") return <LeadsPage session={session} />;
+    if (page === "events") return <EventsPage session={session} />;
+    if (page === "messages") return <MessagesPage session={session} />;
     if (page === "settings")
       return (
-        <PlaceholderScreen
-          icon="⚙"
-          title="Settings"
-          desc="Manage your account settings and preferences."
+         <SettingsPage
+      session={session}
+      profile={profile}
+      onSaveProfile={handleSaveProfile}
+      onLogout={onLogout}
+    
         />
       );
     return null;
@@ -3728,6 +3619,8 @@ useEffect(() => {
         collapsed={collapsed}
         onCollapse={() => setCollapsed(!collapsed)}
         onLogout={() => setLogoutModal(true)}
+        pendingCount={pendingReceived.length}
+        unreadMessages={unreadMessages}
       />
       {/* Main */}
       <div
@@ -3777,19 +3670,16 @@ useEffect(() => {
           </div>
         </div>
         {/* Content */}
-        <div
-          style={{
-            flex: 1,
-            padding: "28px 28px",
-            maxWidth: 1040,
-            width: "100%",
-            margin: "0 auto",
-            zIndex: 1,
-            position: "relative",
-          }}
-        >
-          {renderPage()}
-        </div>
+       <div style={{ flex: 1, padding: "28px 28px", maxWidth: 1040, width: "100%", margin: "0 auto", zIndex: 1, position: "relative" }}>
+  {profileLoading ? (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 12 }}>
+      <div style={{ width: 24, height: 24, border: `2px solid #f9731633`, borderTopColor: "#f97316", borderRadius: "50%", animation: "spin .7s linear infinite" }}/>
+      <span style={{ color: "#6b7594", fontSize: 13 }}>Loading…</span>
+    </div>
+  ) : (
+    renderPage()
+  )}
+</div>
       </div>
 
       {/* Logout modal */}
@@ -3863,6 +3753,100 @@ useEffect(() => {
     </div>
   );
 }
+function InstallPrompt() {
+  const [prompt, setPrompt] = useState(null);
+  const [show, setShow]     = useState(false);
+  const [dismissed, setDismissed] = useState(
+    () => localStorage.getItem("pwa_dismissed") === "true"
+  );
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setPrompt(e);
+      if (!dismissed) setShow(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, [dismissed]);
+
+  const install = async () => {
+    if (!prompt) return;
+    prompt.prompt();
+    const { outcome } = await prompt.userChoice;
+    if (outcome === "accepted") setShow(false);
+  };
+
+  const dismiss = () => {
+    setShow(false);
+    setDismissed(true);
+    localStorage.setItem("pwa_dismissed", "true");
+  };
+
+  if (!show) return null;
+
+  return (
+    <div style={{
+      position: "fixed", bottom: 20, left: "50%",
+      transform: "translateX(-50%)",
+      width: "calc(100% - 40px)", maxWidth: 420,
+      background: "#0b0d17",
+      border: "1px solid #f9731644",
+      borderRadius: 16, padding: "16px 20px",
+      display: "flex", alignItems: "center", gap: 14,
+      zIndex: 9999,
+      boxShadow: "0 20px 60px #00000077, 0 0 0 1px #f9731622",
+      animation: "fadeUp .4s ease",
+    }}>
+      {/* Icon */}
+      <div style={{
+        width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+        background: "linear-gradient(145deg,#f97316,#ea6008)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 24, boxShadow: "0 4px 16px #f9731444",
+      }}>
+        ⚡
+      </div>
+
+      {/* Text */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 800, fontSize: 14, color: "#eef0f8", marginBottom: 2 }}>
+          Install TezConnect
+        </div>
+        <div style={{ fontSize: 12, color: "#6b7594", lineHeight: 1.4 }}>
+          Add to home screen for the best experience
+        </div>
+      </div>
+
+      {/* Buttons */}
+      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+        <button
+          onClick={dismiss}
+          style={{
+            background: "transparent", border: "1px solid #1a1f35",
+            borderRadius: 8, padding: "7px 12px",
+            color: "#6b7594", fontSize: 12, fontWeight: 600,
+            cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
+          }}
+        >
+          Not now
+        </button>
+        <button
+          onClick={install}
+          style={{
+            background: "linear-gradient(135deg,#f97316,#ea6008)",
+            border: "none", borderRadius: 8, padding: "7px 14px",
+            color: "#fff", fontSize: 12, fontWeight: 700,
+            cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
+            boxShadow: "0 4px 12px #f9731440",
+          }}
+        >
+          Install
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /* ═══════════════════════════════════════════════════════════
    ROOT
@@ -3871,6 +3855,12 @@ export default function App() {
   const [page, setPage] = useState("loading");
   const [session, setSession] = useState(null);
   const [navData, setNavData] = useState({});
+  // Detect public profile URL  ← add this block
+  const path = window.location.pathname;
+  const publicProfileMatch = path.match(/^\/u\/([a-z0-9_]+)$/i);
+  if (publicProfileMatch) {
+    return <PublicProfilePage username={publicProfileMatch[1]} />;
+  }
 
  useEffect(() => {
   supabase.auth.getSession().then(({ data: { session } }) => {
@@ -3886,12 +3876,20 @@ export default function App() {
     }
   });
 
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-    if (!session) {
-      setSession(null);
-      setPage("signin");
-    }
-  });
+ const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+  if (event === "SIGNED_OUT") {
+    setSession(null);
+    setPage("signin");
+  }
+  if (event === "SIGNED_IN" && session) {
+    setSession({
+      userId: session.user.id,
+      name: session.user.user_metadata.name,
+      email: session.user.email,
+    });
+    setPage("app");
+  }
+});
 
   return () => subscription.unsubscribe();
 }, []);
@@ -3940,6 +3938,7 @@ export default function App() {
       )}
       {page === "app" && session && <AppShell session={session} onLogout={logout} />}
       {page === "app" && !session && (() => { nav("signin"); return null; })()}
-    </>
+      <InstallPrompt/> 
+  </>
   );
 }
