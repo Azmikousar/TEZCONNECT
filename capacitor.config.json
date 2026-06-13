@@ -1,0 +1,28 @@
+{
+  "appId": "com.tezconnect.app",
+  "appName": "TezConnect",
+  "webDir": "dist",
+  "server": {
+    "url": "https://tezconnect.vercel.app",
+    "cleartext": true,
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "dark",
+      "backgroundColor": "#06070d"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#06070d",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    }
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#06070d"
+  }
+}
+
