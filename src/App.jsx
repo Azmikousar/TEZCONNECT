@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNotifications } from "./useNotifications";
+import NotificationsPanel from "./NotificationsPanel";
 
 import { supabase } from "./supabase";   // ← add this line
 import { uploadPhoto } from "./uploadPhoto";
@@ -3450,6 +3452,8 @@ const [profileLoading, setProfileLoading] = useState(true);
 
 const { pendingReceived, accepted, getStatus, sendRequest,
         acceptRequest, rejectRequest, removeConnection } = useConnections(session.userId);
+const [showNotifications, setShowNotifications] = useState(false);
+const { unreadCount: notifUnread } = useNotifications(session.userId);
 
 useEffect(() => {
   supabase
@@ -3570,7 +3574,8 @@ useEffect(() => {
         <ProfileView profile={profile} onEdit={() => setEditingProfile(true)} />
       );
     }
-    if (page === "dashboard")
+
+    if (page === "dashboard") {
       return (
         <DashboardScreen
           session={session}
@@ -3581,24 +3586,43 @@ useEffect(() => {
           }}
         />
       );
-      if (page==="feed") return <FeedPage session={session}/>;
+    }
 
-   if (page === "testimonials") return <TestimonialsScreen session={session} />;
-   if (page === "network")
-  return <NetworkPage session={session} />;
-    if (page === "leads") return <LeadsPage session={session} />;
-    if (page === "events") return <EventsPage session={session} />;
-    if (page === "messages") return <MessagesPage session={session} />;
-    if (page === "settings")
+    if (page === "feed") {
+      return <FeedPage session={session} />;
+    }
+
+    if (page === "testimonials") {
+      return <TestimonialsScreen session={session} />;
+    }
+
+    if (page === "network") {
+      return <NetworkPage session={session} />;
+    }
+
+    if (page === "leads") {
+      return <LeadsPage session={session} />;
+    }
+
+    if (page === "events") {
+      return <EventsPage session={session} />;
+    }
+
+    if (page === "messages") {
+      return <MessagesPage session={session} />;
+    }
+
+    if (page === "settings") {
       return (
-         <SettingsPage
-      session={session}
-      profile={profile}
-      onSaveProfile={handleSaveProfile}
-      onLogout={onLogout}
-    
+        <SettingsPage
+          session={session}
+          profile={profile}
+          onSaveProfile={handleSaveProfile}
+          onLogout={onLogout}
         />
       );
+    }
+
     return null;
   };
 
@@ -3661,31 +3685,106 @@ useEffect(() => {
                 : "My Profile"
               : NAV.find((n) => n.id === page)?.label || ""}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <button
+              onClick={() => setShowNotifications(true)}
               style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: T.success,
-                boxShadow: `0 0 6px ${T.success}`,
+                position: "relative",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 20,
+                color: T.textMid,
+                padding: 4,
+                display: "flex",
               }}
-            />
-            <span style={{ fontSize: 12, color: T.textMid }}>Online</span>
+            >
+              🔔
+              {notifUnread > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: -2,
+                    right: -2,
+                    width: 16,
+                    height: 16,
+                    background: T.orange,
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 9,
+                    fontWeight: 800,
+                    color: "#fff",
+                    border: `2px solid ${T.bg}`,
+                  }}
+                >
+                  {notifUnread > 9 ? "9+" : notifUnread}
+                </span>
+              )}
+            </button>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: T.success,
+                  boxShadow: `0 0 6px ${T.success}`,
+                }}
+              />
+              <span style={{ fontSize: 12, color: T.textMid }}>Online</span>
+            </div>
           </div>
         </div>
         {/* Content */}
-       <div style={{ flex: 1, padding: "28px 28px", maxWidth: 1040, width: "100%", margin: "0 auto", zIndex: 1, position: "relative" }}>
-  {profileLoading ? (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 12 }}>
-      <div style={{ width: 24, height: 24, border: `2px solid #f9731633`, borderTopColor: "#f97316", borderRadius: "50%", animation: "spin .7s linear infinite" }}/>
-      <span style={{ color: "#6b7594", fontSize: 13 }}>Loading…</span>
-    </div>
-  ) : (
-    renderPage()
-  )}
-</div>
+        <div
+          style={{
+            flex: 1,
+            padding: "28px 28px",
+            maxWidth: 1040,
+            width: "100%",
+            margin: "0 auto",
+            zIndex: 1,
+            position: "relative",
+          }}
+        >
+          {profileLoading ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: 400,
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 24,
+                  height: 24,
+                  border: `2px solid #f9731633`,
+                  borderTopColor: "#f97316",
+                  borderRadius: "50%",
+                  animation: "spin .7s linear infinite",
+                }}
+              />
+              <span style={{ color: "#6b7594", fontSize: 13 }}>Loading…</span>
+            </div>
+          ) : (
+            renderPage()
+          )}
+        </div>
       </div>
+      {showNotifications && (
+  <NotificationsPanel
+    session={session}
+    onClose={()=>setShowNotifications(false)}
+    onNavigate={p=>{setPage(p);if(p!=="profile")setEditingProfile(false);}}
+  />
+)}
+
 
       {/* Logout modal */}
       {logoutModal && (
