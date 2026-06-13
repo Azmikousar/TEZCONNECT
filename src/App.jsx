@@ -3777,7 +3777,7 @@ useEffect(() => {
           )}
         </div>
       </div>
-      {showNotifications && (
+   {showNotifications && (
   <NotificationsPanel
     session={session}
     onClose={()=>setShowNotifications(false)}
