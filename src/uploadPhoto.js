@@ -6,7 +6,7 @@ export async function uploadPhoto(file, userId, bucket = "avatars") {
 
   const { error } = await supabase.storage
     .from(bucket)
-    .upload(path, file, { upsert: true });
+    .upload(path, file, { upsert: true ,contentType: file.type});
 
   if (error) throw new Error(error.message);
 
