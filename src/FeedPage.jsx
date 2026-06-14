@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
+import UserProfileModal from "./UserProfileModal";
+
 
 const T = {
   bg: "#06070d", bgCard: "#0b0d17", bgInput: "#0f1120", bgHover: "#141726",
@@ -9,7 +11,7 @@ const T = {
 };
 
 /* ── Single Post Card ── */
-function PostCard({ post, session, onDeleted }) {
+function PostCard({ post, session, onDeleted ,onViewProfile}){
   const [liked, setLiked]       = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [comments, setComments] = useState([]);
@@ -20,6 +22,7 @@ function PostCard({ post, session, onDeleted }) {
   const [showMenu, setShowMenu] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isMine = post.user_id === session.userId;
+const [viewingUser, setViewingUser] = useState(null);
 
   const fetchLikes = async () => {
     const { data, count } = await supabase
@@ -99,13 +102,15 @@ function PostCard({ post, session, onDeleted }) {
   return (
     <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px" }}
+      onClick={() => onViewProfile(post.user_id)}
+      >
         <div style={{
           width: 38, height: 38, borderRadius: "50%",
           background: "linear-gradient(135deg,#f97316,#ea6008)",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 14, fontWeight: 800, color: "#fff",
-          overflow: "hidden", flexShrink: 0,
+          overflow: "hidden", flexShrink: 0,cursor: "pointer",
         }}>
           {author.photo
             ? <img src={author.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -113,7 +118,9 @@ function PostCard({ post, session, onDeleted }) {
           }
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{author.name || "Member"}</div>
+          <div 
+          onClick={() => onViewProfile(post.user_id)}
+          style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{author.name || "Member"}</div>
           <div style={{ fontSize: 11, color: T.textLow }}>{timeAgo(post.created_at)} ago</div>
         </div>
 
@@ -561,7 +568,9 @@ export default function FeedPage({ session }) {
 
       {/* Posts */}
       {!loading && !error && posts.map(post => (
-        <PostCard key={post.id} post={post} session={session} onDeleted={handleDeleted} />
+        <PostCard key={post.id} post={post} session={session} onDeleted={handleDeleted} 
+        onViewProfile={setViewingUser}
+        />
       ))}
 
       {/* Create modal */}
@@ -572,6 +581,15 @@ export default function FeedPage({ session }) {
           onCreated={fetchPosts}
         />
       )}
+      {viewingUser && (
+  <UserProfileModal
+    userId={viewingUser}
+    session={session}
+    onClose={() => setViewingUser(null)}
+    connectionProps={null}
+  />
+)}
+
     </div>
   );
 }

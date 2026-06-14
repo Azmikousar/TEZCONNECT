@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import ConnectButton from "./ConnectButton";
 import RequestsPanel from "./RequestsPanel";
 import { useConnections } from "./useConnections";
+import UserProfileModal from "./UserProfileModal";
 
 import SentRequestsPanel from "./SentRequestsPanel";
 import ConnectedPanel from "./ConnectedPanel";
@@ -27,7 +28,7 @@ function Tag({ children, color = T.orange }) {
   );
 }
 
-function MemberCard({ member, currentUserId, connectionProps }) {
+function MemberCard({ member, currentUserId, connectionProps,onViewProfile }) {
   const [hov, setHov] = useState(false);
   const initials = (member.name || "?")
     .split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -66,8 +67,10 @@ function MemberCard({ member, currentUserId, connectionProps }) {
         )}
       </div>
 
-      {/* Avatar */}
-      <div style={{ padding: "0 16px", transform: "translateY(-28px)", marginBottom: -12 }}>
+      {/* Avatar */}cursor: "pointer" 
+      <div style={{ padding: "0 16px", transform: "translateY(-28px)", marginBottom: -12,cursor: "pointer"  }}
+      onClick={() => onViewProfile(member.id)}
+      >
         <div style={{
           width: 56, height: 56, borderRadius: "50%",
           border: `3px solid ${T.bgCard}`,
@@ -87,7 +90,9 @@ function MemberCard({ member, currentUserId, connectionProps }) {
 
       {/* Info */}
       <div style={{ padding: "0 16px 16px" }}>
-        <div style={{ fontWeight: 800, fontSize: 14, color: T.text, letterSpacing: "-.02em" }}>
+        <div 
+        onClick={() => onViewProfile(member.id)}
+        style={{ fontWeight: 800, fontSize: 14, color: T.text, letterSpacing: "-.02em" }}>
           {member.name || "—"}
         </div>
         {member.designation && (
@@ -138,6 +143,8 @@ export default function NetworkPage({ session }) {
   const [filterCategory, setFilterCategory] = useState("");
   const [tab, setTab]                   = useState("discover");
   const mountedRef                      = useRef(true);
+  const [viewingUser, setViewingUser] = useState(null);
+
 
   const {
     getStatus, sendRequest, acceptRequest,
@@ -349,8 +356,18 @@ export default function NetworkPage({ session }) {
                     rejectRequest,
                     removeConnection,
                   }}
+                  onViewProfile={setViewingUser}
                 />
               ))}
+              {viewingUser && (
+  <UserProfileModal
+    userId={viewingUser}
+    session={session}
+    onClose={() => setViewingUser(null)}
+    connectionProps={{ getStatus, sendRequest, acceptRequest, rejectRequest, removeConnection }}
+  />
+)}
+
             </div>
           )}
         </>
