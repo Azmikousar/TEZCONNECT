@@ -66,8 +66,7 @@ function MemberCard({ member, currentUserId, connectionProps,onViewProfile }) {
           </div>
         )}
       </div>
-
-      {/* Avatar */}cursor: "pointer" 
+      {/* Avatar */}
       <div style={{ padding: "0 16px", transform: "translateY(-28px)", marginBottom: -12,cursor: "pointer"  }}
       onClick={() => onViewProfile(member.id)}
       >
