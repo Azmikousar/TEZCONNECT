@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNotifications } from "./useNotifications";
 import NotificationsPanel from "./NotificationsPanel";
-
+import { useIsMobile } from "./useIsMobile";
 import { supabase } from "./supabase";   // ← add this line
 import { uploadPhoto } from "./uploadPhoto";
 import NetworkPage from "./NetworkPage";
@@ -12,7 +12,11 @@ import EventsPage from "./EventsPage";
 import MessagesPage from "./MessagesPage";
 import PublicProfilePage from "./PublicProfilePage";
 import SettingsPage from "./SettingsPage";
-import FeedPage from "./FeedPage";
+import FeedPage from "./FeedPage";import { useIsMobile } from "./useIsMobile";
+import BottomNav from "./BottomNav";
+import MobileTopBar from "./MobileTopBar";
+import MobileMoreMenu from "./MobileMoreMenu";
+
 
 
 
@@ -71,6 +75,7 @@ input,button,select,textarea{font-family:'Plus Jakarta Sans',sans-serif}
 ::-webkit-scrollbar{width:3px;height:3px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#1a1f35;border-radius:4px}
+@keyframes slideUp {from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
 `;
 
 function GlobalStyles() {
@@ -3454,6 +3459,8 @@ const { pendingReceived, accepted, getStatus, sendRequest,
         acceptRequest, rejectRequest, removeConnection } = useConnections(session.userId);
 const [showNotifications, setShowNotifications] = useState(false);
 const { unreadCount: notifUnread } = useNotifications(session.userId);
+const isMobile = useIsMobile();
+const [showMoreMenu, setShowMoreMenu] = useState(false);
 
 useEffect(() => {
   supabase
@@ -3625,18 +3632,16 @@ useEffect(() => {
 
     return null;
   };
-
+/*
   return (
     <div
       style={{
         display: "flex",
         minHeight: "100vh",
         background: T.bg,
-        position: "relative",
-      }}
-    >
+        position: "relati
       <Background />
-      {/* Sidebar */}
+      {
       <Sidebar
         active={page}
         onNav={(p) => {
@@ -3651,7 +3656,7 @@ useEffect(() => {
         pendingCount={pendingReceived.length}
         unreadMessages={unreadMessages}
       />
-      {/* Main */}
+      
       <div
         style={{
           flex: 1,
@@ -3660,8 +3665,7 @@ useEffect(() => {
           minWidth: 0,
           overflowX: "hidden",
         }}
-      >
-        {/* Top bar */}
+  
         <div
           style={{
             background: "#06070dcc",
@@ -3736,9 +3740,7 @@ useEffect(() => {
               />
               <span style={{ fontSize: 12, color: T.textMid }}>Online</span>
             </div>
-          </div>
-        </div>
-        {/* Content */}
+          </
         <div
           style={{
             flex: 1,
@@ -3763,8 +3765,7 @@ useEffect(() => {
               <div
                 style={{
                   width: 24,
-                  height: 24,
-                  border: `2px solid #f9731633`,
+                  hf9731633`,
                   borderTopColor: "#f97316",
                   borderRadius: "50%",
                   animation: "spin .7s linear infinite",
@@ -3781,12 +3782,7 @@ useEffect(() => {
   <NotificationsPanel
     session={session}
     onClose={()=>setShowNotifications(false)}
-    onNavigate={p=>{setPage(p);if(p!=="profile")setEditingProfile(false);}}
-  />
-)}
-
-
-      {/* Logout modal */}
+    onNavigate={p=>{setPage(p);if(p!=="profile")setEditi
       {logoutModal && (
         <div
           onClick={() => setLogoutModal(false)}
@@ -3822,40 +3818,135 @@ useEffect(() => {
                 background: T.errorLo,
                 border: `1px solid ${T.error}33`,
                 display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 24,
-                margin: "0 auto 14px",
-              }}
+        
+        
+    
+              
+  */return (
+  <div style={{ display: "flex", minHeight: "100vh", background: T.bg, position: "relative" }}>
+    <Background />
+
+    {/* Desktop sidebar — hidden on mobile */}
+    {!isMobile && (
+      <Sidebar
+        active={page}
+        onNav={p => { setPage(p); if (p !== "profile") setEditingProfile(false); }}
+        session={session} profile={profile}
+        collapsed={collapsed} onCollapse={() => setCollapsed(!collapsed)}
+        onLogout={() => setLogoutModal(true)}
+        pendingCount={pendingReceived.length}
+        unreadMessages={unreadMessages}
+      />
+    )}
+
+    {/* Main content */}
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowX: "hidden" }}>
+
+      {/* Mobile top bar */}
+      {isMobile ? (
+        <MobileTopBar
+          title={page === "profile" ? (editingProfile ? "Edit Profile" : "My Profile") : NAV.find(n => n.id === page)?.label || ""}
+          session={session}
+          profile={profile}
+          onNotifications={() => setShowNotifications(true)}
+          notifUnread={notifUnread}
+          showBack={editingProfile && page === "profile"}
+          onBack={() => setEditingProfile(false)}
+        />
+      ) : (
+        /* Desktop top bar */
+        <div style={{ background: "#06070dcc", backdropFilter: "blur(16px)", borderBottom: `1px solid ${T.border}`, padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 30 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>
+            {page === "dashboard" ? "Dashboard" : page === "profile" ? editingProfile ? "Edit Profile" : "My Profile" : NAV.find(n => n.id === page)?.label || ""}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <button
+              onClick={() => setShowNotifications(true)}
+              style={{ position: "relative", background: "none", border: "none", cursor: "pointer", fontSize: 20, color: T.textMid, padding: 4, display: "flex" }}
             >
-              ⏏
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 8 }}>
-              Sign Out?
-            </div>
-            <div
-              style={{
-                color: T.textMid,
-                fontSize: 13,
-                lineHeight: 1.7,
-                marginBottom: 20,
-              }}
-            >
-              Your session will end and you'll be returned to the sign-in page.
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <Btn variant="ghost" onClick={() => setLogoutModal(false)} fullWidth>
-                Cancel
-              </Btn>
-              <Btn onClick={onLogout} fullWidth>
-                Yes, Sign Out
-              </Btn>
+              🔔
+              {notifUnread > 0 && (
+                <span style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, background: T.orange, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#fff", border: `2px solid ${T.bg}` }}>
+                  {notifUnread > 9 ? "9+" : notifUnread}
+                </span>
+              )}
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.success, boxShadow: `0 0 6px ${T.success}` }} />
+              <span style={{ fontSize: 12, color: T.textMid }}>Online</span>
             </div>
           </div>
         </div>
       )}
+
+      {/* Page content */}
+      <div style={{
+        flex: 1,
+        padding: isMobile ? "16px 16px 90px" : "28px 28px",
+        maxWidth: isMobile ? "100%" : 1040,
+        width: "100%",
+        margin: "0 auto",
+        zIndex: 1,
+        position: "relative",
+      }}>
+        {profileLoading
+          ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 12 }}><Spinner size={24} /><span style={{ color: T.textMid, fontSize: 13 }}>Loading…</span></div>
+          : renderPage()
+        }
+      </div>
     </div>
-  );
+
+    {/* Mobile bottom nav */}
+    {isMobile && (
+      <BottomNav
+        active={page}
+        onNav={p => {
+          if (p === "more") { setShowMoreMenu(true); return; }
+          setPage(p);
+          if (p !== "profile") setEditingProfile(false);
+        }}
+        pendingCount={pendingReceived.length}
+        unreadMessages={unreadMessages}
+      />
+    )}
+
+    {/* Mobile more menu */}
+    {isMobile && showMoreMenu && (
+      <MobileMoreMenu
+        session={session}
+        profile={profile}
+        onNav={p => { setPage(p); if (p !== "profile") setEditingProfile(false); }}
+        onLogout={() => { setLogoutModal(true); }}
+        onClose={() => setShowMoreMenu(false)}
+      />
+    )}
+
+    {/* Notifications panel */}
+    {showNotifications && (
+      <NotificationsPanel
+        session={session}
+        onClose={() => setShowNotifications(false)}
+        onNavigate={p => { setPage(p); if (p !== "profile") setEditingProfile(false); }}
+      />
+    )}
+
+    {/* Logout modal */}
+    {logoutModal && (
+      <div onClick={() => setLogoutModal(false)} style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "28px 24px", maxWidth: 340, width: "100%", animation: "scaleIn .2s ease", textAlign: "center" }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: T.errorLo, border: `1px solid ${T.error}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 14px" }}>⏏</div>
+          <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 8 }}>Sign Out?</div>
+          <div style={{ color: T.textMid, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>Your session will end and you'll be returned to the sign-in page.</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn variant="ghost" onClick={() => setLogoutModal(false)} fullWidth>Cancel</Btn>
+            <Btn onClick={onLogout} fullWidth>Yes, Sign Out</Btn>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+);
+
 }
 function InstallPrompt() {
   const [prompt, setPrompt] = useState(null);

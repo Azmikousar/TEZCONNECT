@@ -23,6 +23,10 @@
   "android": {
     "allowMixedContent": true,
     "backgroundColor": "#06070d"
-  }
+  },
+    "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#06070d"
+}
 }
 
