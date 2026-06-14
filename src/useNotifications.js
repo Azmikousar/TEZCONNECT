@@ -5,9 +5,11 @@ export function useNotifications(userId) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount]     = useState(0);
   const [loading, setLoading]             = useState(true);
-
+  
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
+    console.log("Fetching notifications for:", userId);
+
 
     // Step 1 — fetch notifications
     const { data: notifs } = await supabase
@@ -16,6 +18,8 @@ export function useNotifications(userId) {
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(50);
+      
+      console.log("Notifications:", notifs, "Error:", notifErr);
 
     if (!notifs || notifs.length === 0) {
       setNotifications([]);
