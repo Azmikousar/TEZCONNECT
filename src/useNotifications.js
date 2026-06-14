@@ -8,14 +8,40 @@ export function useNotifications(userId) {
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
-    const { data } = await supabase
+
+    // Step 1 — fetch notifications
+    const { data: notifs } = await supabase
       .from("notifications")
-      .select("*, actor:actor_id(name, photo)")
+      .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(50);
-    setNotifications(data || []);
-    setUnreadCount((data || []).filter(n => !n.read).length);
+
+    if (!notifs || notifs.length === 0) {
+      setNotifications([]);
+      setUnreadCount(0);
+      setLoading(false);
+      return;
+    }
+
+    // Step 2 — fetch actor profiles separately
+    const actorIds = [...new Set(notifs.map(n => n.actor_id).filter(Boolean))];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, name, photo")
+      .in("id", actorIds);
+
+    const profileMap = {};
+    (profiles || []).forEach(p => { profileMap[p.id] = p; });
+
+    // Step 3 — merge
+    const merged = notifs.map(n => ({
+      ...n,
+      actor: profileMap[n.actor_id] || null,
+    }));
+
+    setNotifications(merged);
+    setUnreadCount(merged.filter(n => !n.read).length);
     setLoading(false);
   }, [userId]);
 
@@ -23,9 +49,11 @@ export function useNotifications(userId) {
     fetchNotifications();
 
     const sub = supabase
-      .channel("notifications_channel")
+      .channel("notifications_channel_" + userId)
       .on("postgres_changes", {
-        event: "INSERT", schema: "public", table: "notifications",
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
         filter: `user_id=eq.${userId}`,
       }, () => {
         fetchNotifications();
@@ -36,16 +64,32 @@ export function useNotifications(userId) {
   }, [userId, fetchNotifications]);
 
   const markAsRead = useCallback(async (id) => {
-    await supabase.from("notifications").update({ read: true }).eq("id", id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("id", id);
+    setNotifications(prev =>
+      prev.map(n => n.id === id ? { ...n, read: true } : n)
+    );
     setUnreadCount(c => Math.max(0, c - 1));
   }, []);
 
   const markAllAsRead = useCallback(async () => {
-    await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
+    await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("user_id", userId)
+      .eq("read", false);
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     setUnreadCount(0);
   }, [userId]);
 
-  return { notifications, unreadCount, loading, markAsRead, markAllAsRead, refresh: fetchNotifications };
+  return {
+    notifications,
+    unreadCount,
+    loading,
+    markAsRead,
+    markAllAsRead,
+    refresh: fetchNotifications,
+  };
 }

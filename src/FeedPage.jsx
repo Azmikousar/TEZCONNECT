@@ -17,6 +17,8 @@ function PostCard({ post, session, onDeleted }) {
   const [commentText, setCommentText] = useState("");
   const [posting, setPosting]   = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const isMine = post.user_id === session.userId;
 
   const fetchLikes = async () => {
@@ -66,7 +68,11 @@ function PostCard({ post, session, onDeleted }) {
   const sharePost = async () => {
     const url = `${window.location.origin}/?post=${post.id}`;
     if (navigator.share) {
-      await navigator.share({ title: "Check this out on TezConnect", url });
+      try {
+        await navigator.share({ title: "Check this out on TezConnect", url });
+      } catch {
+        // user cancelled share — ignore
+      }
     } else {
       navigator.clipboard.writeText(url);
       setShareCopied(true);
@@ -76,6 +82,7 @@ function PostCard({ post, session, onDeleted }) {
 
   const deletePost = async () => {
     await supabase.from("posts").delete().eq("id", post.id);
+    setConfirmDelete(false);
     onDeleted(post.id);
   };
 
@@ -109,13 +116,45 @@ function PostCard({ post, session, onDeleted }) {
           <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{author.name || "Member"}</div>
           <div style={{ fontSize: 11, color: T.textLow }}>{timeAgo(post.created_at)} ago</div>
         </div>
+
+        {/* Menu */}
         {isMine && (
-          <button
-            onClick={deletePost}
-            style={{ background: "none", border: "none", color: T.textLow, fontSize: 18, cursor: "pointer", padding: 4 }}
-          >
-            ⋯
-          </button>
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowMenu(s => !s)}
+              style={{ background: "none", border: "none", color: T.textLow, fontSize: 18, cursor: "pointer", padding: 4, lineHeight: 1 }}
+            >
+              ⋯
+            </button>
+            {showMenu && (
+              <div
+                onClick={() => setShowMenu(false)}
+                style={{ position: "fixed", inset: 0, zIndex: 10 }}
+              >
+                <div
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    position: "absolute", top: "100%", right: 0, marginTop: 4,
+                    background: T.bgInput, border: `1px solid ${T.border}`,
+                    borderRadius: 10, overflow: "hidden", zIndex: 11, minWidth: 150,
+                    boxShadow: "0 8px 24px #00000066",
+                  }}
+                >
+                  <button
+                    onClick={() => { setShowMenu(false); setConfirmDelete(true); }}
+                    style={{
+                      width: "100%", textAlign: "left", padding: "10px 14px",
+                      background: "none", border: "none", color: T.error,
+                      fontSize: 13, fontWeight: 600, cursor: "pointer",
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    }}
+                  >
+                    🗑 Delete Post
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -234,6 +273,37 @@ function PostCard({ post, session, onDeleted }) {
           </div>
         </div>
       )}
+
+      {/* Delete confirm modal */}
+      {confirmDelete && (
+        <div
+          onClick={() => setConfirmDelete(false)}
+          style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "24px", maxWidth: 320, width: "100%", textAlign: "center" }}
+          >
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🗑️</div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: T.text, marginBottom: 8 }}>Delete this post?</div>
+            <div style={{ fontSize: 13, color: T.textMid, marginBottom: 20, lineHeight: 1.6 }}>This cannot be undone.</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                style={{ flex: 1, background: "transparent", border: `1px solid ${T.border}`, borderRadius: 9, padding: "10px", color: T.textMid, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deletePost}
+                style={{ flex: 1, background: "#f8717112", border: `1px solid ${T.error}44`, borderRadius: 9, padding: "10px", color: T.error, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -273,7 +343,11 @@ function CreatePostModal({ session, onClose, onCreated }) {
       const { error: upErr } = await supabase.storage.from("posts").upload(path, file, {
         contentType: file.type,
       });
-      if (upErr) { setError(upErr.message); setUploading(false); return; }
+      if (upErr) {
+        setError("Upload failed: " + upErr.message);
+        setUploading(false);
+        return;
+      }
       const { data } = supabase.storage.from("posts").getPublicUrl(path);
       mediaUrl = data.publicUrl;
       finalType = mediaType;
@@ -287,7 +361,12 @@ function CreatePostModal({ session, onClose, onCreated }) {
     });
 
     setUploading(false);
-    if (insErr) { setError(insErr.message); return; }
+
+    if (insErr) {
+      setError("Could not save post: " + insErr.message);
+      return;
+    }
+
     onCreated();
     onClose();
   };
@@ -303,11 +382,16 @@ function CreatePostModal({ session, onClose, onCreated }) {
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
           <div style={{ fontWeight: 800, fontSize: 18, color: T.text }}>📸 Create Post</div>
-          <button onClick={onClose} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+          <button
+            onClick={onClose}
+            style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            ×
+          </button>
         </div>
 
         {error && (
-          <div style={{ background: "#f8717112", border: `1px solid ${T.error}44`, borderRadius: 9, padding: "10px 14px", fontSize: 12, color: T.error, marginBottom: 16 }}>
+          <div style={{ background: "#f8717112", border: `1px solid ${T.error}44`, borderRadius: 9, padding: "10px 14px", fontSize: 12, color: T.error, marginBottom: 16, lineHeight: 1.5 }}>
             ⚠ {error}
           </div>
         )}
@@ -385,14 +469,23 @@ function CreatePostModal({ session, onClose, onCreated }) {
 export default function FeedPage({ session }) {
   const [posts, setPosts]     = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
   const [showCreate, setShowCreate] = useState(false);
 
   const fetchPosts = async () => {
+    setLoading(true);
     const { data, error } = await supabase
       .from("posts")
       .select("*, profiles(name, photo)")
       .order("created_at", { ascending: false });
-    if (!error) setPosts(data || []);
+
+    if (error) {
+      setError(error.message);
+      setPosts([]);
+    } else {
+      setError(null);
+      setPosts(data || []);
+    }
     setLoading(false);
   };
 
@@ -429,6 +522,20 @@ export default function FeedPage({ session }) {
         </button>
       </div>
 
+      {/* Error */}
+      {error && !loading && (
+        <div style={{ background: "#f8717112", border: `1px solid ${T.error}44`, borderRadius: 12, padding: "16px 20px", textAlign: "center" }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: T.error, marginBottom: 6 }}>Couldn't load feed</div>
+          <div style={{ fontSize: 12, color: T.textMid, lineHeight: 1.6, marginBottom: 12 }}>{error}</div>
+          <button
+            onClick={fetchPosts}
+            style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 9, padding: "8px 20px", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+
       {/* Loading */}
       {loading && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200, gap: 12 }}>
@@ -438,7 +545,7 @@ export default function FeedPage({ session }) {
       )}
 
       {/* Empty */}
-      {!loading && posts.length === 0 && (
+      {!loading && !error && posts.length === 0 && (
         <div style={{ textAlign: "center", padding: "60px 20px" }}>
           <div style={{ fontSize: 56, marginBottom: 16 }}>📸</div>
           <div style={{ fontWeight: 800, fontSize: 18, color: T.text, marginBottom: 8 }}>No posts yet</div>
@@ -453,7 +560,7 @@ export default function FeedPage({ session }) {
       )}
 
       {/* Posts */}
-      {!loading && posts.map(post => (
+      {!loading && !error && posts.map(post => (
         <PostCard key={post.id} post={post} session={session} onDeleted={handleDeleted} />
       ))}
 
