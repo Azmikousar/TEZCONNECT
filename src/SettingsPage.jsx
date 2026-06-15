@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "./supabase";
+import { useState, useEffect } from "react";
 
 const T = {
   bg: "#06070d", bgCard: "#0b0d17", bgInput: "#0f1120", bgHover: "#141726",
