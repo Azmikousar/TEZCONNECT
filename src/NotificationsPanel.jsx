@@ -40,8 +40,8 @@ export function useNotifications(userId) {
   return { notifications, unreadCount, loading, markAsRead };
 }
 
-// --- 2. Modern UI Component ---
-const T = { bg: "#09090b", surface: "#18181b", border: "#27272a", primary: "#f97316", text: "#fafafa", textMuted: "#a1a1aa" };
+// --- 2. Instagram-Style UI Component ---
+const T = { bg: "#000000", surface: "#1a1a1a", text: "#ffffff", muted: "#a8a8a8", accent: "#3897f0" };
 
 export default function NotificationsPanel({ session, onClose, onNavigate }) {
   const { notifications, unreadCount, loading, markAsRead } = useNotifications(session?.userId);
@@ -50,28 +50,45 @@ export default function NotificationsPanel({ session, onClose, onNavigate }) {
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#00000060", backdropFilter: "blur(4px)", zIndex: 9998 }} />
       <div style={{
-        position: "fixed", bottom: 0, left: 0, right: 0, maxHeight: "85vh", 
-        background: T.bg, borderTop: `1px solid ${T.border}`, borderRadius: "24px 24px 0 0",
-        zIndex: 9999, display: "flex", flexDirection: "column", maxWidth: 500, margin: "0 auto",
-        boxShadow: "0 -20px 40px -10px rgba(0,0,0,0.5)", padding: "20px"
+        position: "fixed", bottom: 0, left: 0, right: 0, height: "70vh", background: T.bg, 
+        borderTopLeftRadius: 16, borderTopRightRadius: 16, zIndex: 9999, display: "flex", flexDirection: "column",
+        maxWidth: 500, margin: "0 auto", overflow: "hidden"
       }}>
-        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 2, margin: "0 auto 20px" }} />
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h2 style={{ color: T.text, fontSize: 20, margin: 0 }}>Notifications {unreadCount > 0 && <span style={{ color: T.primary }}>· {unreadCount}</span>}</h2>
-          <button onClick={onClose} style={{ background: T.surface, border: "none", color: T.textMuted, width: 32, height: 32, borderRadius: "50%", cursor: "pointer" }}>✕</button>
+        {/* Header */}
+        <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #262626" }}>
+          <h2 style={{ color: T.text, fontSize: 16, margin: 0 }}>Notifications</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.text, fontSize: 18, cursor: "pointer" }}>✕</button>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
-          {loading ? <p style={{ color: T.textMuted, textAlign: "center" }}>Loading...</p> : 
-            notifications.map((n) => (
-              <div key={n.id} onClick={() => { markAsRead(n.id); onNavigate(n.type); }} style={{ 
-                padding: "16px", background: n.read ? "transparent" : T.surface,
-                borderRadius: 12, border: `1px solid ${n.read ? 'transparent' : T.border}`,
-                cursor: "pointer", display: "flex", gap: 12, alignItems: "center"
-              }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.read ? "transparent" : T.primary }} />
-                <p style={{ margin: 0, fontSize: 14, color: T.text }}><strong style={{ color: T.primary }}>{n.actor?.name}</strong> {n.type === "new_like" ? "liked your post" : "sent an update"}</p>
-              </div>
-            ))
+
+        {/* List */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {loading ? <p style={{ color: T.muted, textAlign: "center", marginTop: 20 }}>Loading...</p> : 
+            notifications.map((n) => {
+              const initials = n.actor?.name?.slice(0, 2).toUpperCase() || "??";
+              return (
+                <div key={n.id} onClick={() => { markAsRead(n.id); onNavigate(n.type); }} style={{ 
+                  display: "flex", alignItems: "center", padding: "12px 20px", gap: 12, cursor: "pointer",
+                  backgroundColor: n.read ? "transparent" : "#121212"
+                }}>
+                  {/* Profile Image */}
+                  <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#333", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "white" }}>
+                    {n.actor?.photo ? <img src={n.actor.photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
+                  </div>
+                  
+                  {/* Text Content */}
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: 0, fontSize: 14, color: T.text, lineHeight: 1.3 }}>
+                      <strong style={{ fontWeight: 600 }}>{n.actor?.name || "User"}</strong> 
+                      {" "}{n.type === "new_like" ? "liked your post." : "sent you a message."}
+                      <span style={{ color: T.muted, fontSize: 12, marginLeft: 6 }}>1h</span>
+                    </p>
+                  </div>
+
+                  {/* Unread Indicator */}
+                  {!n.read && <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.accent }} />}
+                </div>
+              );
+            })
           }
         </div>
       </div>
