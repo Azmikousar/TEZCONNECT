@@ -749,7 +749,7 @@ export default function SettingsPage({ session, profile, onSaveProfile, onLogout
   const sections = [
     { id: "account",       icon: "👤", label: "Account" },
     { id: "username",      icon: "🔗", label: "Public URL" },
-    { id: "notifications_history", icon: "🔔", label: "Notifications" }, 
+    { id: "notifications_history", icon: "🔔", label: "Notification"}, 
     { id: "password",      icon: "🔒", label: "Password" },
     { id: "notifications", icon: "🔔", label: "Notifications" },
     { id: "privacy",       icon: "🔐", label: "Privacy" },
