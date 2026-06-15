@@ -225,7 +225,7 @@ function AccountInfoSection({ session }) {
     </Section>
   );
 }
-
+/*
 function NotificationsSection() {
   const [prefs, setPrefs] = useState({
     connections: true,
@@ -266,7 +266,7 @@ function NotificationsSection() {
                 {item.desc}
               </div>
             </div>
-            {/* Toggle switch */}
+            {/* Toggle
             <div
               onClick={() => toggle(item.key)}
               style={{
@@ -302,7 +302,7 @@ function NotificationsSection() {
       </div>
     </Section>
   );
-}
+}*/
 
 function PrivacySection({ profile, onSave }) {
   const [visibility, setVisibility] = useState(profile.visibility || "public");
@@ -751,7 +751,7 @@ export default function SettingsPage({ session, profile, onSaveProfile, onLogout
     { id: "username",      icon: "🔗", label: "Public URL" },
     { id: "notifications_history", icon: "🔔", label: "Notification"}, 
     { id: "password",      icon: "🔒", label: "Password" },
-    { id: "notifications", icon: "🔔", label: "Notifications" },
+    
     { id: "privacy",       icon: "🔐", label: "Privacy" },
     { id: "danger",        icon: "⚠️", label: "Danger Zone" },
   ];
@@ -800,7 +800,7 @@ export default function SettingsPage({ session, profile, onSaveProfile, onLogout
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 20 }}>
         {active === "account"       && <AccountInfoSection session={session} />}
         {active === "password"      && <ChangePasswordSection session={session} />}
-        {active === "notifications" && <NotificationsSection />}
+      
         {active === "privacy"       && <PrivacySection profile={profile} onSave={onSaveProfile} />}
         {active === "danger"        && <DangerZoneSection session={session} onLogout={onLogout} />}
         {active === "notifications_history" && <NotificationsHistorySection session={session} />}
