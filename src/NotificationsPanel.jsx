@@ -40,26 +40,36 @@ export function useNotifications(userId) {
   return { notifications, unreadCount, loading, markAsRead };
 }
 
-// --- 2. UI Component ---
-const T = { bgCard: "#0b0d17", bgInput: "#0f1120", border: "#1a1f35", orange: "#f97316", text: "#eef0f8" };
+// --- 2. Modern UI Component ---
+const T = { bg: "#09090b", surface: "#18181b", border: "#27272a", primary: "#f97316", text: "#fafafa", textMuted: "#a1a1aa" };
 
 export default function NotificationsPanel({ session, onClose, onNavigate }) {
   const { notifications, unreadCount, loading, markAsRead } = useNotifications(session?.userId);
 
   const Panel = (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000000aa", zIndex: 9998 }} />
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxHeight: "80vh", background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", zIndex: 9999, display: "flex", flexDirection: "column", maxWidth: 600, margin: "0 auto" }}>
-        <div style={{ padding: "16px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between" }}>
-          <h3 style={{ color: T.text, margin: 0 }}>Notifications ({unreadCount})</h3>
-          <button onClick={onClose} style={{ background: T.bgInput, color: "white", border: "none", cursor: "pointer" }}>✕</button>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#00000060", backdropFilter: "blur(4px)", zIndex: 9998 }} />
+      <div style={{
+        position: "fixed", bottom: 0, left: 0, right: 0, maxHeight: "85vh", 
+        background: T.bg, borderTop: `1px solid ${T.border}`, borderRadius: "24px 24px 0 0",
+        zIndex: 9999, display: "flex", flexDirection: "column", maxWidth: 500, margin: "0 auto",
+        boxShadow: "0 -20px 40px -10px rgba(0,0,0,0.5)", padding: "20px"
+      }}>
+        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 2, margin: "0 auto 20px" }} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h2 style={{ color: T.text, fontSize: 20, margin: 0 }}>Notifications {unreadCount > 0 && <span style={{ color: T.primary }}>· {unreadCount}</span>}</h2>
+          <button onClick={onClose} style={{ background: T.surface, border: "none", color: T.textMuted, width: 32, height: 32, borderRadius: "50%", cursor: "pointer" }}>✕</button>
         </div>
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          {loading ? <div style={{ padding: 20, color: "white" }}>Loading...</div> : 
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+          {loading ? <p style={{ color: T.textMuted, textAlign: "center" }}>Loading...</p> : 
             notifications.map((n) => (
-              <div key={n.id} onClick={() => { markAsRead(n.id); onNavigate(n.type); }} style={{ padding: "15px 20px", borderBottom: `1px solid ${T.border}`, cursor: "pointer" }}>
-                <strong style={{ color: n.read ? T.text : T.orange }}>{n.actor?.name || "Someone"}</strong>
-                <span style={{ color: "white" }}> {n.type === "new_like" ? "liked your post" : "sent an update"}</span>
+              <div key={n.id} onClick={() => { markAsRead(n.id); onNavigate(n.type); }} style={{ 
+                padding: "16px", background: n.read ? "transparent" : T.surface,
+                borderRadius: 12, border: `1px solid ${n.read ? 'transparent' : T.border}`,
+                cursor: "pointer", display: "flex", gap: 12, alignItems: "center"
+              }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.read ? "transparent" : T.primary }} />
+                <p style={{ margin: 0, fontSize: 14, color: T.text }}><strong style={{ color: T.primary }}>{n.actor?.name}</strong> {n.type === "new_like" ? "liked your post" : "sent an update"}</p>
               </div>
             ))
           }
