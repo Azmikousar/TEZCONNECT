@@ -552,11 +552,203 @@ function DangerZoneSection({ session, onLogout }) {
     </Section>
   );
 }
+function NotificationsHistorySection({ session }) {
+  const [notifs, setNotifs]   = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const TYPE_CONFIG = {
+    new_post:            { icon: "📸", text: "shared a new post",          color: "#f97316" },
+    connection_request:  { icon: "🤝", text: "sent you a connection request", color: "#3b82f6" },
+    connection_accepted: { icon: "✅", text: "accepted your connection",    color: "#22c55e" },
+    new_message:         { icon: "💬", text: "sent you a message",          color: "#38bdf8" },
+    new_comment:         { icon: "💭", text: "commented on your post",      color: "#a78bfa" },
+    new_like:            { icon: "❤️", text: "liked your post",             color: "#f87171" },
+  };
+
+  useEffect(() => {
+    async function load() {
+      const { data: notifData } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", session.userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (!notifData?.length) { setLoading(false); return; }
+
+      const ids = [...new Set(notifData.map(n => n.actor_id).filter(Boolean))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, name, photo")
+        .in("id", ids);
+
+      const map = {};
+      (profiles || []).forEach(p => { map[p.id] = p; });
+
+      setNotifs(notifData.map(n => ({ ...n, actor: map[n.actor_id] || null })));
+      setLoading(false);
+    }
+    load();
+  }, [session.userId]);
+
+  const markAllRead = async () => {
+    await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("user_id", session.userId);
+    setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const clearAll = async () => {
+    await supabase
+      .from("notifications")
+      .delete()
+      .eq("user_id", session.userId);
+    setNotifs([]);
+  };
+
+  const timeAgo = (ts) => {
+    const diff = (Date.now() - new Date(ts)) / 1000;
+    if (diff < 60) return "just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+    return new Date(ts).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  };
+
+  const unread = notifs.filter(n => !n.read).length;
+
+  return (
+    <Section
+      title="🔔 Notification History"
+      desc="All your recent notifications in one place."
+    >
+      {/* Stats + actions */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ background: "#f9731612", border: "1px solid #f9731633", borderRadius: 20, padding: "4px 12px", fontSize: 12, color: "#f97316", fontWeight: 700 }}>
+            {notifs.length} total
+          </div>
+          {unread > 0 && (
+            <div style={{ background: "#22c55e12", border: "1px solid #22c55e33", borderRadius: 20, padding: "4px 12px", fontSize: 12, color: "#22c55e", fontWeight: 700 }}>
+              {unread} unread
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {unread > 0 && (
+            <button
+              onClick={markAllRead}
+              style={{ background: "#f9731612", border: "1px solid #f9731633", borderRadius: 8, padding: "6px 14px", color: "#f97316", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            >
+              Mark all read
+            </button>
+          )}
+          {notifs.length > 0 && (
+            <button
+              onClick={clearAll}
+              style={{ background: "#f8717112", border: "1px solid #f8717133", borderRadius: 8, padding: "6px 14px", color: "#f87171", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 0", gap: 10 }}>
+          <div style={{ width: 18, height: 18, border: "2px solid #f9731633", borderTopColor: "#f97316", borderRadius: "50%", animation: "spin .7s linear infinite" }} />
+          <span style={{ color: "#6b7594", fontSize: 13 }}>Loading…</span>
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && notifs.length === 0 && (
+        <div style={{ textAlign: "center", padding: "40px 0" }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>🔔</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "#eef0f8", marginBottom: 4 }}>No notifications yet</div>
+          <div style={{ fontSize: 12, color: "#343c58" }}>They'll appear here when someone interacts with you</div>
+        </div>
+      )}
+
+      {/* Notification list */}
+      {!loading && notifs.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {notifs.map((n, idx) => {
+            const cfg = TYPE_CONFIG[n.type] || { icon: "🔔", text: "sent you an update", color: "#f97316" };
+            const actor = n.actor || {};
+            const initials = (actor.name || "?").split(" ").map(x => x[0]).join("").slice(0, 2).toUpperCase();
+
+            return (
+              <div
+                key={n.id}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "12px 14px",
+                  background: n.read ? "transparent" : "#f9731610",
+                  borderRadius: 10,
+                  borderLeft: n.read ? "2px solid transparent" : `2px solid #f97316`,
+                  transition: "all .15s",
+                }}
+              >
+                {/* Avatar */}
+                <div style={{ position: "relative", flexShrink: 0 }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: "50%",
+                    background: "linear-gradient(135deg,#f97316,#ea6008)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 13, fontWeight: 800, color: "#fff",
+                    overflow: "hidden",
+                  }}>
+                    {actor.photo
+                      ? <img src={actor.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : initials
+                    }
+                  </div>
+                  <div style={{
+                    position: "absolute", bottom: -2, right: -2,
+                    width: 18, height: 18, borderRadius: "50%",
+                    background: "#0b0d17", border: "1px solid #1a1f35",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 10,
+                  }}>
+                    {cfg.icon}
+                  </div>
+                </div>
+
+                {/* Text */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: "#eef0f8", lineHeight: 1.4 }}>
+                    <strong style={{ color: n.read ? "#eef0f8" : "#f97316" }}>
+                      {actor.name || "Someone"}
+                    </strong>
+                    {" "}{cfg.text}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#343c58", marginTop: 2 }}>
+                    {timeAgo(n.created_at)}
+                  </div>
+                </div>
+
+                {/* Unread dot */}
+                {!n.read && (
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f97316", flexShrink: 0 }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 
 export default function SettingsPage({ session, profile, onSaveProfile, onLogout }) {
   const sections = [
     { id: "account",       icon: "👤", label: "Account" },
     { id: "username",      icon: "🔗", label: "Public URL" },
+    { id: "notifications_history", icon: "🔔", label: "Notifications" }, 
     { id: "password",      icon: "🔒", label: "Password" },
     { id: "notifications", icon: "🔔", label: "Notifications" },
     { id: "privacy",       icon: "🔐", label: "Privacy" },
@@ -564,6 +756,8 @@ export default function SettingsPage({ session, profile, onSaveProfile, onLogout
   ];
   const [active, setActive] = useState("account");
   {active === "username" && <UsernameSection session={session} profile={profile} />}
+  
+
 
 
   return (
@@ -608,6 +802,8 @@ export default function SettingsPage({ session, profile, onSaveProfile, onLogout
         {active === "notifications" && <NotificationsSection />}
         {active === "privacy"       && <PrivacySection profile={profile} onSave={onSaveProfile} />}
         {active === "danger"        && <DangerZoneSection session={session} onLogout={onLogout} />}
+        {active === "notifications_history" && <NotificationsHistorySection session={session} />}
+
       </div>
     </div>
   );
