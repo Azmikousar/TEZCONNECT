@@ -6,6 +6,7 @@ const T = {
 };
 
 const MORE_NAV = [
+  { id: "services",     icon: "🚀", label: "Our Services" },
   { id: "leads",        icon: "🎯", label: "Leads" },
   { id: "events",       icon: "📅", label: "Events" },
   { id: "testimonials", icon: "🎬", label: "Testimonials" },
