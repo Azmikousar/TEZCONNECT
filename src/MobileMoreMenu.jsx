@@ -11,6 +11,8 @@ const MORE_NAV = [
   { id: "events",       icon: "📅", label: "Events" },
   { id: "testimonials", icon: "🎬", label: "Testimonials" },
   { id: "settings",     icon: "⚙",  label: "Settings" },
+  { id: "share", icon: "📤", label: "Share TezConnect" },
+
 ];
 
 export default function MobileMoreMenu({ onNav, onLogout, onClose, session, profile }) {
