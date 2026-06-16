@@ -17,6 +17,8 @@ import BottomNav from "./BottomNav";
 import MobileTopBar from "./MobileTopBar";
 import MobileMoreMenu from "./MobileMoreMenu";
 import ServicesPage from "./ServicesPage";
+import ShareApp from "./ShareApp";
+
 
 
 
@@ -3557,6 +3559,8 @@ const [showNotifications, setShowNotifications] = useState(false);
 const { unreadCount: notifUnread } = useNotifications(session.userId);
 const isMobile = useIsMobile();
 const [showMoreMenu, setShowMoreMenu] = useState(false);
+ const [showShare, setShowShare] = useState(false);
+  
 
 useEffect(() => {
   supabase
@@ -3970,6 +3974,15 @@ useEffect(() => {
                 </span>
               )}
             </button>
+             {/* Add share button next to bell in top bar */}
+<button
+  onClick={() => setShowShare(true)}
+  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, padding: 0 }}
+  title="Share App"
+>
+  📤
+</button>
+
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.success, boxShadow: `0 0 6px ${T.success}` }} />
               <span style={{ fontSize: 12, color: T.textMid }}>Online</span>
