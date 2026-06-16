@@ -3714,6 +3714,9 @@ useEffect(() => {
     if (page === "messages") {
       return <MessagesPage session={session} />;
     }
+     if (page === "services") {
+        return <ServicesPage />;
+     }
 
     if (page === "settings") {
       return (
@@ -4228,6 +4231,8 @@ export default function App() {
         <SignInPage onNav={nav} onLogin={login} prefill={navData.prefill || ""} />
       )}
       {page === "app" && session && <AppShell session={session} onLogout={logout} />}
+       
+
       {page === "app" && !session && (() => { nav("signin"); return null; })()}
       <InstallPrompt/> 
   </>
