@@ -4044,6 +4044,8 @@ useEffect(() => {
         onNavigate={p => { setPage(p); if (p !== "profile") setEditingProfile(false); }}
       />
     )}
+     {showShare && <ShareApp onClose={() => setShowShare(false)} />}
+
 
     {/* Logout modal */}
     {logoutModal && (
