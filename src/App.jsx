@@ -2873,40 +2873,115 @@ function DashboardScreen({ session, profile, onGoProfile }) {
     </div>
   );
 }
+function MobileTestimonialCard({ t }) {
+  const [expanded, setExpanded] = useState(false);
+  const [hov, setHov] = useState(false);
+  const thumb = t.youtubeId
+    ? `https://img.youtube.com/vi/${t.youtubeId}/hqdefault.jpg`
+    : null;
+
+  const shortQuote = t.quote.length > 120 ? t.quote.slice(0, 120) + "…" : t.quote;
+
+  return (
+    <div
+      style={{
+        background: T.bgCard, border: `1px solid ${hov ? T.orange+"66" : T.border}`,
+        borderRadius: 16, overflow: "hidden", transition: "all .2s",
+      }}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+    >
+      {/* Video thumbnail */}
+      {thumb && (
+        <div
+          onClick={() => window.open(`https://www.youtube.com/shorts/${t.youtubeId}`, "_blank")}
+          style={{ position:"relative", height:200, overflow:"hidden", cursor:"pointer", background:"#111" }}
+        >
+          <img src={thumb} alt={t.name} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:.8 }}/>
+          <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top,#07080ccc 0%,transparent 50%)" }}/>
+          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <div style={{ width:56, height:56, borderRadius:"50%", background:"linear-gradient(135deg,#f97316,#ea6008)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 28px #f9731666", animation:"playPulse 2s ease infinite" }}>
+              <span style={{ fontSize:22, marginLeft:3, color:"#fff" }}>▶</span>
+            </div>
+          </div>
+          {t.verified && (
+            <div style={{ position:"absolute", top:10, right:10, background:"#f9731622", border:"1px solid #f9731644", borderRadius:20, padding:"2px 9px", fontSize:10, fontWeight:700, color:T.orange }}>
+              ✓ Verified
+            </div>
+          )}
+          <div style={{ position:"absolute", bottom:10, left:12 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:"#fff" }}>{t.name}</div>
+            <div style={{ fontSize:11, color:"#ffffffaa" }}>{t.role}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      <div style={{ padding:"16px" }}>
+        {/* Author + rating */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:38, height:38, borderRadius:"50%", background:"linear-gradient(135deg,#f97316,#ea6008)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:"#fff", flexShrink:0 }}>
+              {t.avatarInitials}
+            </div>
+            <div>
+              <div style={{ fontWeight:700, fontSize:13, color:T.text }}>{t.name}</div>
+              <div style={{ fontSize:11, color:T.textMid }}>{t.role}</div>
+            </div>
+          </div>
+          <div style={{ textAlign:"right" }}>
+            <StarRating v={t.rating}/>
+            <div style={{ fontSize:10, color:T.textLow, marginTop:2 }}>{t.rating}/5</div>
+          </div>
+        </div>
+
+        {/* Quote */}
+        <div style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"12px 14px", position:"relative" }}>
+          <span style={{ position:"absolute", top:-1, left:10, fontSize:24, color:T.orange, lineHeight:1, fontFamily:"Georgia,serif" }}>"</span>
+          <p style={{ color:"#c8cce0", fontSize:13, lineHeight:1.7, paddingTop:8, fontStyle:"italic" }}>
+            {expanded ? t.quote : shortQuote}
+          </p>
+          {t.quote.length > 120 && (
+            <button
+              onClick={() => setExpanded(e => !e)}
+              style={{ background:"none", border:"none", color:T.orange, fontSize:12, fontWeight:700, cursor:"pointer", padding:"4px 0 0", fontFamily:"'Plus Jakarta Sans',sans-serif" }}
+            >
+              {expanded ? "Show less" : "Read more"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function TestimonialsScreen({ session }) {
-  const [list, setList] = useState([]);
+  const [list,    setList]    = useState([]);
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ name: "", role: "", quote: "", url: "", rating: 5 });
-  const [addErr, setAddErr] = useState("");
+  const [addForm, setAddForm] = useState({name:"",role:"",quote:"",url:"",rating:5});
+  const [addErr,  setAddErr]  = useState("");
   const [loading, setLoading] = useState(true);
+  const isMobile = window.innerWidth <= 768;
 
   const fetchTestimonials = async () => {
     const { data } = await supabase
-      .from("testimonials")
-      .select("*")
+      .from("testimonials").select("*")
       .order("created_at", { ascending: false });
     setList(data || []);
     setLoading(false);
   };
-
   useEffect(() => { fetchTestimonials(); }, []);
 
-  const extractYT = (s) => {
+  const extractYT = s => {
     const m = s.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/);
     return m ? m[1] : null;
   };
 
   const handleAdd = async () => {
-    if (!addForm.name.trim() || !addForm.quote.trim()) {
-      setAddErr("Name and quote are required.");
-      return;
-    }
+    if (!addForm.name.trim() || !addForm.quote.trim()) { setAddErr("Name and quote are required."); return; }
     const ytId = extractYT(addForm.url.trim());
-    if (addForm.url && !ytId) {
-      setAddErr("Please enter a valid YouTube URL.");
-      return;
-    }
+    if (addForm.url && !ytId) { setAddErr("Please enter a valid YouTube URL."); return; }
     const { error } = await supabase.from("testimonials").insert({
       user_id: session.userId,
       name: addForm.name.trim(),
@@ -2917,76 +2992,92 @@ function TestimonialsScreen({ session }) {
       verified: false,
     });
     if (error) { setAddErr(error.message); return; }
-    setAddForm({ name: "", role: "", quote: "", url: "", rating: 5 });
-    setAddErr("");
-    setShowAdd(false);
-    fetchTestimonials();
+    setAddForm({ name:"",role:"",quote:"",url:"",rating:5 });
+    setAddErr(""); setShowAdd(false); fetchTestimonials();
   };
 
-  // Map DB rows to VideoCard format
   const mapped = list.map(t => ({
-    id: t.id,
-    name: t.name,
-    role: t.role,
-    rating: t.rating,
-    quote: t.quote,
+    id: t.id, name: t.name, role: t.role, rating: t.rating, quote: t.quote,
     youtubeId: t.youtube_id,
-    avatarInitials: (t.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase(),
+    avatarInitials: (t.name||"?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase(),
     verified: t.verified,
-    date: new Date(t.created_at).toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
+    date: new Date(t.created_at).toLocaleDateString("en-IN", { month:"short", year:"numeric" }),
   }));
 
   return (
     <div style={{ animation: "fadeUp .35s ease" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", marginBottom:24, flexWrap:"wrap", gap:12 }}>
         <div>
-          <div style={{ fontSize: 11, color: T.textLow, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 6 }}>
+          <div style={{ fontSize:11, color:T.textLow, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", marginBottom:6 }}>
             🎬 Video Testimonials
           </div>
-          <h3 style={{ fontWeight: 800, fontSize: 22, color: T.text, letterSpacing: "-.03em" }}>
-            What Our Members <span style={{ color: T.orange }}>Say</span>
+          <h3 style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-.03em" }}>
+            What Our Members <span style={{ color:T.orange }}>Say</span>
           </h3>
         </div>
         <Btn onClick={() => setShowAdd(true)} small icon="+">Add Testimonial</Btn>
       </div>
 
-      {loading ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "40px 0" }}>
-          <div style={{ width: 20, height: 20, border: "2px solid #f9731633", borderTopColor: "#f97316", borderRadius: "50%", animation: "spin .7s linear infinite" }} />
-          <span style={{ color: T.textMid, fontSize: 13 }}>Loading testimonials…</span>
+      {/* Loading */}
+      {loading && (
+        <div style={{ display:"flex", alignItems:"center", gap:12, padding:"40px 0" }}>
+          <Spinner/><span style={{ color:T.textMid, fontSize:13 }}>Loading testimonials…</span>
         </div>
-      ) : (
-        <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
-          {mapped.map(t => <VideoCard key={t.id} t={t} />)}
+      )}
+
+      {/* Mobile — vertical stack */}
+      {!loading && isMobile && (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          {mapped.map(t => <MobileTestimonialCard key={t.id} t={t}/>)}
+          {/* Add card */}
           <div
             onClick={() => setShowAdd(true)}
-            style={{ flexShrink: 0, width: 200, background: T.bgCard, border: `2px dashed ${T.border}`, borderRadius: 16, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 20, cursor: "pointer" }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = T.orange + "66"}
+            style={{ background:T.bgCard, border:`2px dashed ${T.border}`, borderRadius:16, padding:"28px 20px", display:"flex", flexDirection:"column", alignItems:"center", gap:12, cursor:"pointer", textAlign:"center" }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = T.orange+"66"}
             onMouseLeave={e => e.currentTarget.style.borderColor = T.border}
           >
-            <div style={{ width: 50, height: 50, borderRadius: "50%", background: T.orangeLo, border: `1px solid ${T.orange}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🎬</div>
-            <div style={{ textAlign: "center", fontSize: 12, color: T.textMid, lineHeight: 1.5 }}>Share your TezConnect success story</div>
-            <div style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", borderRadius: 8, padding: "7px 16px", fontSize: 11, fontWeight: 700, color: "#fff" }}>+ Add Yours</div>
+            <div style={{ width:52, height:52, borderRadius:"50%", background:T.orangeLo, border:`1px solid ${T.orange}33`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24 }}>🎬</div>
+            <div style={{ fontSize:13, color:T.textMid, lineHeight:1.5 }}>Share your TezConnect success story</div>
+            <div style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", borderRadius:8, padding:"8px 20px", fontSize:12, fontWeight:700, color:"#fff" }}>+ Add Yours</div>
           </div>
         </div>
       )}
 
+      {/* Desktop — horizontal scroll */}
+      {!loading && !isMobile && (
+        <div style={{ display:"flex", gap:16, overflowX:"auto", paddingBottom:8 }}>
+          {mapped.map(t => <VideoCard key={t.id} t={t}/>)}
+          <div
+            onClick={() => setShowAdd(true)}
+            style={{ flexShrink:0, width:200, background:T.bgCard, border:`2px dashed ${T.border}`, borderRadius:16, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10, padding:20, cursor:"pointer" }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = T.orange+"66"}
+            onMouseLeave={e => e.currentTarget.style.borderColor = T.border}
+          >
+            <div style={{ width:50, height:50, borderRadius:"50%", background:T.orangeLo, border:`1px solid ${T.orange}33`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>🎬</div>
+            <div style={{ textAlign:"center", fontSize:12, color:T.textMid, lineHeight:1.5 }}>Share your TezConnect success story</div>
+            <div style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", borderRadius:8, padding:"7px 16px", fontSize:11, fontWeight:700, color:"#fff" }}>+ Add Yours</div>
+          </div>
+        </div>
+      )}
+
+      {/* Add modal */}
       {showAdd && (
-        <div onClick={() => setShowAdd(false)} style={{ position: "fixed", inset: 0, background: "#000c", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "24px", width: "100%", maxWidth: 420 }}>
-            <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 16 }}>Add Your Testimonial</div>
+        <div onClick={() => setShowAdd(false)} style={{ position:"fixed", inset:0, background:"#000c", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:16, padding:"24px", width:"100%", maxWidth:420, animation:"scaleIn .2s ease" }}>
+            <div style={{ fontWeight:800, fontSize:17, color:T.text, marginBottom:16 }}>Add Your Testimonial</div>
             {addErr && <Alert type="error" onDismiss={() => setAddErr("")}>{addErr}</Alert>}
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: addErr ? 14 : 0 }}>
-              <Field label="Your Name *" value={addForm.name} onChange={v => setAddForm(f => ({ ...f, name: v }))} placeholder="e.g. Priya Sharma" icon="👤" />
-              <Field label="Your Role" value={addForm.role} onChange={v => setAddForm(f => ({ ...f, role: v }))} placeholder="e.g. Startup Founder" icon="💼" />
-              <Field label="YouTube Video URL" value={addForm.url} onChange={v => setAddForm(f => ({ ...f, url: v }))} placeholder="https://youtu.be/..." icon="🔗" />
-              <Field label="Your Quote *" value={addForm.quote} onChange={v => setAddForm(f => ({ ...f, quote: v }))} placeholder="Share your experience..." multiline icon="💬" />
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: T.textMid, textTransform: "uppercase", letterSpacing: ".08em" }}>Rating</label>
-                <StarRating v={addForm.rating} interactive onChange={v => setAddForm(f => ({ ...f, rating: v }))} size={22} />
+            <div style={{ display:"flex", flexDirection:"column", gap:14, marginTop:addErr?14:0 }}>
+              <Field label="Your Name *" value={addForm.name} onChange={v => setAddForm(f=>({...f,name:v}))} placeholder="e.g. Priya Sharma" icon="👤"/>
+              <Field label="Your Role" value={addForm.role} onChange={v => setAddForm(f=>({...f,role:v}))} placeholder="e.g. Startup Founder" icon="💼"/>
+              <Field label="YouTube URL" value={addForm.url} onChange={v => setAddForm(f=>({...f,url:v}))} placeholder="https://youtu.be/..." icon="🔗"/>
+              <Field label="Your Quote *" value={addForm.quote} onChange={v => setAddForm(f=>({...f,quote:v}))} placeholder="Share your experience..." multiline icon="💬"/>
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em" }}>Rating</label>
+                <StarRating v={addForm.rating} interactive onChange={v => setAddForm(f=>({...f,rating:v}))} size={22}/>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+            <div style={{ display:"flex", gap:10, marginTop:20 }}>
               <Btn variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Btn>
               <Btn onClick={handleAdd}>Submit 🚀</Btn>
             </div>
@@ -2996,6 +3087,7 @@ function TestimonialsScreen({ session }) {
     </div>
   );
 }
+
 
 function PlaceholderScreen({ icon, title, desc }) {
   return (
