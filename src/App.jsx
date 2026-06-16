@@ -2796,7 +2796,7 @@ function DashboardScreen({ session, profile, onGoProfile }) {
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
        {[
   { label: "Connections", val: stats.loading ? "—" : stats.connections, icon: "👥", color: T.orange },
   { label: "Leads",       val: stats.loading ? "—" : stats.leads,       icon: "🎯", color: "#3b82f6" },
