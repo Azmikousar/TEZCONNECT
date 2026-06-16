@@ -16,6 +16,8 @@ import FeedPage from "./FeedPage";
 import BottomNav from "./BottomNav";
 import MobileTopBar from "./MobileTopBar";
 import MobileMoreMenu from "./MobileMoreMenu";
+import ServicesPage from "./ServicesPage";
+
 
 
 
@@ -2289,6 +2291,8 @@ const NAV = [
   { id: "messages", icon: "💬", label: "Messages", badge: 3 },
   { id: "testimonials", icon: "🎬", label: "Testimonials" },
   { id: "settings", icon: "⚙", label: "Settings" },
+  {id:"services", icon:"🚀", label:"Services"},
+
 ];
 
 function ProfilePct(p) {
