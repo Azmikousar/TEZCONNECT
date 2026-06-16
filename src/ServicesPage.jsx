@@ -387,13 +387,7 @@ function ServiceCard({ service, index, onInquire }) {
           >
             🚀 Get Started
           </button>
-          <a
-            href={`https://wa.me/917396180986?text=${encodeURIComponent(`Hi! I'm interested in your ${service.title} service. Please share more details.`)}`}
-            target="_blank" rel="noopener noreferrer"
-            style={{ flex: 1, background: "#25d36618", border: "1px solid #25d36633", borderRadius: 10, padding: "11px", color: "#25d366", fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}
-          >
-            💬
-          </a>
+          
         </div>
       </div>
     </div>
