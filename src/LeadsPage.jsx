@@ -312,7 +312,7 @@ export default function LeadsPage({ session }) {
       </div>
 
       {/* Status summary cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
           <div
             key={key}
