@@ -2864,7 +2864,7 @@ function DashboardScreen({ session, profile, onGoProfile }) {
         >
           What You Can Do on <span style={{ color: T.orange }}>TezConnect</span>
         </h3>
-     <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+     <div style={{ display: "grid", gridTemplateColumns:  "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
   {AIMS.map((aim, i) => (
     <AimCard key={aim.title} aim={aim} i={i} />
   ))}
