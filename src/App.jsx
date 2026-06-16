@@ -4013,7 +4013,10 @@ useEffect(() => {
       <BottomNav
         active={page}
         onNav={p => {
+           
           if (p === "more") { setShowMoreMenu(true); return; }
+             if (p === "share") { setShowShare(true); return; }
+
           setPage(p);
           if (p !== "profile") setEditingProfile(false);
         }}
