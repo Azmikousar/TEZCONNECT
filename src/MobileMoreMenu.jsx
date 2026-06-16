@@ -61,7 +61,16 @@ export default function MobileMoreMenu({ onNav, onLogout, onClose, session, prof
         {MORE_NAV.map(item => (
           <button
             key={item.id}
-            onClick={() => { onNav(item.id); onClose(); }}
+            onClick={() => {
+    if (item.id === "share") {
+      onClose();
+      // trigger share from parent
+      onShare?.();
+      return;
+    }
+    onNav(item.id);
+    onClose();
+  }}
             style={{
               width: "100%", display: "flex", alignItems: "center", gap: 14,
               padding: "14px 20px", background: "none", border: "none",
