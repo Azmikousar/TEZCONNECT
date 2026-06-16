@@ -152,7 +152,7 @@ function ServiceCard({ service, index }) {
 
         {/* CTA */}
         <a
-          href="https://wa.me/917396180986?text=Hi! I'm interested in your " + encodeURIComponent(service.title) + " service."
+          href="https://wa.me/917396180986?text=Hi! I'm interested in your " + encodeURIComponent(service.title) + " service.")}'}
           target="_blank"
           rel="noopener noreferrer"
           style={{
