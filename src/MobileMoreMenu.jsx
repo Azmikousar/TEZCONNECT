@@ -11,6 +11,10 @@ const MORE_NAV = [
   { id: "events",       icon: "📅", label: "Events" },
   { id: "testimonials", icon: "🎬", label: "Testimonials" },
   { id: "settings",     icon: "⚙",  label: "Settings" },
+  { id: "analytics", icon: "📊", label: "Lead Analytics" },
+{ id: "refer",     icon: "🎁", label: "Refer & Earn" },
+{ id: "wallet",    icon: "💳", label: "Wallet" },
+
   
 
 ];
