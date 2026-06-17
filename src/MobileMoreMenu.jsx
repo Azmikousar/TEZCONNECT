@@ -82,6 +82,7 @@ export default function MobileMoreMenu({ onNav, onLogout, onClose, session, prof
             <span style={{ fontSize: 22, width: 30, textAlign: "center" }}>{item.icon}</span>
             {item.label}
           </button>
+        ))}
         {/* Share app */}
 <div style={{ margin: "0 20px", paddingTop: 8 }}>
   <button
