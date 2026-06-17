@@ -807,201 +807,73 @@ function ProfileCompleteness({ profile }) {
 /* ═══════════════════════════════════════════════════════════
    PROFILE VIEW (read-only public view)
 ═══════════════════════════════════════════════════════════ */
-function ProfileView({ profile, onEdit }) {
-  const [tab, setTab] = useState("about");
+function ProfileView({ profile, onEdit, session }) {
+  const [tab, setTab]   = useState("posts");
+  const [posts, setPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const isMine = profile.id === session?.userId || !profile.id;
+
+  useEffect(() => {
+    if (tab === "posts" && session?.userId) {
+      setPostsLoading(true);
+      const uid = profile.id || session.userId;
+      supabase.from("posts").select("*").eq("user_id", uid)
+        .order("created_at", { ascending: false })
+        .then(({ data }) => { setPosts(data || []); setPostsLoading(false); });
+    }
+  }, [tab, session?.userId, profile.id]);
+
   const tabs = [
-    ["about", "About"],
+    ["posts",    "⊞ Posts"],
+    ["about",    "About"],
     ["business", "Business"],
-    ["professional", "Professional"],
-    ["contact", "Contact"],
+    ["contact",  "Contact"],
   ];
 
-  const SocialIcon = ({ href, icon, label }) =>
-    href ? (
-      <a
-        href={href.startsWith("http") ? href : "https://" + href}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          background: T.bgInput,
-          border: `1px solid ${T.border}`,
-          borderRadius: 8,
-          padding: "8px 12px",
-          color: T.text,
-          textDecoration: "none",
-          fontSize: 12,
-          fontWeight: 600,
-          transition: "border-color .2s",
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.borderColor = T.orange + "55")}
-        onMouseLeave={(e) => (e.currentTarget.style.borderColor = T.border)}
-      >
-        <span style={{ fontSize: 16 }}>{icon}</span>
-        {label}
-      </a>
-    ) : null;
+  const SocialIcon = ({ href, icon, label }) => href ? (
+    <a href={href.startsWith("http")?href:"https://"+href} target="_blank" rel="noopener noreferrer"
+      style={{display:"flex",alignItems:"center",gap:8,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 12px",color:T.text,textDecoration:"none",fontSize:12,fontWeight:600}}
+      onMouseEnter={e=>e.currentTarget.style.borderColor=T.orange+"55"} onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+      <span style={{fontSize:16}}>{icon}</span>{label}
+    </a>
+  ) : null;
 
-  const initials = (profile.name || "?")
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const initials = (profile.name||"?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase();
 
   return (
-    <div
-      style={{ display: "flex", flexDirection: "column", gap: 0, animation: "fadeUp .35s ease" }}
-    >
+    <div style={{display:"flex",flexDirection:"column",gap:0,animation:"fadeUp .35s ease"}}>
+
       {/* Cover */}
-      <div
-        style={{
-          height: 180,
-          borderRadius: "16px 16px 0 0",
-          background: profile.cover
-            ? `url(${profile.cover}) center/cover`
-            : "linear-gradient(135deg,#0d1020,#1a0a05,#0f0a00)",
-          position: "relative",
-          overflow: "hidden",
-          flexShrink: 0,
-        }}
-      >
-        {!profile.cover && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "radial-gradient(ellipse at 70% 50%,#f9731618,transparent 60%)",
-            }}
-          />
+      <div style={{height:180,borderRadius:"16px 16px 0 0",background:profile.cover?`url(${profile.cover}) center/cover`:"linear-gradient(135deg,#0d1020,#1a0a05,#0f0a00)",position:"relative",overflow:"hidden",flexShrink:0}}>
+        {!profile.cover && <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 70% 50%,#f9731618,transparent 60%)"}}/>}
+        {isMine && (
+          <div style={{position:"absolute",top:16,right:16}}><Btn onClick={onEdit} small icon="✏️">Edit Profile</Btn></div>
         )}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 1,
-            background: "linear-gradient(90deg,transparent,#f9731655,transparent)",
-          }}
-        />
-        <div style={{ position: "absolute", top: 16, right: 16 }}>
-          <Btn onClick={onEdit} small icon="✏️">
-            Edit Profile
-          </Btn>
-        </div>
       </div>
 
-      {/* Avatar + name row */}
-      <div
-        style={{
-          background: T.bgCard,
-          borderLeft: `1px solid ${T.border}`,
-          borderRight: `1px solid ${T.border}`,
-          padding: "0 24px 0",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            gap: 16,
-            transform: "translateY(-44px)",
-            marginBottom: -24,
-          }}
-        >
-          <div
-            style={{
-              width: 88,
-              height: 88,
-              borderRadius: "50%",
-              border: `3px solid ${T.bgCard}`,
-              overflow: "hidden",
-              background: "linear-gradient(135deg,#f97316,#ea6008)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 30,
-              fontWeight: 800,
-              color: "#fff",
-              flexShrink: 0,
-              boxShadow: "0 8px 24px #00000066",
-            }}
-          >
-            {profile.photo ? (
-              <img
-                src={profile.photo}
-                alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-            ) : (
-              initials
-            )}
+      {/* Avatar + name */}
+      <div style={{background:T.bgCard,borderLeft:`1px solid ${T.border}`,borderRight:`1px solid ${T.border}`,padding:"0 24px 0"}}>
+        <div style={{display:"flex",alignItems:"flex-end",gap:16,transform:"translateY(-44px)",marginBottom:-24}}>
+          <div style={{width:88,height:88,borderRadius:"50%",border:`3px solid ${T.bgCard}`,overflow:"hidden",background:"linear-gradient(135deg,#f97316,#ea6008)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,fontWeight:800,color:"#fff",flexShrink:0,boxShadow:"0 8px 24px #00000066"}}>
+            {profile.photo?<img src={profile.photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:initials}
           </div>
-          {profile.companyLogo && (
-            <div
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 10,
-                border: `2px solid ${T.border}`,
-                overflow: "hidden",
-                background: T.bgInput,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: 8,
-              }}
-            >
-              <img
-                src={profile.companyLogo}
-                alt=""
-                style={{ width: "100%", height: "100%", objectFit: "contain" }}
-              />
-            </div>
-          )}
         </div>
-        <div style={{ paddingBottom: 20 }}>
-          <div style={{ fontWeight: 800, fontSize: 22, color: T.text, letterSpacing: "-.03em" }}>
-            {profile.name || <span style={{ color: T.textLow }}>Your Name</span>}
-          </div>
-          {profile.designation && (
-            <div style={{ fontSize: 14, color: T.orange, fontWeight: 600, marginTop: 2 }}>
-              {profile.designation}
-            </div>
-          )}
-          {profile.company && (
-            <div style={{ fontSize: 13, color: T.textMid, marginTop: 2 }}>
-              {profile.company}
-              {profile.industry ? " · " + profile.industry : ""}
-            </div>
-          )}
-          {profile.location && (
-            <div style={{ fontSize: 12, color: T.textLow, marginTop: 4 }}>
-              📍 {profile.location}
-            </div>
-          )}
-          {/* quick stats */}
-          <div style={{ display: "flex", gap: 20, marginTop: 14, flexWrap: "wrap" }}>
+        <div style={{paddingBottom:16}}>
+          <div style={{fontWeight:800,fontSize:22,color:T.text,letterSpacing:"-.03em"}}>{profile.name||<span style={{color:T.textLow}}>Your Name</span>}</div>
+          {profile.designation && <div style={{fontSize:14,color:T.orange,fontWeight:600,marginTop:2}}>{profile.designation}</div>}
+          {profile.company && <div style={{fontSize:13,color:T.textMid,marginTop:2}}>{profile.company}{profile.industry?" · "+profile.industry:""}</div>}
+          {profile.location && <div style={{fontSize:12,color:T.textLow,marginTop:4}}>📍 {profile.location}</div>}
+
+          {/* Stats row — Instagram style */}
+          <div style={{display:"flex",gap:0,marginTop:16,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:"12px 0"}}>
             {[
-              [profile.skills?.length || 0, "Skills"],
-              [profile.services?.length || 0, "Services"],
-              [profile.certifications?.length || 0, "Certs"],
-            ].map(([v, l]) => (
-              <div key={l} style={{ textAlign: "center" }}>
-                <div style={{ fontWeight: 800, fontSize: 18, color: T.orange }}>{v}</div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: T.textLow,
-                    textTransform: "uppercase",
-                    letterSpacing: ".07em",
-                  }}
-                >
-                  {l}
-                </div>
+              [posts.length, "Posts"],
+              [profile.skills?.length||0, "Skills"],
+              [profile.services?.length||0, "Services"],
+            ].map(([v,l],i)=>(
+              <div key={l} style={{flex:1,textAlign:"center",borderRight:i<2?`1px solid ${T.border}`:"none"}}>
+                <div style={{fontWeight:800,fontSize:18,color:T.text}}>{v}</div>
+                <div style={{fontSize:10,color:T.textLow,textTransform:"uppercase",letterSpacing:".07em",marginTop:2}}>{l}</div>
               </div>
             ))}
           </div>
@@ -1009,237 +881,68 @@ function ProfileView({ profile, onEdit }) {
       </div>
 
       {/* Tabs */}
-      <div
-        style={{
-          background: T.bgCard,
-          borderLeft: `1px solid ${T.border}`,
-          borderRight: `1px solid ${T.border}`,
-          borderBottom: `1px solid ${T.border}`,
-          display: "flex",
-          padding: "0 16px",
-          gap: 4,
-          overflowX: "auto",
-        }}
-      >
-        {tabs.map(([id, lbl]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            style={{
-              background: "none",
-              border: "none",
-              borderBottom: `2px solid ${tab === id ? T.orange : "transparent"}`,
-              color: tab === id ? T.text : T.textMid,
-              fontWeight: tab === id ? 700 : 500,
-              fontSize: 13,
-              padding: "12px 16px",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              transition: "all .2s",
-            }}
-          >
+      <div style={{background:T.bgCard,borderLeft:`1px solid ${T.border}`,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,display:"flex",padding:"0 8px",gap:0,overflowX:"auto"}}>
+        {tabs.map(([id,lbl])=>(
+          <button key={id} onClick={()=>setTab(id)}
+            style={{background:"none",border:"none",borderBottom:`2px solid ${tab===id?T.orange:"transparent"}`,color:tab===id?T.orange:T.textMid,fontWeight:tab===id?700:500,fontSize:13,padding:"12px 14px",cursor:"pointer",whiteSpace:"nowrap",transition:"all .2s",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
             {lbl}
           </button>
         ))}
       </div>
 
       {/* Tab content */}
-      <div
-        style={{
-          background: T.bgCard,
-          border: `1px solid ${T.border}`,
-          borderTop: "none",
-          borderRadius: "0 0 16px 16px",
-          padding: "24px",
-        }}
-      >
-        {tab === "about" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {profile.bio && (
-              <div>
-                <SectionLabel>Bio</SectionLabel>
-                <p style={{ color: "#c8cce0", fontSize: 14, lineHeight: 1.8 }}>{profile.bio}</p>
-              </div>
-            )}
-            {profile.skills?.length > 0 && (
-              <div>
-                <SectionLabel>Skills</SectionLabel>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {profile.skills.map((s) => (
-                    <Tag key={s}>{s}</Tag>
-                  ))}
-                </div>
-              </div>
-            )}
-            {profile.achievements?.length > 0 && (
-              <div>
-                <SectionLabel>Achievements</SectionLabel>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {profile.achievements.map((a, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: 10,
-                        background: T.bgInput,
-                        borderRadius: 10,
-                        padding: "12px 14px",
-                      }}
-                    >
-                      <span style={{ color: T.amber, fontSize: 16, flexShrink: 0 }}>🏆</span>
-                      <div style={{ fontSize: 13, color: T.textMid, lineHeight: 1.5 }}>{a}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+      <div style={{background:T.bgCard,border:`1px solid ${T.border}`,borderTop:"none",borderRadius:"0 0 16px 16px",minHeight:200}}>
 
-        {tab === "business" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {[
-              ["Company", profile.company],
-              ["Industry", profile.industry],
-              ["Category", profile.category],
-              ["Experience", profile.experience],
-              ["Team Size", profile.teamSize],
-              ["Website", profile.website],
-            ]
-              .filter(([, v]) => v)
-              .map(([l, v]) => (
-                <div
-                  key={l}
-                  style={{
-                    display: "flex",
-                    gap: 12,
-                    padding: "10px 0",
-                    borderBottom: `1px solid ${T.border}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 120,
-                      fontSize: 12,
-                      color: T.textLow,
-                      fontWeight: 600,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {l}
-                  </div>
-                  <div style={{ fontSize: 13, color: T.text }}>
-                    {l === "Website" ? (
-                      <a
-                        href={v.startsWith("http") ? v : "https://" + v}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: T.orange }}
-                      >
-                        {v}
-                      </a>
+        {/* Posts grid — Instagram style */}
+        {tab==="posts" && (
+          <div>
+            {postsLoading ? (
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"40px 0",gap:12}}>
+                <div style={{width:20,height:20,border:"2px solid #f9731633",borderTopColor:"#f97316",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>
+                <span style={{color:T.textMid,fontSize:13}}>Loading posts…</span>
+              </div>
+            ) : posts.length === 0 ? (
+              <div style={{textAlign:"center",padding:"50px 20px"}}>
+                <div style={{fontSize:48,marginBottom:12}}>📸</div>
+                <div style={{fontWeight:700,fontSize:16,color:T.text,marginBottom:8}}>No posts yet</div>
+                <div style={{fontSize:13,color:T.textLow,marginBottom:20}}>
+                  {isMine ? "Share photos and videos to show your work and ideas" : "This member hasn't posted yet"}
+                </div>
+              </div>
+            ) : (
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:2,padding:2}}>
+                {posts.map(post => (
+                  <div key={post.id} style={{aspectRatio:"1",overflow:"hidden",position:"relative",background:T.bgInput,cursor:"pointer"}}>
+                    {post.media_type==="video" && post.media_url ? (
+                      <video src={post.media_url} style={{width:"100%",height:"100%",objectFit:"cover"}} muted playsInline/>
+                    ) : post.media_url ? (
+                      <img src={post.media_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
                     ) : (
-                      v
+                      <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",background:T.bgHover,padding:8}}>
+                        <p style={{fontSize:11,color:T.textMid,lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:4,WebkitBoxOrient:"vertical"}}>{post.caption}</p>
+                      </div>
+                    )}
+                    {post.media_type==="video" && (
+                      <div style={{position:"absolute",top:6,right:6,fontSize:14}}>▶️</div>
                     )}
                   </div>
-                </div>
-              ))}
-            {profile.services?.length > 0 && (
-              <div>
-                <SectionLabel>Services</SectionLabel>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                  {profile.services.map((s) => (
-                    <Tag key={s} color={T.info}>
-                      {s}
-                    </Tag>
-                  ))}
-                </div>
+                ))}
               </div>
             )}
           </div>
         )}
 
-        {tab === "professional" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {profile.portfolio?.length > 0 && (
-              <div>
-                <SectionLabel>Portfolio</SectionLabel>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
-                    gap: 12,
-                  }}
-                >
-                  {profile.portfolio.map((p, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        background: T.bgInput,
-                        border: `1px solid ${T.border}`,
-                        borderRadius: 12,
-                        overflow: "hidden",
-                      }}
-                    >
-                      {p.image && (
-                        <img
-                          src={p.image}
-                          alt={p.title}
-                          style={{ width: "100%", height: 120, objectFit: "cover" }}
-                        />
-                      )}
-                      <div style={{ padding: "12px" }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 4 }}>
-                          {p.title}
-                        </div>
-                        {p.desc && (
-                          <div style={{ fontSize: 11, color: T.textMid, lineHeight: 1.5 }}>
-                            {p.desc}
-                          </div>
-                        )}
-                        {p.link && (
-                          <a
-                            href={p.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ fontSize: 11, color: T.orange, marginTop: 6, display: "block" }}
-                          >
-                            View Project →
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {profile.certifications?.length > 0 && (
-              <div>
-                <SectionLabel>Certifications</SectionLabel>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {profile.certifications.map((c, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        background: T.bgInput,
-                        borderRadius: 10,
-                        padding: "12px 14px",
-                      }}
-                    >
-                      <span style={{ fontSize: 18, flexShrink: 0 }}>🎓</span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{c.name}</div>
-                        {c.issuer && (
-                          <div style={{ fontSize: 11, color: T.textMid }}>
-                            {c.issuer}
-                            {c.year ? " · " + c.year : ""}
-                          </div>
-                        )}
-                      </div>
+        {tab==="about" && (
+          <div style={{padding:"24px",display:"flex",flexDirection:"column",gap:20}}>
+            {profile.bio&&<div><SectionLabel>Bio</SectionLabel><p style={{color:"#c8cce0",fontSize:14,lineHeight:1.8}}>{profile.bio}</p></div>}
+            {profile.skills?.length>0&&<div><SectionLabel>Skills</SectionLabel><div style={{display:"flex",flexWrap:"wrap",gap:8}}>{profile.skills.map(s=><Tag key={s}>{s}</Tag>)}</div></div>}
+            {profile.achievements?.length>0&&(
+              <div><SectionLabel>Achievements</SectionLabel>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {profile.achievements.map((a,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,background:T.bgInput,borderRadius:10,padding:"12px 14px"}}>
+                      <span style={{color:T.amber,fontSize:16,flexShrink:0}}>🏆</span>
+                      <div style={{fontSize:13,color:T.textMid,lineHeight:1.5}}>{a}</div>
                     </div>
                   ))}
                 </div>
@@ -1248,31 +951,35 @@ function ProfileView({ profile, onEdit }) {
           </div>
         )}
 
-        {tab === "contact" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {profile.mobile && <ContactRow icon="📱" label="Mobile" value={profile.mobile} />}
-              {profile.whatsapp && (
-                <ContactRow icon="💬" label="WhatsApp" value={profile.whatsapp} />
-              )}
-              {profile.email && <ContactRow icon="✉" label="Email" value={profile.email} />}
-              {profile.website && (
-                <ContactRow icon="🌐" label="Website" value={profile.website} link />
-              )}
+        {tab==="business" && (
+          <div style={{padding:"24px",display:"flex",flexDirection:"column",gap:16}}>
+            {[["Company",profile.company],["Industry",profile.industry],["Category",profile.category],["Experience",profile.experience],["Team Size",profile.teamSize],["Website",profile.website]].filter(([,v])=>v).map(([l,v])=>(
+              <div key={l} style={{display:"flex",gap:12,padding:"10px 0",borderBottom:`1px solid ${T.border}`}}>
+                <div style={{width:120,fontSize:12,color:T.textLow,fontWeight:600,flexShrink:0}}>{l}</div>
+                <div style={{fontSize:13,color:T.text}}>{l==="Website"?<a href={v.startsWith("http")?v:"https://"+v} target="_blank" rel="noopener noreferrer" style={{color:T.orange}}>{v}</a>:v}</div>
+              </div>
+            ))}
+            {profile.services?.length>0&&<div><SectionLabel>Services</SectionLabel><div style={{display:"flex",flexWrap:"wrap",gap:7}}>{profile.services.map(s=><Tag key={s} color={T.info}>{s}</Tag>)}</div></div>}
+          </div>
+        )}
+
+        {tab==="contact" && (
+          <div style={{padding:"24px",display:"flex",flexDirection:"column",gap:16}}>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {profile.mobile&&<ContactRow icon="📱" label="Mobile" value={profile.mobile}/>}
+              {profile.whatsapp&&<ContactRow icon="💬" label="WhatsApp" value={profile.whatsapp}/>}
+              {profile.email&&<ContactRow icon="✉" label="Email" value={profile.email}/>}
+              {profile.website&&<ContactRow icon="🌐" label="Website" value={profile.website} link/>}
             </div>
-            {(profile.linkedin ||
-              profile.facebook ||
-              profile.instagram ||
-              profile.twitter ||
-              profile.youtube) && (
+            {(profile.linkedin||profile.facebook||profile.instagram||profile.twitter||profile.youtube)&&(
               <div>
                 <SectionLabel>Social Links</SectionLabel>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  <SocialIcon href={profile.linkedin} icon="🔗" label="LinkedIn" />
-                  <SocialIcon href={profile.facebook} icon="📘" label="Facebook" />
-                  <SocialIcon href={profile.instagram} icon="📸" label="Instagram" />
-                  <SocialIcon href={profile.twitter} icon="🐦" label="X / Twitter" />
-                  <SocialIcon href={profile.youtube} icon="▶" label="YouTube" />
+                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                  <SocialIcon href={profile.linkedin}  icon="🔗" label="LinkedIn"/>
+                  <SocialIcon href={profile.facebook}  icon="📘" label="Facebook"/>
+                  <SocialIcon href={profile.instagram} icon="📸" label="Instagram"/>
+                  <SocialIcon href={profile.twitter}   icon="🐦" label="X / Twitter"/>
+                  <SocialIcon href={profile.youtube}   icon="▶"  label="YouTube"/>
                 </div>
               </div>
             )}
@@ -1282,6 +989,7 @@ function ProfileView({ profile, onEdit }) {
     </div>
   );
 }
+
 
 function ContactRow({ icon, label, value, link }) {
   return (
@@ -3678,7 +3386,7 @@ useEffect(() => {
           onCancel={() => setEditingProfile(false)}
         />
       ) : (
-        <ProfileView profile={profile} onEdit={() => setEditingProfile(true)} />
+        <ProfileView profile={profile} onEdit={() => setEditingProfile(true)} session={session}/>
       );
     }
 
