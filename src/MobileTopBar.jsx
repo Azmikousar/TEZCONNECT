@@ -6,7 +6,7 @@ const T = {
 
 export default function MobileTopBar({
   title, session, profile, onNotifications,
-  notifUnread = 0, onMore, showBack, onBack,
+  notifUnread = 0, onMore, showBack, onBack,onShare,
 }) {
   const initials = (session?.name || "?")
     .split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -47,6 +47,13 @@ export default function MobileTopBar({
 
       {/* Right actions */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button
+    onClick={onShare}
+    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, padding: 0 }}
+    title="Share App"
+  >
+    📤
+  </button>
         {/* Notification bell */}
         <button
           onClick={onNotifications}
