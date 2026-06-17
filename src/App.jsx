@@ -4026,15 +4026,17 @@ useEffect(() => {
     )}
 
     {/* Mobile more menu */}
-    {isMobile && showMoreMenu && (
-      <MobileMoreMenu
-        session={session}
-        profile={profile}
-        onNav={p => { setPage(p); if (p !== "profile") setEditingProfile(false); }}
-        onLogout={() => { setLogoutModal(true); }}
-        onClose={() => setShowMoreMenu(false)}
-      />
-    )}
+ {isMobile && showMoreMenu && (
+  <MobileMoreMenu
+    session={session}
+    profile={profile}
+    onNav={p => { setPage(p); if (p !== "profile") setEditingProfile(false); }}
+    onLogout={() => { setLogoutModal(true); }}
+    onClose={() => setShowMoreMenu(false)}
+    onShare={() => { setShowMoreMenu(false); setShowShare(true); }}
+  />
+)}
+
 
     {/* Notifications panel */}
     {showNotifications && (
