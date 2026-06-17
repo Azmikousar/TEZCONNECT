@@ -3394,7 +3394,7 @@ useEffect(() => {
           onCancel={() => setEditingProfile(false)}
         />
       ) : (
-        <ProfileView profile={profile} onEdit={() => setEditingProfile(true)} session={session}/>
+        <PublicProfilePage profile={profile} onEdit={() => setEditingProfile(true)} session={session}/>
       );
     }
 
