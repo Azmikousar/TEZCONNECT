@@ -3714,14 +3714,12 @@ if (page==="wallet")    return <WalletPage session={session}/>;
 
       {/* Page content */}
       <div style={{
-        flex: 1,
-        padding: isMobile ? "16px 16px 90px" : "28px 28px",
-        maxWidth: isMobile ? "100%" : 1040,
-        width: "100%",
-        margin: "0 auto",
-        zIndex: 1,
-        position: "relative",
-      }}>
+  flex:1,
+  padding: page==="profile" && !editingProfile ? "0" : isMobile ? "16px 16px 90px" : "28px 28px",
+  maxWidth: page==="profile" && !editingProfile ? "100%" : isMobile ? "100%" : 1040,
+  width:"100%", margin:"0 auto", zIndex:1, position:"relative",
+}}>
+
         {profileLoading
           ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 12 }}><Spinner size={24} /><span style={{ color: T.textMid, fontSize: 13 }}>Loading…</span></div>
           : renderPage()
