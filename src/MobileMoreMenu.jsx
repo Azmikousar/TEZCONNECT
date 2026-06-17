@@ -11,11 +11,11 @@ const MORE_NAV = [
   { id: "events",       icon: "📅", label: "Events" },
   { id: "testimonials", icon: "🎬", label: "Testimonials" },
   { id: "settings",     icon: "⚙",  label: "Settings" },
-  { id: "share", icon: "📤", label: "Share TezConnect" },
+  
 
 ];
 
-export default function MobileMoreMenu({ onNav, onLogout, onClose, session, profile }) {
+export default function MobileMoreMenu({ onNav, onLogout, onClose, session, profile,onShare }) {
   const initials = (session?.name || "?")
     .split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
@@ -82,7 +82,27 @@ export default function MobileMoreMenu({ onNav, onLogout, onClose, session, prof
             <span style={{ fontSize: 22, width: 30, textAlign: "center" }}>{item.icon}</span>
             {item.label}
           </button>
-        ))}
+        {/* Share app */}
+<div style={{ margin: "0 20px", paddingTop: 8 }}>
+  <button
+    onClick={() => { onShare(); onClose(); }}
+    style={{
+      width: "100%",
+      background: "linear-gradient(135deg,#f97316,#ea6008)",
+      border: "none", borderRadius: 12, padding: "14px 0",
+      color: "#fff", fontSize: 15, fontWeight: 700,
+      cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+      boxShadow: "0 4px 20px #f9731440",
+    }}
+  >
+    <span style={{ fontSize: 20 }}>📤</span>
+    Share TezConnect
+  </button>
+</div>
+
+{/* Sign out */}
+<div style={{ margin: "8px 20px 0", paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
 
         {/* Sign out */}
         <div style={{ margin: "8px 20px 0", paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
