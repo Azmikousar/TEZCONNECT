@@ -150,7 +150,12 @@ function ChatWindow({ selected, session, onBack, isMobile }) {
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: 4 }}>
+     <div style={{
+  flex: 1, overflowY: "auto", padding: "16px",
+  paddingBottom: isMobile ? "90px" : "16px",
+  display: "flex", flexDirection: "column", gap: 4,
+}}>
+
         {messages.length === 0 ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, textAlign: "center", opacity: 0.6 }}>
             <Avatar profile={selected} size={60} />
@@ -213,12 +218,13 @@ function ChatWindow({ selected, session, onBack, isMobile }) {
 
       {/* Input */}
       <div style={{
-        padding: "10px 12px",
-        paddingBottom: "calc(10px + env(safe-area-inset-bottom))",
-        borderTop: `1px solid ${T.border}`,
-        display: "flex", gap: 10, alignItems: "flex-end",
-        background: T.bgCard, flexShrink: 0,
-      }}>
+  padding: "10px 12px",
+  paddingBottom: isMobile ? "calc(80px + env(safe-area-inset-bottom))" : "calc(10px + env(safe-area-inset-bottom))",
+  borderTop: `1px solid ${T.border}`,
+  display: "flex", gap: 10, alignItems: "flex-end",
+  background: T.bgCard, flexShrink: 0,
+}}>
+
         <textarea
           ref={inputRef}
           value={input}
