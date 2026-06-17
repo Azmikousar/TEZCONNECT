@@ -3955,6 +3955,7 @@ useEffect(() => {
           notifUnread={notifUnread}
           showBack={editingProfile && page === "profile"}
           onBack={() => setEditingProfile(false)}
+           onShare={() => setShowShare(true)}
         />
       ) : (
         /* Desktop top bar */
