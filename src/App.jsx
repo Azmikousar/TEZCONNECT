@@ -12,7 +12,7 @@ import EventsPage from "./EventsPage";
 import MessagesPage from "./MessagesPage";
 import PublicProfilePage from "./PublicProfilePage";
 import SettingsPage from "./SettingsPage";
-import FeedPage from "./FeedPage";
+
 import BottomNav from "./BottomNav";
 import MobileTopBar from "./MobileTopBar";
 import MobileMoreMenu from "./MobileMoreMenu";
