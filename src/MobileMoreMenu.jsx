@@ -102,8 +102,7 @@ export default function MobileMoreMenu({ onNav, onLogout, onClose, session, prof
   </button>
 </div>
 
-{/* Sign out */}
-<div style={{ margin: "8px 20px 0", paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+
 
         {/* Sign out */}
         <div style={{ margin: "8px 20px 0", paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
