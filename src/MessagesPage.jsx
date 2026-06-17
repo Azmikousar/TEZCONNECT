@@ -138,15 +138,7 @@ function ChatWindow({ selected, session, onBack, isMobile }) {
             {selected.designation || selected.company || "TezConnect Member"}
           </div>
         </div>
-        {selected.whatsapp && (
-          <a
-            href={`https://wa.me/${selected.whatsapp.replace(/[^0-9]/g, "")}`}
-            target="_blank" rel="noopener noreferrer"
-            style={{ background: "#25d36618", border: "1px solid #25d36633", borderRadius: 8, padding: "7px 12px", color: "#25d366", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
-          >
-            💬
-          </a>
-        )}
+    
       </div>
 
       {/* Messages */}
