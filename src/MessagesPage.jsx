@@ -114,14 +114,15 @@ function ChatWindow({ selected, session, onBack, isMobile }) {
       background: T.bg,
     }}>
       {/* Chat header */}
-      <div style={{
-        padding: isMobile ? "12px 16px" : "14px 20px",
-        borderBottom: `1px solid ${T.border}`,
-        display: "flex", alignItems: "center", gap: 12,
-        background: T.bgCard,
-        paddingTop: isMobile ? "calc(12px + env(safe-area-inset-top))" : "14px",
-        flexShrink: 0,
-      }}>
+   <div style={{
+  padding: "12px 16px",
+  paddingTop: isMobile ? "calc(52px + env(safe-area-inset-top))" : "14px",
+  borderBottom: `1px solid ${T.border}`,
+  display: "flex", alignItems: "center", gap: 12,
+  background: T.bgCard,
+  flexShrink: 0,
+}}>
+
         {isMobile && (
           <button
             onClick={onBack}
@@ -408,9 +409,14 @@ export default function MessagesPage({ session }) {
     if (selected) {
       return (
         <div style={{
-          position: "fixed", inset: 0, zIndex: 50,
-          background: T.bg,
-        }}>
+          position: "fixed",
+      top: 0, left: 0, right: 0, bottom: 0,
+      zIndex: 200,
+      background: T.bg,
+      display: "flex",
+      flexDirection: "column",
+     
+             }}>
           <ChatWindow
             selected={selected}
             session={session}
