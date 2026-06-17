@@ -1997,7 +1997,7 @@ function VideoCard({ t }) {
 ═══════════════════════════════════════════════════════════ */
 const NAV = [
   { id: "dashboard", icon: "⊞", label: "Dashboard" },
-  {id:"feed",   icon:"📸", label:"Feed"},
+  
   { id: "profile", icon: "👤", label: "My Profile" },
   { id: "network", icon: "🌐", label: "Network" },
   { id: "leads", icon: "🎯", label: "Leads" },
@@ -3411,9 +3411,7 @@ useEffect(() => {
       );
     }
 
-    if (page === "feed") {
-      return <FeedPage session={session} />;
-    }
+    
 
     if (page === "testimonials") {
       return <TestimonialsScreen session={session} />;
