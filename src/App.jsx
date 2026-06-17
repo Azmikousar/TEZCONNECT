@@ -18,6 +18,10 @@ import MobileTopBar from "./MobileTopBar";
 import MobileMoreMenu from "./MobileMoreMenu";
 import ServicesPage from "./ServicesPage";
 import ShareApp from "./ShareApp";
+import LeadAnalyticsPage from "./LeadAnalyticsPage";
+import ReferEarnPage from "./ReferEarnPage";
+import WalletPage from "./WalletPage";
+
 
 
 
@@ -2002,6 +2006,10 @@ const NAV = [
   { id: "testimonials", icon: "🎬", label: "Testimonials" },
   { id: "settings", icon: "⚙", label: "Settings" },
   {id:"services", icon:"🚀", label:"Services"},
+   {id:"analytics", icon:"📊", label:"Analytics"},
+{id:"refer",     icon:"🎁", label:"Refer & Earn"},
+{id:"wallet",    icon:"💳", label:"Wallet"},
+
 
 ];
 
@@ -3429,6 +3437,10 @@ useEffect(() => {
      if (page === "services") {
         return <ServicesPage />;
      }
+     if (page==="analytics") return <LeadAnalyticsPage session={session}/>;
+if (page==="refer")     return <ReferEarnPage session={session}/>;
+if (page==="wallet")    return <WalletPage session={session}/>;
+
 
     if (page === "settings") {
       return (
