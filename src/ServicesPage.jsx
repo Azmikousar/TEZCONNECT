@@ -93,7 +93,7 @@ function InquiryModal({ service, onClose }) {
     setSending(true);
     // Save as lead in Supabase
 await supabase.from("leads").insert({
-  user_id: "YOUR_ADMIN_USER_ID", // Replace with Lekhakraj's user ID
+  user_id: "b8ab0f60-394d-4c94-802b-172cf7935b5a", // Replace with Lekhakraj's user ID
   name: form.name,
   mobile: form.phone,
   email: form.email,
