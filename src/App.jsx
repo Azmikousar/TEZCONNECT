@@ -3664,51 +3664,41 @@ if (page==="wallet")    return <WalletPage session={session}/>;
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowX: "hidden" }}>
 
       {/* Mobile top bar */}
-      {isMobile ? (
-        <MobileTopBar
-          title={page === "profile" ? (editingProfile ? "Edit Profile" : "My Profile") : NAV.find(n => n.id === page)?.label || ""}
-          session={session}
-          profile={profile}
-          onNotifications={() => setShowNotifications(true)}
-          notifUnread={notifUnread}
-          showBack={editingProfile && page === "profile"}
-          onBack={() => setEditingProfile(false)}
-           onShare={() => setShowShare(true)}
-        />
-      ) : (
-        /* Desktop top bar */
-        <div style={{ background: "#06070dcc", backdropFilter: "blur(16px)", borderBottom: `1px solid ${T.border}`, padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 30 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>
-            {page === "dashboard" ? "Dashboard" : page === "profile" ? editingProfile ? "Edit Profile" : "My Profile" : NAV.find(n => n.id === page)?.label || ""}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <button
-              onClick={() => setShowNotifications(true)}
-              style={{ position: "relative", background: "none", border: "none", cursor: "pointer", fontSize: 20, color: T.textMid, padding: 4, display: "flex" }}
-            >
-              🔔
-              {notifUnread > 0 && (
-                <span style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, background: T.orange, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#fff", border: `2px solid ${T.bg}` }}>
-                  {notifUnread > 9 ? "9+" : notifUnread}
-                </span>
-              )}
-            </button>
-             {/* Add share button next to bell in top bar */}
-<button
-  onClick={() => setShowShare(true)}
-  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, padding: 0 }}
-  title="Share App"
->
-  📤
-</button>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.success, boxShadow: `0 0 6px ${T.success}` }} />
-              <span style={{ fontSize: 12, color: T.textMid }}>Online</span>
-            </div>
-          </div>
+    {/* Hide top bar on profile — it has its own header */}
+{!(page === "profile" && !editingProfile) && (
+  isMobile ? (
+    <MobileTopBar
+      title={page === "profile" ? (editingProfile ? "Edit Profile" : "My Profile") : NAV.find(n => n.id === page)?.label || ""}
+      session={session}
+      profile={profile}
+      onNotifications={() => setShowNotifications(true)}
+      notifUnread={notifUnread}
+      showBack={editingProfile && page === "profile"}
+      onBack={() => setEditingProfile(false)}
+      onShare={() => setShowShare(true)}
+    />
+  ) : (
+    <div style={{ background:"#06070dcc", backdropFilter:"blur(16px)", borderBottom:`1px solid ${T.border}`, padding:"12px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:30 }}>
+      <div style={{ fontWeight:700, fontSize:15, color:T.text }}>
+        {page === "dashboard" ? "Dashboard" : page === "profile" ? editingProfile ? "Edit Profile" : "My Profile" : NAV.find(n=>n.id===page)?.label||""}
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        <button onClick={()=>setShowShare(true)} style={{ background:T.orangeMd, border:`1px solid ${T.orange}44`, borderRadius:8, padding:"6px 12px", color:T.orange, fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>
+          📤 Share
+        </button>
+        <button onClick={()=>setShowNotifications(true)} style={{ position:"relative", background:"none", border:"none", cursor:"pointer", fontSize:20, color:T.textMid, padding:4, display:"flex" }}>
+          🔔
+          {notifUnread>0 && <span style={{ position:"absolute", top:-2, right:-2, width:16, height:16, background:T.orange, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:800, color:"#fff", border:`2px solid ${T.bg}` }}>{notifUnread>9?"9+":notifUnread}</span>}
+        </button>
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <div style={{ width:6, height:6, borderRadius:"50%", background:T.success, boxShadow:`0 0 6px ${T.success}` }}/>
+          <span style={{ fontSize:12, color:T.textMid }}>Online</span>
         </div>
-      )}
+      </div>
+    </div>
+  )
+)}
+
 
       {/* Page content */}
       <div style={{
