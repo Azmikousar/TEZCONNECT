@@ -80,12 +80,34 @@ input,button,select,textarea{font-family:'Plus Jakarta Sans',sans-serif}
 @keyframes spin    {to{transform:rotate(360deg)}}
 @keyframes slideR  {from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
 @keyframes playPulse{0%,100%{box-shadow:0 0 0 0 #f9731644}70%{box-shadow:0 0 0 10px #f9731600}}
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: .6;
+    transform: scale(1.2);
+  }
+}
+
 ::-webkit-scrollbar{width:3px;height:3px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#1a1f35;border-radius:4px}
 @keyframes slideUp {from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
 `;
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.2)}}
+
 
 
 function GlobalStyles() {
