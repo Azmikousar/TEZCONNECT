@@ -186,6 +186,18 @@ _Sent from TezConnect App_`;
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+// Save as lead in Supabase
+await supabase.from("leads").insert({
+  user_id: "YOUR_ADMIN_USER_ID", // Replace with Lekhakraj's user ID
+  name: form.name,
+  mobile: form.phone,
+  email: form.email,
+  notes: `Service: ${service.title}\n\nMessage: ${form.message}`,
+  source: "Website",
+  status: "new",
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+});
 
               {/* Name */}
               <div>
