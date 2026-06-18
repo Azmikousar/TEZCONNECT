@@ -845,15 +845,11 @@ function ProfileView({ profile, onEdit, session }) {
   const initials = (profile.name||"?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase();
 
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:0,animation:"fadeUp .35s ease"}}>
+    
+    <div style={{ background:T.bgCard, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}`, marginBottom:2 }}>
+      
 
-      {/* Cover */}
-      <div style={{height:180,borderRadius:"16px 16px 0 0",background:profile.cover?`url(${profile.cover}) center/cover`:"linear-gradient(135deg,#0d1020,#1a0a05,#0f0a00)",position:"relative",overflow:"hidden",flexShrink:0}}>
-        {!profile.cover && <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 70% 50%,#f9731618,transparent 60%)"}}/>}
-        {isMine && (
-          <div style={{position:"absolute",top:16,right:16}}><Btn onClick={onEdit} small icon="✏️">Edit Profile</Btn></div>
-        )}
-      </div>
+    
 
       {/* Avatar + name */}
       <div style={{background:T.bgCard,borderLeft:`1px solid ${T.border}`,borderRight:`1px solid ${T.border}`,padding:"0 24px 0"}}>
