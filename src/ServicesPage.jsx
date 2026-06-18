@@ -186,20 +186,7 @@ _Sent from TezConnect App_`;
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}
-              // Ensure this function or block is properly closed before calling supabase
-await supabase
-  .from("leads")
-  .insert({
-    user_id: "YOUR_ADMIN_USER_ID",
-    name: form.name,
-    mobile: form.phone,
-    email: form.email,
-    notes: `Service: ${service.title}\n\nMessage: ${form.message}`,
-    source: "Website",
-    status: "new",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  });
+
 
               {/* Name */}
               <div>
