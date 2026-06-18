@@ -465,7 +465,7 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile })
 
       {/* Feed view */}
       {!postsLoading && posts.length>0 && view==="feed" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:0, paddingBottom:80 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:16, paddingBottom:80 }}>
           {posts.map(post=>(
             <PostCard key={post.id} post={post} session={session} onDeleted={handleDeleted}/>
           ))}
@@ -474,7 +474,7 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile })
 
       {/* Grid view */}
       {!postsLoading && posts.length>0 && view==="grid" && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:2, paddingBottom:80 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:3, paddingBottom:80 }}>
           {posts.map(post=>(
             <GridItem key={post.id} post={post} onClick={setSelectedPost}/>
           ))}
