@@ -92,6 +92,7 @@ function InquiryModal({ service, onClose }) {
     if (Object.keys(e).length) { setErrors(e); return; }
     setSending(true);
     // Save as lead in Supabase
+
 await supabase.from("leads").insert({
   user_id: "b8ab0f60-394d-4c94-802b-172cf7935b5a", // Replace with Lekhakraj's user ID
   name: form.name,
@@ -103,7 +104,6 @@ await supabase.from("leads").insert({
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 });
-
 
     // Send via WhatsApp
     const msg = `🚀 *New Service Inquiry — TezConnect*
