@@ -85,6 +85,8 @@ input,button,select,textarea{font-family:'Plus Jakarta Sans',sans-serif}
 ::-webkit-scrollbar-thumb{background:#1a1f35;border-radius:4px}
 @keyframes slideUp {from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
 `;
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.2)}}
+
 
 function GlobalStyles() {
   useEffect(() => {
