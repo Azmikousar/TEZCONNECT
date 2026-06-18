@@ -260,16 +260,25 @@ export default function UserProfileModal({ userId, session, onClose, connectionP
     <>
       {/* Backdrop */}
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 600 }} />
+      {/* Full screen slide-up panel */}
+<div style={{
+  position: "fixed", 
+  top: 0,           // Change from bottom: 0 to top: 0
+  bottom: 0, 
+  left: 0, 
+  right: 0,
+  height: "100vh",  // Force full viewport height
+  background: T.bg,
+  borderRadius: "0px", // Remove rounded corners for full coverage
+  zIndex: 601, 
+  display: "flex", 
+  flexDirection: "column",
+  animation: "slideUp .3s ease",
+  maxWidth: 600, 
+  margin: "0 auto",
+  width: "100%"     // Ensure it spans full width
+}}>
 
-      {/* Slide up panel */}
-      <div style={{
-        position: "fixed", bottom: 0, left: 0, right: 0,
-        maxHeight: "96vh", background: T.bg,
-        borderRadius: "20px 20px 0 0",
-        zIndex: 601, display: "flex", flexDirection: "column",
-        animation: "slideUp .3s ease",
-        maxWidth: 600, margin: "0 auto",
-      }}>
         {/* Handle */}
         <div style={{ padding: "10px 0 0", display: "flex", justifyContent: "center", flexShrink: 0 }}>
           <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4 }} />
