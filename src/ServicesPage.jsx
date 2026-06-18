@@ -169,7 +169,6 @@ _Sent from TezConnect App_`;
               ×
             </button>
           </div>
-
           {/* Success state */}
           {sent ? (
             <div style={{ textAlign: "center", padding: "30px 0" }}>
@@ -185,7 +184,12 @@ _Sent from TezConnect App_`;
               </div>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Your form inputs or content go here */}
+              <input type="text" placeholder="Your Name" />
+              <button onClick={() => setSent(true)}>Send Inquiry</button>
+            </div>
+          )}
 
 
               {/* Name */}
