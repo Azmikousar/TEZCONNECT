@@ -2469,17 +2469,7 @@ function DashboardScreen({ session, profile, onGoProfile }) {
                 boxShadow: `0 0 8px ${T.success}`,
               }}
             />
-            <span
-              style={{
-                fontSize: 11,
-                color: T.success,
-                fontWeight: 700,
-                letterSpacing: ".1em",
-                textTransform: "uppercase",
-              }}
-            >
-              Active Session
-            </span>
+         
           </div>
           <h2
             style={{
@@ -2517,49 +2507,6 @@ function DashboardScreen({ session, profile, onGoProfile }) {
         </div>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
-       {[
-  { label: "Connections", val: stats.loading ? "—" : stats.connections, icon: "👥", color: T.orange },
-  { label: "Leads",       val: stats.loading ? "—" : stats.leads,       icon: "🎯", color: "#3b82f6" },
-  { label: "Events",      val: stats.loading ? "—" : stats.events,       icon: "📅", color: "#22c55e" },
-  { label: "Cities",      val: stats.loading ? "—" : stats.cities,       icon: "🗺️", color: "#a78bfa" },
-].map((s, i) => (
-          <div
-            key={s.label}
-            style={{
-              background: T.bgCard,
-              border: `1px solid ${T.border}`,
-              borderRadius: 14,
-              padding: "18px 16px",
-              animation: `fadeUp .4s ease ${i * 70}ms both`,
-            }}
-          >
-            <div style={{ fontSize: 22, marginBottom: 6 }}>{s.icon}</div>
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: 22,
-                color: s.color,
-                letterSpacing: "-.03em",
-              }}
-            >
-              {s.val}
-            </div>
-            <div
-              style={{
-                fontSize: 11,
-                color: T.textLow,
-                textTransform: "uppercase",
-                letterSpacing: ".07em",
-                marginTop: 3,
-              }}
-            >
-              {s.label}
-            </div>
-          </div>
-        ))}
-      </div>
 
       {/* Aims grid */}
       <div>
