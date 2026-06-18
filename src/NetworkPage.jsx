@@ -47,25 +47,6 @@ function MemberCard({ member, currentUserId, connectionProps,onViewProfile }) {
         boxShadow: hov ? "0 12px 40px #f9731615" : "none",
       }}
     >
-      {/* Cover */}
-      <div style={{
-        height: 70,
-        background: member.cover
-          ? `url(${member.cover}) center/cover`
-          : "linear-gradient(135deg,#0d1020,#1a0a05)",
-        position: "relative",
-      }}>
-        {isMe && (
-          <div style={{
-            position: "absolute", top: 8, right: 8,
-            background: T.orange + "22", border: `1px solid ${T.orange}44`,
-            borderRadius: 20, padding: "2px 10px",
-            fontSize: 10, fontWeight: 700, color: T.orange,
-          }}>
-            You
-          </div>
-        )}
-      </div>
       {/* Avatar */}
       <div style={{ padding: "0 16px", transform: "translateY(-28px)", marginBottom: -12,cursor: "pointer"  }}
       onClick={() => onViewProfile(member.id)}
