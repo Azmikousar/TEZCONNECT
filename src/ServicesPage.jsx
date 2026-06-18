@@ -185,11 +185,7 @@ _Sent from TezConnect App_`;
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {/* Your form inputs or content go here */}
-              <input type="text" placeholder="Your Name" />
-              <button onClick={() => setSent(true)}>Send Inquiry</button>
-            </div>
-          )}
+            
 
 
               {/* Name */}
