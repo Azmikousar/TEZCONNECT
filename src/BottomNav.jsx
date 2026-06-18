@@ -6,7 +6,7 @@ const T = {
 
 const NAV = [
   { id: "dashboard",    icon: "⊞",  label: "Home" },
-  { id: "feed",         icon: "📸",  label: "Feed" },
+  
   { id: "network",      icon: "🌐",  label: "Network" },
   { id: "messages",     icon: "💬",  label: "Messages" },
   { id: "profile",      icon: "👤",  label: "Profile" },
