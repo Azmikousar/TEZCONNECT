@@ -332,14 +332,14 @@ export default function NetworkPage({ session }) {
           getStatus, sendRequest, acceptRequest,
           rejectRequest, removeConnection,
         }}
+        onViewProfile={setViewingUser}
       />
     ))}
   </div>
 )}
 
-                  onViewProfile={setViewingUser}
-                />
-              ))}
+                  
+              
               {viewingUser && (
   <UserProfileModal
     userId={viewingUser}
