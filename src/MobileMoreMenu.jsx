@@ -40,7 +40,7 @@ export default function MobileMoreMenu({ onNav, onLogout, onClose, session, prof
         }}
       > 
         {/* Handle */}
-        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "8px auto 
+        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "8px auto 20px"}}/>
         {/* User info */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 20px 16px", borderBottom: `1px solid ${T.border}`, marginBottom: 8 }}>
           <div style={{
