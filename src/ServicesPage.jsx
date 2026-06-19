@@ -86,27 +86,31 @@ function InquiryModal({ service, onClose }) {
     if (!form.message.trim()) e.message = "Please describe your requirement";
     return e;
   };
+const handleSubmit = async () => {
+  const e = validate();
+  if (Object.keys(e).length) { setErrors(e); return; }
+  setSending(true);
 
-  const handleSubmit = async () => {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
-    setSending(true);
-    // Save as lead in Supabase
+  // Save as lead in Supabase
+  try {
+    await supabase.from("leads").insert({
+      user_id: "LEKHAKRAJ_USER_ID", // paste real UUID here
+      name: form.name.trim(),
+      mobile: form.phone.trim(),
+      email: form.email.trim(),
+      notes: `Service: ${service.title}\n\nMessage: ${form.message}`,
+      source: "Website",
+      status: "new",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("Lead save failed:", err);
+    // Don't block the user — still send WhatsApp
+  }
 
-await supabase.from("leads").insert({
-  user_id: "b8ab0f60-394d-4c94-802b-172cf7935b5a", // Replace with Lekhakraj's user ID
-  name: form.name,
-  mobile: form.phone,
-  email: form.email,
-  notes: `Service: ${service.title}\n\nMessage: ${form.message}`,
-  source: "Website",
-  status: "new",
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-});
-
-    // Send via WhatsApp
-    const msg = `🚀 *New Service Inquiry — TezConnect*
+  // Build WhatsApp message
+  const msg = `🚀 *New Service Inquiry — TezConnect*
 
 *Service:* ${service.title}
 
@@ -119,17 +123,22 @@ ${form.message}
 
 _Sent from TezConnect App_`;
 
-    const whatsappUrl = `https://wa.me/917396180986?text=${encodeURIComponent(msg)}`;
+  setSending(false);
+  setSent(true);
+// Auto close after 3 seconds
+setTimeout(() => {
+  onClose();
+}, 3000);
+  // Open WhatsApp after short delay
+  setTimeout(() => {
+    window.open(
+      `https://wa.me/917396180986?text=${encodeURIComponent(msg)}`,
+      "_blank"
+    );
+  }, 800);
+};
 
-    await new Promise(r => setTimeout(r, 800));
-    setSending(false);
-    setSent(true);
-
-    setTimeout(() => {
-      window.open(whatsappUrl, "_blank");
-    }, 1000);
-  };
-
+  
   const inputStyle = {
     width: "100%", background: T.bgInput, border: `1px solid ${T.border}`,
     borderRadius: 10, padding: "12px 14px", color: T.text,
