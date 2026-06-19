@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./supabase";
 
 const T = {
@@ -11,6 +11,9 @@ const T = {
   amber: "#fbbf24", amberLo: "#fbbf2412",
   purple: "#a78bfa", purpleLo: "#a78bfa12",
 };
+
+/* ── CHANGE THIS to Lekhakraj's real user ID ── */
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69⁠";
 
 const STATUS_CONFIG = {
   new:       { label: "New",       color: T.info,    bg: T.infoLo,    icon: "🆕" },
@@ -111,19 +114,16 @@ function LeadModal({ lead, session, onClose, onSaved }) {
           {error && <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"10px 14px", fontSize:12, color:T.error, marginBottom:14 }}>⚠ {error}</div>}
 
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            {/* Name */}
             <div>
               <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Full Name *</label>
               <input value={form.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Rajesh Kumar" style={inputStyle} onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}/>
             </div>
 
-            {/* Company */}
             <div>
               <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Company</label>
               <input value={form.company} onChange={e=>set("company",e.target.value)} placeholder="e.g. ABC Technologies" style={inputStyle} onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}/>
             </div>
 
-            {/* Phone + WhatsApp */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
               <div>
                 <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Mobile</label>
@@ -135,13 +135,11 @@ function LeadModal({ lead, session, onClose, onSaved }) {
               </div>
             </div>
 
-            {/* Email */}
             <div>
               <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Email</label>
               <input value={form.email} onChange={e=>set("email",e.target.value)} placeholder="contact@company.com" type="email" style={inputStyle} onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}/>
             </div>
 
-            {/* Industry + Source */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
               <div>
                 <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Industry</label>
@@ -159,7 +157,6 @@ function LeadModal({ lead, session, onClose, onSaved }) {
               </div>
             </div>
 
-            {/* Status */}
             <div>
               <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:8 }}>Status</label>
               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
@@ -172,7 +169,6 @@ function LeadModal({ lead, session, onClose, onSaved }) {
               </div>
             </div>
 
-            {/* Notes */}
             <div>
               <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Notes</label>
               <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} placeholder="Add notes about this lead…" rows={3} style={{ ...inputStyle, resize:"vertical" }} onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}/>
@@ -190,7 +186,7 @@ function LeadModal({ lead, session, onClose, onSaved }) {
 }
 
 /* ── Lead Card ── */
-function LeadCard({ lead, onEdit, onDelete, onStatusChange, isNew }) {
+function LeadCard({ lead, onEdit, onDelete, onStatusChange, isNew, isAdmin }) {
   const cfg = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new;
   const [showActions, setShowActions] = useState(false);
   const [confirmDel, setConfirmDel]   = useState(false);
@@ -211,12 +207,10 @@ function LeadCard({ lead, onEdit, onDelete, onStatusChange, isNew }) {
       animation: isNew?"fadeUp .4s ease":"none",
       boxShadow: isNew?`0 0 20px ${T.success}22`:"none",
     }}>
-      {/* New badge */}
       {isNew && (
         <div style={{ position:"absolute", top:10, right:10, background:T.success, color:"#fff", borderRadius:20, fontSize:9, fontWeight:800, padding:"2px 8px", letterSpacing:".05em" }}>NEW</div>
       )}
 
-      {/* Status bar */}
       <div style={{ height:3, background:`linear-gradient(90deg,${cfg.color},${cfg.color}44)` }}/>
 
       <div style={{ padding:"14px 16px" }}>
@@ -231,7 +225,9 @@ function LeadCard({ lead, onEdit, onDelete, onStatusChange, isNew }) {
               {lead.company && <div style={{ fontSize:12, color:T.textMid, marginTop:1 }}>{lead.company}</div>}
             </div>
           </div>
-          <button onClick={()=>setShowActions(s=>!s)} style={{ background:"none", border:"none", color:T.textLow, fontSize:18, cursor:"pointer", padding:4, flexShrink:0 }}>⋯</button>
+          {isAdmin && (
+            <button onClick={()=>setShowActions(s=>!s)} style={{ background:"none", border:"none", color:T.textLow, fontSize:18, cursor:"pointer", padding:4, flexShrink:0 }}>⋯</button>
+          )}
         </div>
 
         {/* Info pills */}
@@ -259,20 +255,22 @@ function LeadCard({ lead, onEdit, onDelete, onStatusChange, isNew }) {
 
         {/* Notes */}
         {lead.notes && (
-          <div style={{ fontSize:12, color:T.textLow, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", marginBottom:12, lineHeight:1.5, overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>
+          <div style={{ fontSize:12, color:T.textLow, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", marginBottom:12, lineHeight:1.5, overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", whiteSpace:"pre-line" }}>
             {lead.notes}
           </div>
         )}
 
-        {/* Quick status change */}
-        <div style={{ display:"flex", gap:6, overflowX:"auto" }}>
-          {Object.entries(STATUS_CONFIG).map(([key,cfg2])=>(
-            <button key={key} onClick={()=>onStatusChange(lead.id,key)}
-              style={{ background:lead.status===key?cfg2.bg:"transparent", border:`1px solid ${lead.status===key?cfg2.color+"55":T.border}`, borderRadius:20, padding:"5px 10px", color:lead.status===key?cfg2.color:T.textLow, fontSize:10, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'Plus Jakarta Sans',sans-serif", transition:"all .15s", flexShrink:0 }}>
-              {cfg2.icon}
-            </button>
-          ))}
-        </div>
+        {/* Status: editable for admin, badge-only for others */}
+        {isAdmin ? (
+          <div style={{ display:"flex", gap:6, overflowX:"auto" }}>
+            {Object.entries(STATUS_CONFIG).map(([key,cfg2])=>(
+              <button key={key} onClick={()=>onStatusChange(lead.id,key)}
+                style={{ background:lead.status===key?cfg2.bg:"transparent", border:`1px solid ${lead.status===key?cfg2.color+"55":T.border}`, borderRadius:20, padding:"5px 10px", color:lead.status===key?cfg2.color:T.textLow, fontSize:10, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'Plus Jakarta Sans',sans-serif", transition:"all .15s", flexShrink:0 }}>
+                {cfg2.icon}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {/* Time */}
         <div style={{ fontSize:10, color:T.textLow, marginTop:10 }}>
@@ -280,8 +278,8 @@ function LeadCard({ lead, onEdit, onDelete, onStatusChange, isNew }) {
         </div>
       </div>
 
-      {/* Action menu */}
-      {showActions && (
+      {/* Action menu — admin only */}
+      {isAdmin && showActions && (
         <>
           <div onClick={()=>setShowActions(false)} style={{ position:"fixed", inset:0, zIndex:10 }}/>
           <div style={{ position:"absolute", top:40, right:16, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, zIndex:11, minWidth:160, boxShadow:"0 8px 24px #00000066", overflow:"hidden" }}>
@@ -335,43 +333,35 @@ export default function LeadsPage({ session }) {
   const [sortBy, setSortBy]       = useState("newest");
   const [totalToday, setTotalToday] = useState(0);
   const channelRef = useRef(null);
-  const isFirst = useRef(true);
+
+  const isAdmin = session.userId === ADMIN_USER_ID;
 
   const fetchLeads = useCallback(async() => {
+    // Admin sees all their leads; non-admins see everything too (read-only view)
     const { data } = await supabase
       .from("leads").select("*")
-      .eq("user_id", session.userId)
       .order("created_at", { ascending: false });
     setLeads(data || []);
-    // Count today's leads
     const today = new Date().toISOString().split("T")[0];
     setTotalToday((data||[]).filter(l=>l.created_at?.startsWith(today)).length);
     setLoading(false);
-    isFirst.current = false;
-  }, [session.userId]);
+  }, []);
 
   useEffect(() => {
     fetchLeads();
 
-    // Real-time subscription
     channelRef.current = supabase
-      .channel("leads_realtime_" + session.userId)
+      .channel("leads_realtime_global")
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",
         table: "leads",
-        filter: `user_id=eq.${session.userId}`,
       }, (payload) => {
         const newLead = payload.new;
-        // Add to list with animation
         setLeads(prev => [newLead, ...prev]);
-        // Mark as new for highlight
         setNewLeadIds(prev => new Set([...prev, newLead.id]));
-        // Show toast
         setToast(newLead);
-        // Update today count
         setTotalToday(c => c + 1);
-        // Remove new highlight after 8 seconds
         setTimeout(() => {
           setNewLeadIds(prev => {
             const next = new Set(prev);
@@ -384,7 +374,6 @@ export default function LeadsPage({ session }) {
         event: "UPDATE",
         schema: "public",
         table: "leads",
-        filter: `user_id=eq.${session.userId}`,
       }, (payload) => {
         setLeads(prev => prev.map(l => l.id === payload.new.id ? payload.new : l));
       })
@@ -400,17 +389,18 @@ export default function LeadsPage({ session }) {
     return () => {
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [session.userId, fetchLeads]);
+  }, [fetchLeads]);
 
   const handleStatusChange = async(id, status) => {
+    if (!isAdmin) return;
     await supabase.from("leads").update({ status, updated_at:new Date().toISOString() }).eq("id", id);
   };
 
   const handleDelete = async(id) => {
+    if (!isAdmin) return;
     await supabase.from("leads").delete().eq("id", id);
   };
 
-  // Filter + sort
   const filtered = leads
     .filter(l => {
       const q = search.toLowerCase();
@@ -425,13 +415,11 @@ export default function LeadsPage({ session }) {
       return 0;
     });
 
-  // Stats
   const stats = Object.keys(STATUS_CONFIG).reduce((acc,s)=>{ acc[s]=leads.filter(l=>l.status===s).length; return acc; },{});
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
 
-      {/* Toast */}
       {toast && <LeadToast lead={toast} onClose={()=>setToast(null)}/>}
 
       {/* Header */}
@@ -442,7 +430,7 @@ export default function LeadsPage({ session }) {
             <LiveBadge/>
           </div>
           <h2 style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-.03em" }}>
-            My <span style={{ color:T.orange }}>Leads</span>
+            {isAdmin ? "My" : "All"} <span style={{ color:T.orange }}>Leads</span>
             <span style={{ marginLeft:10, fontSize:14, color:T.textMid, fontWeight:500 }}>({leads.length})</span>
           </h2>
           {totalToday > 0 && (
@@ -450,11 +438,18 @@ export default function LeadsPage({ session }) {
               🎉 {totalToday} new lead{totalToday!==1?"s":""} today!
             </div>
           )}
+          {!isAdmin && (
+            <div style={{ fontSize:11, color:T.textLow, marginTop:4 }}>
+              👁️ View only — only the admin can add or edit leads
+            </div>
+          )}
         </div>
-        <button onClick={()=>setShowAdd(true)}
-          style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"11px 20px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440", display:"flex", alignItems:"center", gap:7 }}>
-          <span style={{ fontSize:16 }}>+</span> Add Lead
-        </button>
+        {isAdmin && (
+          <button onClick={()=>setShowAdd(true)}
+            style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"11px 20px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440", display:"flex", alignItems:"center", gap:7 }}>
+            <span style={{ fontSize:16 }}>+</span> Add Lead
+          </button>
+        )}
       </div>
 
       {/* Stats row */}
@@ -489,7 +484,7 @@ export default function LeadsPage({ session }) {
       <div style={{ background:"linear-gradient(135deg,#22c55e0a,#06070d)", border:`1px solid ${T.success}33`, borderRadius:12, padding:"10px 16px", display:"flex", alignItems:"center", gap:10 }}>
         <div style={{ width:8, height:8, borderRadius:"50%", background:T.success, boxShadow:`0 0 8px ${T.success}`, flexShrink:0 }}/>
         <div style={{ fontSize:12, color:T.textMid }}>
-          <strong style={{ color:T.success }}>Live mode active</strong> — New leads appear instantly without refreshing. Share your inquiry link to start receiving leads.
+          <strong style={{ color:T.success }}>Live mode active</strong> — New leads appear instantly without refreshing.
         </div>
       </div>
 
@@ -507,12 +502,14 @@ export default function LeadsPage({ session }) {
           <div style={{ fontSize:64, marginBottom:16 }}>🎯</div>
           <div style={{ fontWeight:800, fontSize:20, color:T.text, marginBottom:8 }}>No leads yet</div>
           <div style={{ fontSize:13, color:T.textMid, lineHeight:1.7, marginBottom:24, maxWidth:320, margin:"0 auto 24px" }}>
-            Add leads manually or share your Services page to receive inquiries automatically
+            {isAdmin ? "Add leads manually or share your Services page to receive inquiries automatically" : "Leads will appear here once they come in"}
           </div>
-          <button onClick={()=>setShowAdd(true)}
-            style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"12px 28px", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-            + Add First Lead
-          </button>
+          {isAdmin && (
+            <button onClick={()=>setShowAdd(true)}
+              style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"12px 28px", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+              + Add First Lead
+            </button>
+          )}
         </div>
       )}
 
@@ -537,18 +534,17 @@ export default function LeadsPage({ session }) {
               onDelete={handleDelete}
               onStatusChange={handleStatusChange}
               isNew={newLeadIds.has(lead.id)}
+              isAdmin={isAdmin}
             />
           ))}
         </div>
       )}
 
-      {/* Add modal */}
-      {showAdd && (
+      {isAdmin && showAdd && (
         <LeadModal session={session} onClose={()=>setShowAdd(false)} onSaved={fetchLeads}/>
       )}
 
-      {/* Edit modal */}
-      {editLead && (
+      {isAdmin && editLead && (
         <LeadModal lead={editLead} session={session} onClose={()=>setEditLead(null)} onSaved={fetchLeads}/>
       )}
     </div>
