@@ -94,7 +94,7 @@ const handleSubmit = async () => {
   // Save as lead in Supabase
   try {
     await supabase.from("leads").insert({
-      user_id: "LEKHAKRAJ_USER_ID", // paste real UUID here
+      user_id: "3f1ec55b-a33f-462c-8d10-0197fea18e69", // paste real UUID here
       name: form.name.trim(),
       mobile: form.phone.trim(),
       email: form.email.trim(),
