@@ -351,7 +351,7 @@ export default function NetworkPage({ session }) {
 
             
 
-    </div>
+    
   );
 }
     
