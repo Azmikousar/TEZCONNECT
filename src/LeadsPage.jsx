@@ -301,18 +301,142 @@ function LeadRow({ lead, onEdit, onDelete, onStatusChange, isNew }) {
   );
 }
 
-/* ── Access denied screen for non-admins ── */
-function AccessDenied() {
+
+/* ── Read-only view for non-admins ── */
+function LeadViewRow({ lead }) {
+  const cfg = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new;
   return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:400, textAlign:"center", gap:14 }}>
-      <div style={{ fontSize:56 }}>🔒</div>
-      <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Admin Access Only</div>
-      <div style={{ color:T.textMid, fontSize:13, maxWidth:300, lineHeight:1.7 }}>
-        Lead management is restricted to the TezConnect admin account.
+    <div style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:14, padding:"14px 16px" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+        <div style={{ width:42, height:42, borderRadius:"50%", background:`linear-gradient(135deg,${cfg.color},${cfg.color}88)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", flexShrink:0 }}>
+          {(lead.name||"?")[0].toUpperCase()}
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontWeight:800, fontSize:14, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{lead.name}</div>
+          {lead.company && <div style={{ fontSize:12, color:T.textMid, marginTop:1 }}>{lead.company}</div>}
+        </div>
+        <span style={{ background:cfg.bg, border:`1px solid ${cfg.color}44`, color:cfg.color, borderRadius:20, padding:"4px 11px", fontSize:11, fontWeight:700, flexShrink:0 }}>
+          {cfg.icon} {cfg.label}
+        </span>
       </div>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
+        {lead.industry && <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"2px 9px", fontSize:10, fontWeight:600 }}>🏭 {lead.industry}</span>}
+        {lead.source && <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"2px 9px", fontSize:10, fontWeight:600 }}>📍 {lead.source}</span>}
+      </div>
+      <div style={{ fontSize:10, color:T.textLow, marginTop:10 }}>Added {timeAgo(lead.created_at)}</div>
     </div>
   );
 }
+
+function LeadsViewOnly({ session }) {
+  const [leads, setLeads]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch]   = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const channelRef = useRef(null);
+
+  const fetchLeads = useCallback(async () => {
+    const { data } = await supabase
+      .from("leads").select("*")
+      .eq("user_id", ADMIN_USER_ID)
+      .order("created_at", { ascending: false });
+    setLeads(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchLeads();
+    channelRef.current = supabase
+      .channel("leads_view_only")
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "leads",
+        filter: `user_id=eq.${ADMIN_USER_ID}`,
+      }, () => fetchLeads())
+      .subscribe();
+    return () => { if (channelRef.current) supabase.removeChannel(channelRef.current); };
+  }, [fetchLeads]);
+
+  const filtered = leads.filter(l => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || l.name?.toLowerCase().includes(q) || l.company?.toLowerCase().includes(q);
+    const matchStatus = statusFilter === "all" || l.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const stats = Object.keys(STATUS_CONFIG).reduce((acc,s)=>{ acc[s]=leads.filter(l=>l.status===s).length; return acc; },{});
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+
+      {/* Header */}
+      <div>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+          <div style={{ fontSize:11, color:T.textLow, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase" }}>🎯 Lead Overview</div>
+          <LiveBadge/>
+        </div>
+        <h2 style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-.03em" }}>
+          Team <span style={{ color:T.orange }}>Leads</span>
+          <span style={{ marginLeft:10, fontSize:14, color:T.textMid, fontWeight:500 }}>({leads.length})</span>
+        </h2>
+        <div style={{ fontSize:11, color:T.textLow, marginTop:6, display:"flex", alignItems:"center", gap:5 }}>
+          👁️ View only — only the TezConnect admin can add or update leads
+        </div>
+      </div>
+
+      {/* Stats row — clickable filters */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
+        {Object.entries(STATUS_CONFIG).map(([key,cfg])=>(
+          <div key={key} onClick={()=>setStatusFilter(statusFilter===key?"all":key)}
+            style={{ background:statusFilter===key?cfg.bg:T.bgCard, border:`1px solid ${statusFilter===key?cfg.color+"55":T.border}`, borderRadius:12, padding:"10px 8px", textAlign:"center", cursor:"pointer", transition:"all .2s" }}>
+            <div style={{ fontWeight:800, fontSize:20, color:cfg.color }}>{stats[key]||0}</div>
+            <div style={{ fontSize:9, color:T.textLow, textTransform:"uppercase", letterSpacing:".05em", marginTop:2 }}>{cfg.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div style={{ position:"relative" }}>
+        <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", fontSize:14, color:T.textLow, pointerEvents:"none" }}>🔍</span>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search leads…"
+          style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px 14px 10px 36px", color:T.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" }}
+          onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}
+        />
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"60px 0", gap:12 }}>
+          <div style={{ width:24, height:24, border:"2px solid #f9731633", borderTopColor:"#f97316", borderRadius:"50%", animation:"spin .7s linear infinite" }}/>
+          <span style={{ color:T.textMid, fontSize:13 }}>Loading leads…</span>
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && leads.length===0 && (
+        <div style={{ textAlign:"center", padding:"60px 20px" }}>
+          <div style={{ fontSize:64, marginBottom:16 }}>🎯</div>
+          <div style={{ fontWeight:800, fontSize:20, color:T.text, marginBottom:8 }}>No leads yet</div>
+          <div style={{ fontSize:13, color:T.textMid }}>Leads will appear here once they come in</div>
+        </div>
+      )}
+
+      {/* No results */}
+      {!loading && leads.length>0 && filtered.length===0 && (
+        <div style={{ textAlign:"center", padding:"40px 20px", color:T.textLow, fontSize:13 }}>
+          No leads match your search
+        </div>
+      )}
+
+      {/* List */}
+      {!loading && filtered.length>0 && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:14 }}>
+          {filtered.map(lead => <LeadViewRow key={lead.id} lead={lead}/>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 /* ── Main LeadsPage ── */
 export default function LeadsPage({ session }) {
@@ -385,7 +509,8 @@ export default function LeadsPage({ session }) {
     await supabase.from("leads").delete().eq("id", id);
   };
 
-  if (!isAdmin) return <AccessDenied/>;
+  if (!isAdmin) return <LeadsViewOnly session={session}/>;
+
 
   const filtered = leads
     .filter(l => {
