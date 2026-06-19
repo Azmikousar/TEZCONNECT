@@ -38,7 +38,10 @@ export default function MobileMoreMenu({ onNav, onLogout, onClose, session, prof
           padding: "8px 0 32px",
           animation: "slideUp .25s ease",
         }}
-      > {/* Header container for back button and handle */}
+      > 
+        {/* Handle */}
+        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "8px auto 20px" }} />
+{/* Header container for back button and handle */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px" }}>
           <button
             onClick={onBack}
@@ -47,9 +50,6 @@ export default function MobileMoreMenu({ onNav, onLogout, onClose, session, prof
             ←
           </button>
         </div>
-        {/* Handle */}
-        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "8px auto 20px" }} />
-
         {/* User info */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 20px 16px", borderBottom: `1px solid ${T.border}`, marginBottom: 8 }}>
           <div style={{
