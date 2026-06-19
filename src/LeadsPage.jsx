@@ -1,4 +1,4 @@
- import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./supabase";
 
 const T = {
@@ -9,11 +9,10 @@ const T = {
   error: "#f87171", errorLo: "#f8717112",
   info: "#38bdf8", infoLo: "#38bdf812",
   amber: "#fbbf24", amberLo: "#fbbf2412",
-  purple: "#a78bfa", purpleLo: "#a78bfa12",
 };
 
 /* ── CHANGE THIS to Lekhakraj's real user ID ── */
-const ADMIN_USER_ID = "⁠3f1ec55b-a33f-462c-8d10-0197fea18e69";
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
 
 const STATUS_CONFIG = {
   new:       { label: "New",       color: T.info,    bg: T.infoLo,    icon: "🆕" },
@@ -26,6 +25,14 @@ const STATUS_CONFIG = {
 const INDUSTRIES = ["Technology","Finance","Healthcare","Education","Real Estate","Manufacturing","Retail","Media","Consulting","Construction","Hospitality","Agriculture","Other"];
 const SOURCES = ["WhatsApp","LinkedIn","Referral","Website","Event","Cold Call","Instagram","Email","Other"];
 
+function timeAgo(ts) {
+  const d = (Date.now() - new Date(ts)) / 1000;
+  if (d < 60) return "just now";
+  if (d < 3600) return `${Math.floor(d/60)}m ago`;
+  if (d < 86400) return `${Math.floor(d/3600)}h ago`;
+  return new Date(ts).toLocaleDateString("en-IN", { day:"numeric", month:"short" });
+}
+
 /* ── Live indicator ── */
 function LiveBadge() {
   return (
@@ -36,25 +43,12 @@ function LiveBadge() {
   );
 }
 
-/* ── New lead toast notification ── */
+/* ── New lead toast ── */
 function LeadToast({ lead, onClose }) {
-  useEffect(() => {
-    const t = setTimeout(onClose, 4000);
-    return () => clearTimeout(t);
-  }, []);
-
+  useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, []);
   return (
-    <div style={{
-      position:"fixed", top:70, right:16, zIndex:999,
-      background:T.bgCard, border:`1px solid ${T.success}55`,
-      borderRadius:14, padding:"12px 16px", maxWidth:300,
-      boxShadow:"0 8px 32px #00000066",
-      animation:"slideR .3s ease",
-      display:"flex", alignItems:"center", gap:12,
-    }}>
-      <div style={{ width:38, height:38, borderRadius:"50%", background:"linear-gradient(135deg,#22c55e,#16a34a)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
-        🎯
-      </div>
+    <div style={{ position:"fixed", top:70, right:16, zIndex:999, background:T.bgCard, border:`1px solid ${T.success}55`, borderRadius:14, padding:"12px 16px", maxWidth:300, boxShadow:"0 8px 32px #00000066", animation:"slideR .3s ease", display:"flex", alignItems:"center", gap:12 }}>
+      <div style={{ width:38, height:38, borderRadius:"50%", background:"linear-gradient(135deg,#22c55e,#16a34a)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>🎯</div>
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontSize:11, fontWeight:700, color:T.success, marginBottom:2 }}>NEW LEAD</div>
         <div style={{ fontSize:13, fontWeight:700, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{lead.name}</div>
@@ -80,7 +74,8 @@ function LeadModal({ lead, session, onClose, onSaved }) {
   const save = async() => {
     if(!form.name.trim()){setError("Name is required");return;}
     setSaving(true);
-    const payload = { ...form, user_id:session.userId, updated_at:new Date().toISOString() };
+    const payload = { ...form, user_id:ADMIN_USER_ID, updated_at:new Date().toISOString() };
+    delete payload.id; delete payload.created_at;
     let err;
     if(isEdit){
       ({error:err}=await supabase.from("leads").update(payload).eq("id",lead.id));
@@ -185,122 +180,108 @@ function LeadModal({ lead, session, onClose, onSaved }) {
   );
 }
 
-/* ── Lead Card ── */
-function LeadCard({ lead, onEdit, onDelete, onStatusChange, isNew, isAdmin }) {
+/* ── Lead Row (table-style for admin) ── */
+function LeadRow({ lead, onEdit, onDelete, onStatusChange, isNew }) {
   const cfg = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new;
-  const [showActions, setShowActions] = useState(false);
-  const [confirmDel, setConfirmDel]   = useState(false);
-
-  const timeAgo = (ts) => {
-    const d = (Date.now()-new Date(ts))/1000;
-    if(d<60) return "just now";
-    if(d<3600) return `${Math.floor(d/60)}m ago`;
-    if(d<86400) return `${Math.floor(d/3600)}h ago`;
-    return new Date(ts).toLocaleDateString("en-IN",{day:"numeric",month:"short"});
-  };
+  const [showMenu, setShowMenu]     = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
 
   return (
     <div style={{
       background:T.bgCard, border:`1px solid ${isNew?T.success+"66":T.border}`,
-      borderRadius:14, overflow:"hidden", position:"relative",
-      transition:"all .3s",
+      borderRadius:14, padding:"14px 16px", position:"relative",
       animation: isNew?"fadeUp .4s ease":"none",
       boxShadow: isNew?`0 0 20px ${T.success}22`:"none",
+      transition:"all .3s",
     }}>
       {isNew && (
-        <div style={{ position:"absolute", top:10, right:10, background:T.success, color:"#fff", borderRadius:20, fontSize:9, fontWeight:800, padding:"2px 8px", letterSpacing:".05em" }}>NEW</div>
+        <div style={{ position:"absolute", top:-8, right:14, background:T.success, color:"#fff", borderRadius:20, fontSize:9, fontWeight:800, padding:"2px 10px", letterSpacing:".05em", boxShadow:`0 2px 8px ${T.success}66` }}>NEW</div>
       )}
 
-      <div style={{ height:3, background:`linear-gradient(90deg,${cfg.color},${cfg.color}44)` }}/>
+      <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+        {/* Avatar */}
+        <div style={{ width:42, height:42, borderRadius:"50%", background:`linear-gradient(135deg,${cfg.color},${cfg.color}88)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", flexShrink:0 }}>
+          {(lead.name||"?")[0].toUpperCase()}
+        </div>
 
-      <div style={{ padding:"14px 16px" }}>
-        {/* Header */}
-        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10, marginBottom:12 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:40, height:40, borderRadius:"50%", background:`linear-gradient(135deg,${cfg.color},${cfg.color}88)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", flexShrink:0 }}>
-              {(lead.name||"?")[0].toUpperCase()}
+        {/* Main info */}
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+            <div style={{ fontWeight:800, fontSize:14, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{lead.name}</div>
+            <div style={{ position:"relative", flexShrink:0 }}>
+              <button onClick={()=>setShowMenu(s=>!s)} style={{ background:"none", border:"none", color:T.textLow, fontSize:18, cursor:"pointer", padding:2 }}>⋯</button>
+              {showMenu && (
+                <>
+                  <div onClick={()=>setShowMenu(false)} style={{ position:"fixed", inset:0, zIndex:10 }}/>
+                  <div style={{ position:"absolute", top:24, right:0, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, zIndex:11, minWidth:150, boxShadow:"0 8px 24px #00000066", overflow:"hidden" }}>
+                    {lead.whatsapp && (
+                      <a href={`https://wa.me/${lead.whatsapp.replace(/[^0-9]/g,"")}`} target="_blank" rel="noopener noreferrer" onClick={()=>setShowMenu(false)}
+                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", color:"#25d366", fontSize:13, fontWeight:600, textDecoration:"none", borderBottom:`1px solid ${T.border}` }}>
+                        💬 WhatsApp
+                      </a>
+                    )}
+                    <button onClick={()=>{setShowMenu(false);onEdit(lead);}}
+                      style={{ width:"100%", textAlign:"left", padding:"10px 14px", background:"none", border:"none", color:T.text, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", borderBottom:`1px solid ${T.border}` }}>
+                      ✏️ Edit Lead
+                    </button>
+                    <button onClick={()=>{setShowMenu(false);setConfirmDel(true);}}
+                      style={{ width:"100%", textAlign:"left", padding:"10px 14px", background:"none", border:"none", color:T.error, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                      🗑 Delete
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
-            <div>
-              <div style={{ fontWeight:800, fontSize:14, color:T.text }}>{lead.name}</div>
-              {lead.company && <div style={{ fontSize:12, color:T.textMid, marginTop:1 }}>{lead.company}</div>}
+          </div>
+
+          {lead.company && <div style={{ fontSize:12, color:T.textMid, marginTop:2 }}>{lead.company}</div>}
+
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
+            {lead.industry && <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"2px 9px", fontSize:10, fontWeight:600 }}>🏭 {lead.industry}</span>}
+            {lead.source && <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"2px 9px", fontSize:10, fontWeight:600 }}>📍 {lead.source}</span>}
+          </div>
+
+          <div style={{ display:"flex", gap:14, marginTop:8 }}>
+            {lead.mobile && <a href={`tel:${lead.mobile}`} style={{ fontSize:11, color:T.textMid, textDecoration:"none", display:"flex", alignItems:"center", gap:4 }}>📱 {lead.mobile}</a>}
+            {lead.email && <a href={`mailto:${lead.email}`} style={{ fontSize:11, color:T.textMid, textDecoration:"none", display:"flex", alignItems:"center", gap:4 }}>✉️ {lead.email}</a>}
+          </div>
+
+          {lead.notes && (
+            <div style={{ fontSize:12, color:T.textLow, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", marginTop:10, lineHeight:1.5, whiteSpace:"pre-line", maxHeight:60, overflowY:"auto" }}>
+              {lead.notes}
             </div>
-          </div>
-          {isAdmin && (
-            <button onClick={()=>setShowActions(s=>!s)} style={{ background:"none", border:"none", color:T.textLow, fontSize:18, cursor:"pointer", padding:4, flexShrink:0 }}>⋯</button>
           )}
-        </div>
 
-        {/* Info pills */}
-        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
-          <span style={{ background:cfg.bg, border:`1px solid ${cfg.color}33`, color:cfg.color, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>
-            {cfg.icon} {cfg.label}
-          </span>
-          {lead.industry && <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:600 }}>🏭 {lead.industry}</span>}
-          {lead.source && <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:600 }}>📍 {lead.source}</span>}
-        </div>
+          {/* Status dropdown — primary action */}
+          <div style={{ marginTop:12, position:"relative" }}>
+            <button
+              onClick={()=>setShowStatusPicker(s=>!s)}
+              style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", background:cfg.bg, border:`1px solid ${cfg.color}44`, borderRadius:10, padding:"9px 12px", color:cfg.color, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}
+            >
+              <span>{cfg.icon} {cfg.label}</span>
+              <span style={{ fontSize:10 }}>{showStatusPicker?"▲":"▼"}</span>
+            </button>
 
-        {/* Contact info */}
-        <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:12 }}>
-          {lead.mobile && (
-            <a href={`tel:${lead.mobile}`} style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:T.textMid, textDecoration:"none" }}>
-              <span>📱</span>{lead.mobile}
-            </a>
-          )}
-          {lead.email && (
-            <a href={`mailto:${lead.email}`} style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:T.textMid, textDecoration:"none" }}>
-              <span>✉️</span>{lead.email}
-            </a>
-          )}
-        </div>
-
-        {/* Notes */}
-        {lead.notes && (
-          <div style={{ fontSize:12, color:T.textLow, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", marginBottom:12, lineHeight:1.5, overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", whiteSpace:"pre-line" }}>
-            {lead.notes}
+            {showStatusPicker && (
+              <>
+                <div onClick={()=>setShowStatusPicker(false)} style={{ position:"fixed", inset:0, zIndex:10 }}/>
+                <div style={{ position:"absolute", top:"100%", left:0, right:0, marginTop:6, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, zIndex:11, overflow:"hidden", boxShadow:"0 8px 24px #00000066" }}>
+                  {Object.entries(STATUS_CONFIG).map(([key,c])=>(
+                    <button key={key}
+                      onClick={()=>{onStatusChange(lead.id,key);setShowStatusPicker(false);}}
+                      style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:"10px 12px", background:lead.status===key?c.bg:"transparent", border:"none", color:c.color, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", borderBottom:`1px solid ${T.border}` }}>
+                      {c.icon} {c.label} {lead.status===key && <span style={{ marginLeft:"auto" }}>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
-        )}
 
-        {/* Status: editable for admin, badge-only for others */}
-        {isAdmin ? (
-          <div style={{ display:"flex", gap:6, overflowX:"auto" }}>
-            {Object.entries(STATUS_CONFIG).map(([key,cfg2])=>(
-              <button key={key} onClick={()=>onStatusChange(lead.id,key)}
-                style={{ background:lead.status===key?cfg2.bg:"transparent", border:`1px solid ${lead.status===key?cfg2.color+"55":T.border}`, borderRadius:20, padding:"5px 10px", color:lead.status===key?cfg2.color:T.textLow, fontSize:10, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'Plus Jakarta Sans',sans-serif", transition:"all .15s", flexShrink:0 }}>
-                {cfg2.icon}
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        {/* Time */}
-        <div style={{ fontSize:10, color:T.textLow, marginTop:10 }}>
-          Added {timeAgo(lead.created_at)}
+          <div style={{ fontSize:10, color:T.textLow, marginTop:8 }}>Added {timeAgo(lead.created_at)}</div>
         </div>
       </div>
-
-      {/* Action menu — admin only */}
-      {isAdmin && showActions && (
-        <>
-          <div onClick={()=>setShowActions(false)} style={{ position:"fixed", inset:0, zIndex:10 }}/>
-          <div style={{ position:"absolute", top:40, right:16, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, zIndex:11, minWidth:160, boxShadow:"0 8px 24px #00000066", overflow:"hidden" }}>
-            {lead.whatsapp && (
-              <a href={`https://wa.me/${lead.whatsapp.replace(/[^0-9]/g,"")}`} target="_blank" rel="noopener noreferrer"
-                onClick={()=>setShowActions(false)}
-                style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 14px", color:"#25d366", fontSize:13, fontWeight:600, textDecoration:"none", borderBottom:`1px solid ${T.border}` }}>
-                💬 WhatsApp
-              </a>
-            )}
-            <button onClick={()=>{setShowActions(false);onEdit(lead);}}
-              style={{ width:"100%", textAlign:"left", padding:"11px 14px", background:"none", border:"none", color:T.text, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", borderBottom:`1px solid ${T.border}` }}>
-              ✏️ Edit Lead
-            </button>
-            <button onClick={()=>{setShowActions(false);setConfirmDel(true);}}
-              style={{ width:"100%", textAlign:"left", padding:"11px 14px", background:"none", border:"none", color:T.error, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-              🗑 Delete
-            </button>
-          </div>
-        </>
-      )}
 
       {/* Confirm delete */}
       {confirmDel && (
@@ -320,8 +301,23 @@ function LeadCard({ lead, onEdit, onDelete, onStatusChange, isNew, isAdmin }) {
   );
 }
 
+/* ── Access denied screen for non-admins ── */
+function AccessDenied() {
+  return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:400, textAlign:"center", gap:14 }}>
+      <div style={{ fontSize:56 }}>🔒</div>
+      <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Admin Access Only</div>
+      <div style={{ color:T.textMid, fontSize:13, maxWidth:300, lineHeight:1.7 }}>
+        Lead management is restricted to the TezConnect admin account.
+      </div>
+    </div>
+  );
+}
+
 /* ── Main LeadsPage ── */
 export default function LeadsPage({ session }) {
+  const isAdmin = session.userId === ADMIN_USER_ID;
+
   const [leads, setLeads]         = useState([]);
   const [loading, setLoading]     = useState(true);
   const [newLeadIds, setNewLeadIds] = useState(new Set());
@@ -334,28 +330,27 @@ export default function LeadsPage({ session }) {
   const [totalToday, setTotalToday] = useState(0);
   const channelRef = useRef(null);
 
-  const isAdmin = session.userId === ADMIN_USER_ID;
-
   const fetchLeads = useCallback(async() => {
-    // Admin sees all their leads; non-admins see everything too (read-only view)
+    if (!isAdmin) { setLoading(false); return; }
     const { data } = await supabase
       .from("leads").select("*")
+      .eq("user_id", ADMIN_USER_ID)
       .order("created_at", { ascending: false });
     setLeads(data || []);
     const today = new Date().toISOString().split("T")[0];
     setTotalToday((data||[]).filter(l=>l.created_at?.startsWith(today)).length);
     setLoading(false);
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
+    if (!isAdmin) { setLoading(false); return; }
     fetchLeads();
 
     channelRef.current = supabase
-      .channel("leads_realtime_global")
+      .channel("leads_realtime_admin")
       .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "leads",
+        event: "INSERT", schema: "public", table: "leads",
+        filter: `user_id=eq.${ADMIN_USER_ID}`,
       }, (payload) => {
         const newLead = payload.new;
         setLeads(prev => [newLead, ...prev]);
@@ -363,43 +358,34 @@ export default function LeadsPage({ session }) {
         setToast(newLead);
         setTotalToday(c => c + 1);
         setTimeout(() => {
-          setNewLeadIds(prev => {
-            const next = new Set(prev);
-            next.delete(newLead.id);
-            return next;
-          });
+          setNewLeadIds(prev => { const n = new Set(prev); n.delete(newLead.id); return n; });
         }, 8000);
       })
       .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public",
-        table: "leads",
+        event: "UPDATE", schema: "public", table: "leads",
+        filter: `user_id=eq.${ADMIN_USER_ID}`,
       }, (payload) => {
         setLeads(prev => prev.map(l => l.id === payload.new.id ? payload.new : l));
       })
       .on("postgres_changes", {
-        event: "DELETE",
-        schema: "public",
-        table: "leads",
+        event: "DELETE", schema: "public", table: "leads",
       }, (payload) => {
         setLeads(prev => prev.filter(l => l.id !== payload.old.id));
       })
       .subscribe();
 
-    return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
-    };
-  }, [fetchLeads]);
+    return () => { if (channelRef.current) supabase.removeChannel(channelRef.current); };
+  }, [isAdmin, fetchLeads]);
 
   const handleStatusChange = async(id, status) => {
-    if (!isAdmin) return;
     await supabase.from("leads").update({ status, updated_at:new Date().toISOString() }).eq("id", id);
   };
 
   const handleDelete = async(id) => {
-    if (!isAdmin) return;
     await supabase.from("leads").delete().eq("id", id);
   };
+
+  if (!isAdmin) return <AccessDenied/>;
 
   const filtered = leads
     .filter(l => {
@@ -430,7 +416,7 @@ export default function LeadsPage({ session }) {
             <LiveBadge/>
           </div>
           <h2 style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-.03em" }}>
-            {isAdmin ? "My" : "All"} <span style={{ color:T.orange }}>Leads</span>
+            My <span style={{ color:T.orange }}>Leads</span>
             <span style={{ marginLeft:10, fontSize:14, color:T.textMid, fontWeight:500 }}>({leads.length})</span>
           </h2>
           {totalToday > 0 && (
@@ -438,21 +424,14 @@ export default function LeadsPage({ session }) {
               🎉 {totalToday} new lead{totalToday!==1?"s":""} today!
             </div>
           )}
-          {!isAdmin && (
-            <div style={{ fontSize:11, color:T.textLow, marginTop:4 }}>
-              👁️ View only — only the admin can add or edit leads
-            </div>
-          )}
         </div>
-        {isAdmin && (
-          <button onClick={()=>setShowAdd(true)}
-            style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"11px 20px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440", display:"flex", alignItems:"center", gap:7 }}>
-            <span style={{ fontSize:16 }}>+</span> Add Lead
-          </button>
-        )}
+        <button onClick={()=>setShowAdd(true)}
+          style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"11px 20px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440", display:"flex", alignItems:"center", gap:7 }}>
+          <span style={{ fontSize:16 }}>+</span> Add Lead
+        </button>
       </div>
 
-      {/* Stats row */}
+      {/* Stats row — clickable filters */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
         {Object.entries(STATUS_CONFIG).map(([key,cfg])=>(
           <div key={key} onClick={()=>setStatusFilter(statusFilter===key?"all":key)}
@@ -463,7 +442,7 @@ export default function LeadsPage({ session }) {
         ))}
       </div>
 
-      {/* Search + filter */}
+      {/* Search + sort */}
       <div style={{ display:"flex", gap:10 }}>
         <div style={{ flex:1, position:"relative" }}>
           <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", fontSize:14, color:T.textLow, pointerEvents:"none" }}>🔍</span>
@@ -480,11 +459,11 @@ export default function LeadsPage({ session }) {
         </select>
       </div>
 
-      {/* Real-time info banner */}
+      {/* Live banner */}
       <div style={{ background:"linear-gradient(135deg,#22c55e0a,#06070d)", border:`1px solid ${T.success}33`, borderRadius:12, padding:"10px 16px", display:"flex", alignItems:"center", gap:10 }}>
         <div style={{ width:8, height:8, borderRadius:"50%", background:T.success, boxShadow:`0 0 8px ${T.success}`, flexShrink:0 }}/>
         <div style={{ fontSize:12, color:T.textMid }}>
-          <strong style={{ color:T.success }}>Live mode active</strong> — New leads appear instantly without refreshing.
+          <strong style={{ color:T.success }}>Live mode active</strong> — Service inquiries appear here instantly.
         </div>
       </div>
 
@@ -502,14 +481,12 @@ export default function LeadsPage({ session }) {
           <div style={{ fontSize:64, marginBottom:16 }}>🎯</div>
           <div style={{ fontWeight:800, fontSize:20, color:T.text, marginBottom:8 }}>No leads yet</div>
           <div style={{ fontSize:13, color:T.textMid, lineHeight:1.7, marginBottom:24, maxWidth:320, margin:"0 auto 24px" }}>
-            {isAdmin ? "Add leads manually or share your Services page to receive inquiries automatically" : "Leads will appear here once they come in"}
+            Add leads manually or share your Services page to receive inquiries automatically
           </div>
-          {isAdmin && (
-            <button onClick={()=>setShowAdd(true)}
-              style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"12px 28px", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-              + Add First Lead
-            </button>
-          )}
+          <button onClick={()=>setShowAdd(true)}
+            style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"12px 28px", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+            + Add First Lead
+          </button>
         </div>
       )}
 
@@ -523,30 +500,24 @@ export default function LeadsPage({ session }) {
         </div>
       )}
 
-      {/* Lead cards */}
+      {/* Lead list */}
       {!loading && filtered.length>0 && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:14 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))", gap:14 }}>
           {filtered.map(lead=>(
-            <LeadCard
+            <LeadRow
               key={lead.id}
               lead={lead}
               onEdit={setEditLead}
               onDelete={handleDelete}
               onStatusChange={handleStatusChange}
               isNew={newLeadIds.has(lead.id)}
-              isAdmin={isAdmin}
             />
           ))}
         </div>
       )}
 
-      {isAdmin && showAdd && (
-        <LeadModal session={session} onClose={()=>setShowAdd(false)} onSaved={fetchLeads}/>
-      )}
-
-      {isAdmin && editLead && (
-        <LeadModal lead={editLead} session={session} onClose={()=>setEditLead(null)} onSaved={fetchLeads}/>
-      )}
+      {showAdd && <LeadModal session={session} onClose={()=>setShowAdd(false)} onSaved={fetchLeads}/>}
+      {editLead && <LeadModal lead={editLead} session={session} onClose={()=>setEditLead(null)} onSaved={fetchLeads}/>}
     </div>
   );
 }
