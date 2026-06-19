@@ -338,7 +338,8 @@ export default function NetworkPage({ session }) {
   </div>
 )}
 
-                  
+        </>  
+  )}
               
               {viewingUser && (
   <UserProfileModal
@@ -348,7 +349,7 @@ export default function NetworkPage({ session }) {
     connectionProps={{ getStatus, sendRequest, acceptRequest, rejectRequest, removeConnection }}
   />
 )}
-
+    </div>
             
 
     
