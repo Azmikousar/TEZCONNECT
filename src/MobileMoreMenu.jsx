@@ -45,7 +45,7 @@ export default function MobileMoreMenu({ onNav, onLogout, onClose, session, prof
             style={{ background: "none", border: "none", color: T.text, fontSize: 22, cursor: "pointer", padding: 0, marginRight: 4 }}
           >
             ←
-          </
+          </button>
         {/* Handle */}
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "8px auto 20px" }} />
 
