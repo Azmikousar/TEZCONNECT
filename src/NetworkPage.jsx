@@ -320,22 +320,23 @@ export default function NetworkPage({ session }) {
               <div style={{ color: T.textMid, fontSize: 13 }}>Try a different search or clear your filters</div>
             </div>
           )}
+          {/* Member list */}
+{!loading && filtered.length > 0 && (
+  <div style={{ display: "flex", flexDirection: "column" }}>
+    {filtered.map(member => (
+      <MemberCard
+        key={member.id}
+        member={member}
+        currentUserId={session.userId}
+        connectionProps={{
+          getStatus, sendRequest, acceptRequest,
+          rejectRequest, removeConnection,
+        }}
+      />
+    ))}
+  </div>
+)}
 
-          {/* Member grid */}
-          {!loading && filtered.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
-              {filtered.map(member => (
-                <MemberCard
-                  key={member.id}
-                  member={member}
-                  currentUserId={session.userId}
-                  connectionProps={{
-                    getStatus,
-                    sendRequest,
-                    acceptRequest,
-                    rejectRequest,
-                    removeConnection,
-                  }}
                   onViewProfile={setViewingUser}
                 />
               ))}
