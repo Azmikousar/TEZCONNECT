@@ -13,7 +13,7 @@ const T = {
 };
 
 /* ── CHANGE THIS to Lekhakraj's real user ID ── */
-const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69⁠";
+const ADMIN_USER_ID = "⁠3f1ec55b-a33f-462c-8d10-0197fea18e69";
 
 const STATUS_CONFIG = {
   new:       { label: "New",       color: T.info,    bg: T.infoLo,    icon: "🆕" },
