@@ -1,114 +1,134 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
-import ConnectButton from "./ConnectButton";
 import RequestsPanel from "./RequestsPanel";
 import { useConnections } from "./useConnections";
 import UserProfileModal from "./UserProfileModal";
-
-import SentRequestsPanel from "./SentRequestsPanel";
-import ConnectedPanel from "./ConnectedPanel";
 
 const T = {
   bg: "#06070d", bgCard: "#0b0d17", bgInput: "#0f1120", bgHover: "#141726",
   border: "#1a1f35", orange: "#f97316", orangeHi: "#fb923c", orangeLo: "#f9731612",
   orangeMd: "#f9731625", amber: "#fbbf24", text: "#eef0f8", textMid: "#6b7594",
-  textLow: "#343c58", info: "#38bdf8", success: "#22c55e",
+  textLow: "#343c58", info: "#38bdf8", success: "#22c55e", successLo: "#22c55e12",
+  error: "#f87171", errorLo: "#f8717112",
 };
 
-function Tag({ children, color = T.orange }) {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center",
-      background: color + "18", border: `1px solid ${color}33`,
-      color, borderRadius: 20, padding: "3px 10px",
-      fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
-    }}>
-      {children}
-    </span>
-  );
-}
-
-function MemberCard({ member, currentUserId, connectionProps,onViewProfile }) {
-  const [hov, setHov] = useState(false);
+/* ── List-row member card (Instagram followers-list style) ── */
+function MemberCard({ member, currentUserId, connectionProps, onViewProfile }) {
   const initials = (member.name || "?")
     .split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
   const isMe = member.id === currentUserId;
+  const { status, connection, isSender } = connectionProps.getStatus(member.id);
+  const [loading, setLoading] = useState(false);
+
+  const handle = async (action) => {
+    setLoading(true);
+    try {
+      if (action === "send")   await connectionProps.sendRequest(member.id);
+      if (action === "accept") await connectionProps.acceptRequest(connection.id);
+      if (action === "reject") await connectionProps.rejectRequest(connection.id);
+      if (action === "remove") await connectionProps.removeConnection(connection.id);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderButton = () => {
+    if (isMe) return null;
+
+    if (status === "none") return (
+      <button onClick={() => handle("send")} disabled={loading}
+        style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:9, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:700, cursor:loading?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", whiteSpace:"nowrap", opacity:loading?0.7:1 }}>
+        {loading?"…":"Connect"}
+      </button>
+    );
+
+    if (status === "pending" && isSender) return (
+      <button onClick={() => handle("remove")} disabled={loading}
+        style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:9, padding:"9px 16px", color:T.textMid, fontSize:13, fontWeight:700, cursor:loading?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", whiteSpace:"nowrap" }}>
+        {loading?"…":"Requested"}
+      </button>
+    );
+
+    if (status === "pending" && !isSender) return (
+      <div style={{ display:"flex", gap:6 }}>
+        <button onClick={() => handle("accept")} disabled={loading}
+          style={{ background:T.successLo, border:`1px solid ${T.success}44`, borderRadius:9, padding:"9px 14px", color:T.success, fontSize:13, fontWeight:700, cursor:loading?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", whiteSpace:"nowrap" }}>
+          ✓ Accept
+        </button>
+        <button onClick={() => handle("reject")} disabled={loading}
+          style={{ background:"transparent", border:`1px solid ${T.border}`, borderRadius:9, width:36, color:T.textLow, fontSize:14, fontWeight:700, cursor:loading?"wait":"pointer" }}>
+          ✕
+        </button>
+      </div>
+    );
+
+    if (status === "accepted") return (
+      <button onClick={() => handle("remove")} disabled={loading}
+        style={{ background:T.successLo, border:`1px solid ${T.success}44`, borderRadius:9, padding:"9px 16px", color:T.success, fontSize:13, fontWeight:700, cursor:loading?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", whiteSpace:"nowrap" }}>
+        {loading?"…":"✓ Connected"}
+      </button>
+    );
+
+    if (status === "rejected") return (
+      <button onClick={() => handle("send")} disabled={loading}
+        style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:9, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:700, cursor:loading?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", whiteSpace:"nowrap" }}>
+        {loading?"…":"Connect"}
+      </button>
+    );
+
+    return null;
+  };
 
   return (
-    <div
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        background: T.bgCard,
-        border: `1px solid ${hov ? T.orange + "55" : T.border}`,
-        borderRadius: 16, overflow: "hidden",
-        transition: "all .22s",
-        transform: hov ? "translateY(-3px)" : "none",
-        boxShadow: hov ? "0 12px 40px #f9731615" : "none",
-      }}
-    >
+    <div style={{
+      display:"flex", alignItems:"center", gap:12,
+      padding:"12px 4px",
+      borderBottom:`1px solid ${T.border}`,
+    }}>
       {/* Avatar */}
-      <div style={{ padding: "0 16px", transform: "translateY(-28px)", marginBottom: -12,cursor: "pointer"  }}
-      onClick={() => onViewProfile(member.id)}
-      >
-        <div style={{
-          width: 56, height: 56, borderRadius: "50%",
-          border: `3px solid ${T.bgCard}`,
-          background: "linear-gradient(135deg,#f97316,#ea6008)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 18, fontWeight: 800, color: "#fff",
-          overflow: "hidden", flexShrink: 0,
-          boxShadow: "0 4px 16px #00000055",
+      <div
+        onClick={() => onViewProfile(member.id)}
+        style={{
+          width:52, height:52, borderRadius:"50%", flexShrink:0,
+          background:"linear-gradient(135deg,#f97316,#ea6008)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          fontSize:18, fontWeight:800, color:"#fff",
+          overflow:"hidden", cursor:"pointer",
+          border: isMe ? `2px solid ${T.orange}` : "none",
         }}>
-          {member.photo
-            ? <img src={member.photo} alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            : initials
-          }
-        </div>
+        {member.photo
+          ? <img src={member.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+          : initials
+        }
       </div>
 
       {/* Info */}
-      <div style={{ padding: "0 16px 16px" }}>
-        <div 
+      <div
         onClick={() => onViewProfile(member.id)}
-        style={{ fontWeight: 800, fontSize: 14, color: T.text, letterSpacing: "-.02em" }}>
-          {member.name || "—"}
+        style={{ flex:1, minWidth:0, cursor:"pointer" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <div style={{ fontWeight:700, fontSize:14, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            {member.name || "—"}
+          </div>
+          {isMe && (
+            <span style={{ fontSize:9, fontWeight:700, color:T.orange, background:T.orangeLo, border:`1px solid ${T.orange}33`, borderRadius:20, padding:"1px 7px", flexShrink:0 }}>
+              You
+            </span>
+          )}
         </div>
-        {member.designation && (
-          <div style={{ fontSize: 12, color: T.orange, fontWeight: 600, marginTop: 2 }}>
-            {member.designation}
-          </div>
-        )}
-        {member.company && (
-          <div style={{ fontSize: 11, color: T.textMid, marginTop: 2 }}>
-            {member.company}{member.industry ? " · " + member.industry : ""}
-          </div>
-        )}
+        <div style={{ fontSize:12, color:T.textMid, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          {member.designation || member.company || (member.industry ? member.industry : "TezConnect Member")}
+        </div>
         {member.location && (
-          <div style={{ fontSize: 11, color: T.textLow, marginTop: 4 }}>
+          <div style={{ fontSize:11, color:T.textLow, marginTop:2 }}>
             📍 {member.location}
           </div>
         )}
-        {member.skills?.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 12 }}>
-            {member.skills.slice(0, 3).map(s => <Tag key={s}>{s}</Tag>)}
-            {member.skills.length > 3 && (
-              <Tag color={T.textMid}>+{member.skills.length - 3}</Tag>
-            )}
-          </div>
-        )}
+      </div>
 
-        {/* Connect button */}
-        <ConnectButton
-          userId={currentUserId}
-          targetId={member.id}
-          getStatus={connectionProps.getStatus}
-          sendRequest={connectionProps.sendRequest}
-          acceptRequest={connectionProps.acceptRequest}
-          rejectRequest={connectionProps.rejectRequest}
-          removeConnection={connectionProps.removeConnection}
-        />
+      {/* Action button */}
+      <div style={{ flexShrink:0 }}>
+        {renderButton()}
       </div>
     </div>
   );
@@ -122,14 +142,12 @@ export default function NetworkPage({ session }) {
   const [filterIndustry, setFilterIndustry] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [tab, setTab]                   = useState("discover");
+  const [viewingUser, setViewingUser]   = useState(null);
   const mountedRef                      = useRef(true);
-  const [viewingUser, setViewingUser] = useState(null);
-
 
   const {
     getStatus, sendRequest, acceptRequest,
     rejectRequest, removeConnection, pendingReceived,
-    pendingSent,accepted    
   } = useConnections(session.userId);
 
   useEffect(() => {
@@ -198,7 +216,7 @@ export default function NetworkPage({ session }) {
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
       {/* Header */}
       <div>
@@ -218,8 +236,6 @@ export default function NetworkPage({ session }) {
         {[
           ["discover", "🌐 Discover"],
           ["requests", `🤝 Requests${pendingReceived.length > 0 ? ` (${pendingReceived.length})` : ""}`],
-           ["sent", `📤 Sent${pendingSent.length > 0 ? ` (${pendingSent.length})` : ""}`],
-  ["connected", `✓ Connected (${accepted.length})`],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -247,22 +263,6 @@ export default function NetworkPage({ session }) {
           rejectRequest={rejectRequest}
         />
       )}
-      {/* Sent tab */}
-{tab === "sent" && (
-  <SentRequestsPanel
-    pendingSent={pendingSent}
-    removeConnection={removeConnection}
-  />
-)}
-
-{/* Connected tab */}
-{tab === "connected" && (
-  <ConnectedPanel
-    accepted={accepted}
-    userId={session.userId}
-    removeConnection={removeConnection}
-  />
-)}
 
       {/* Discover tab */}
       {tab === "discover" && (
@@ -303,11 +303,18 @@ export default function NetworkPage({ session }) {
             )}
           </div>
 
-          {/* Loading skeletons */}
+          {/* Loading skeletons — list style */}
           {loading && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
-              {[1, 2, 3, 4, 5, 6].map(i => (
-                <div key={i} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, height: 260, opacity: 0.4 }} />
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {[1,2,3,4,5,6].map(i => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 4px", borderBottom:`1px solid ${T.border}` }}>
+                  <div style={{ width:52, height:52, borderRadius:"50%", background:T.bgCard, opacity:0.5, flexShrink:0 }}/>
+                  <div style={{ flex:1 }}>
+                    <div style={{ width:"50%", height:14, background:T.bgCard, opacity:0.5, borderRadius:4, marginBottom:6 }}/>
+                    <div style={{ width:"35%", height:11, background:T.bgCard, opacity:0.4, borderRadius:4 }}/>
+                  </div>
+                  <div style={{ width:90, height:34, background:T.bgCard, opacity:0.5, borderRadius:9 }}/>
+                </div>
               ))}
             </div>
           )}
@@ -320,39 +327,43 @@ export default function NetworkPage({ session }) {
               <div style={{ color: T.textMid, fontSize: 13 }}>Try a different search or clear your filters</div>
             </div>
           )}
+
           {/* Member list */}
-{!loading && filtered.length > 0 && (
-  <div style={{ display: "flex", flexDirection: "column" }}>
-    {filtered.map(member => (
-      <MemberCard
-        key={member.id}
-        member={member}
-        currentUserId={session.userId}
-        connectionProps={{
-          getStatus, sendRequest, acceptRequest,
-          rejectRequest, removeConnection,
-        }}
-        onViewProfile={setViewingUser}
-      />
-    ))}
-  </div>
-)}
+          {!loading && filtered.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {filtered.map(member => (
+                <MemberCard
+                  key={member.id}
+                  member={member}
+                  currentUserId={session.userId}
+                  connectionProps={{
+                    getStatus,
+                    sendRequest,
+                    acceptRequest,
+                    rejectRequest,
+                    removeConnection,
+                  }}
+                  onViewProfile={setViewingUser}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
-        </>  
-  )}
-              
-              {viewingUser && (
-  <UserProfileModal
-    userId={viewingUser}
-    session={session}
-    onClose={() => setViewingUser(null)}
-    connectionProps={{ getStatus, sendRequest, acceptRequest, rejectRequest, removeConnection }}
-  />
-)}
+      {/* User profile modal */}
+      {viewingUser && (
+        <UserProfileModal
+          userId={viewingUser}
+          session={session}
+          onClose={() => setViewingUser(null)}
+          connectionProps={{
+            getStatus, sendRequest, acceptRequest,
+            rejectRequest, removeConnection,
+          }}
+        />
+      )}
+
     </div>
-            
-
-    
   );
 }
-    
