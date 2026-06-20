@@ -404,6 +404,7 @@ function NotificationsScreen({ session }) {
     new_message:         { icon: "💬", text: "sent you a message" },
     new_comment:         { icon: "💭", text: "commented on your post" },
     new_like:            { icon: "❤️", text: "liked your post" },
+    new_event:           { icon: "📅", text: "created a new event" },
   };
 
   useEffect(() => {
