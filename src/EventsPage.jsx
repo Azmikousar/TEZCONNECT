@@ -24,38 +24,92 @@ function formatTime(dateStr) {
 }
 
 /* ── Payment Modal ── */
-function PaymentModal({ event, session, onClose, onPaid }) {
-  const [step, setStep]       = useState("confirm"); // confirm | processing | success
-  const [error, setError]     = useState("");
-  const [txnRef, setTxnRef]   = useState("");
+function PaymentModal({ event, session, profile, onClose, onPaid }) {
+  const [step, setStep]     = useState("confirm"); // confirm | processing | success | failed
+  const [error, setError]   = useState("");
+  const [txnRef, setTxnRef] = useState("");
 
   const handlePay = async () => {
     setStep("processing");
     setError("");
 
-    // Simulated payment processing — replace with real gateway (Razorpay/Stripe) integration
-    await new Promise(r => setTimeout(r, 1800));
+    try {
+      // 1. Create order on backend
+      const orderRes = await fetch("/api/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: event.registration_fee,
+          eventId: event.id,
+          userId: session.userId,
+        }),
+      });
 
-    const fakeTxnId = "TXN" + Date.now();
-    setTxnRef(fakeTxnId);
+      const orderData = await orderRes.json();
+      if (!orderRes.ok) throw new Error(orderData.error || "Failed to create order");
 
-    const { error: err } = await supabase.from("event_rsvps").insert({
-      event_id: event.id,
-      user_id: session.userId,
-      payment_status: "paid",
-      amount_paid: event.registration_fee,
-      payment_id: fakeTxnId,
-      paid_at: new Date().toISOString(),
-    });
+      // 2. Open Razorpay checkout
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "TezConnect",
+        description: event.title,
+        order_id: orderData.orderId,
+        prefill: {
+          name: profile?.name || session.name || "",
+          email: session.email || "",
+          contact: profile?.mobile || "",
+        },
+        theme: { color: "#f97316" },
+        handler: async function (response) {
+          // 3. Verify payment on backend
+          try {
+            const verifyRes = await fetch("/api/verify-payment", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                eventId: event.id,
+                userId: session.userId,
+                amount: event.registration_fee,
+              }),
+            });
 
-    if (err) {
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok) throw new Error(verifyData.error || "Verification failed");
+
+            setTxnRef(response.razorpay_payment_id);
+            setStep("success");
+            setTimeout(() => { onPaid(); onClose(); }, 2000);
+          } catch (err) {
+            setError(err.message);
+            setStep("failed");
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setStep("confirm");
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (response) {
+        setError(response.error.description || "Payment failed");
+        setStep("failed");
+      });
+      rzp.open();
+
+      // Reset to confirm step since modal is now controlled by Razorpay's own UI
       setStep("confirm");
-      setError(err.message);
-      return;
-    }
 
-    setStep("success");
-    setTimeout(() => { onPaid(); onClose(); }, 2000);
+    } catch (err) {
+      setError(err.message);
+      setStep("confirm");
+    }
   };
 
   return (
@@ -63,7 +117,7 @@ function PaymentModal({ event, session, onClose, onPaid }) {
       <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:480, padding:"20px 20px 40px", animation:"slideUp .3s ease" }}>
         <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"0 auto 20px" }}/>
 
-        {step === "confirm" && (
+        {(step === "confirm" || step === "failed") && (
           <>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
               <div style={{ fontWeight:800, fontSize:18, color:T.text }}>💳 Event Registration</div>
@@ -86,29 +140,17 @@ function PaymentModal({ event, session, onClose, onPaid }) {
               <div style={{ fontSize:36 }}>🎟️</div>
             </div>
 
-            <div style={{ fontSize:11, color:T.textLow, marginBottom:20, lineHeight:1.6 }}>
-              By proceeding you agree to pay the registration fee to confirm your seat at this event. Payment is processed securely.
-            </div>
-
             <button onClick={handlePay}
               style={{ width:"100%", background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"15px", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 20px #f9731440" }}>
               Pay ₹{event.registration_fee} & Register
             </button>
 
             <div style={{ display:"flex", gap:8, justifyContent:"center", marginTop:14 }}>
-              <span style={{ fontSize:10, color:T.textLow }}>🔒 Secure payment</span>
+              <span style={{ fontSize:10, color:T.textLow }}>🔒 Secured by Razorpay</span>
               <span style={{ fontSize:10, color:T.textLow }}>·</span>
               <span style={{ fontSize:10, color:T.textLow }}>UPI · Cards · Net Banking</span>
             </div>
           </>
-        )}
-
-        {step === "processing" && (
-          <div style={{ textAlign:"center", padding:"40px 0" }}>
-            <div style={{ width:50, height:50, border:"3px solid #f9731633", borderTopColor:"#f97316", borderRadius:"50%", animation:"spin .8s linear infinite", margin:"0 auto 20px" }}/>
-            <div style={{ fontWeight:700, fontSize:16, color:T.text, marginBottom:6 }}>Processing Payment…</div>
-            <div style={{ fontSize:13, color:T.textMid }}>Please don't close this window</div>
-          </div>
         )}
 
         {step === "success" && (
@@ -116,7 +158,7 @@ function PaymentModal({ event, session, onClose, onPaid }) {
             <div style={{ width:72, height:72, borderRadius:"50%", background:T.successLo, border:`2px solid ${T.success}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, margin:"0 auto 16px" }}>✓</div>
             <div style={{ fontWeight:800, fontSize:18, color:T.text, marginBottom:8 }}>Registration Confirmed!</div>
             <div style={{ fontSize:13, color:T.textMid, marginBottom:4 }}>You're all set for {event.title}</div>
-            <div style={{ fontSize:11, color:T.textLow, marginTop:8 }}>Transaction ID: {txnRef}</div>
+            <div style={{ fontSize:11, color:T.textLow, marginTop:8 }}>Payment ID: {txnRef}</div>
           </div>
         )}
       </div>
