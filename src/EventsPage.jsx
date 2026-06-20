@@ -387,7 +387,7 @@ function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData,
     👥 View {attendeeCount} Attendee{attendeeCount!==1?"s":""}
   </button>
 )}
-
+      </div>
 
       {/* Confirm delete */}
       {confirmDel && (
