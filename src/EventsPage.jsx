@@ -392,7 +392,7 @@ function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData,
 }
 
 /* ── Main EventsPage ── */
-export default function EventsPage({ session }) {
+export default function EventsPage({ session,profile}) {
   const isAdmin = session.userId === ADMIN_USER_ID;
 
   const [events, setEvents]       = useState([]);
@@ -535,7 +535,8 @@ export default function EventsPage({ session }) {
       {/* Modals */}
       {isAdmin && showCreate && <EventModal session={session} onClose={()=>setShowCreate(false)} onSaved={fetchData}/>}
       {isAdmin && editEvent && <EventModal event={editEvent} session={session} onClose={()=>setEditEvent(null)} onSaved={fetchData}/>}
-      {payEvent && <PaymentModal event={payEvent} session={session} onClose={()=>setPayEvent(null)} onPaid={fetchData}/>}
+      {payEvent && <PaymentModal event={payEvent} session={session} profile={profile} onClose={()=>setPayEvent(null)} onPaid={fetchData}/>}
+
     </div>
   );
 }
