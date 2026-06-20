@@ -3,23 +3,22 @@ import { supabase } from "./supabase";
 
 export function useNotifications(userId) {
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount]     = useState(0);
+  const [loading, setLoading]             = useState(true);
 
   const fetchNotifications = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) { setLoading(false); return; }
     setLoading(true);
 
-    // Fetch data and error correctly
-    const { data: notifs, error: notifErr } = await supabase
+    const { data: notifs, error } = await supabase
       .from("notifications")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(50);
 
-    if (notifErr) {
-      console.error("Error fetching notifications:", notifErr);
+    if (error) {
+      console.error("Notifications fetch error:", error);
       setLoading(false);
       return;
     }
@@ -40,10 +39,7 @@ export function useNotifications(userId) {
     const profileMap = {};
     (profiles || []).forEach(p => { profileMap[p.id] = p; });
 
-    const merged = notifs.map(n => ({
-      ...n,
-      actor: profileMap[n.actor_id] || null,
-    }));
+    const merged = notifs.map(n => ({ ...n, actor: profileMap[n.actor_id] || null }));
 
     setNotifications(merged);
     setUnreadCount(merged.filter(n => !n.read).length);
@@ -52,6 +48,8 @@ export function useNotifications(userId) {
 
   useEffect(() => {
     fetchNotifications();
+    if (!userId) return;
+
     const sub = supabase
       .channel("notifications_channel_" + userId)
       .on("postgres_changes", {
@@ -59,23 +57,26 @@ export function useNotifications(userId) {
         schema: "public",
         table: "notifications",
         filter: `user_id=eq.${userId}`,
-      }, () => fetchNotifications())
+      }, () => {
+        fetchNotifications();
+      })
       .subscribe();
 
     return () => supabase.removeChannel(sub);
   }, [userId, fetchNotifications]);
 
-  const markAsRead = async (id) => {
+  const markAsRead = useCallback(async (id) => {
     await supabase.from("notifications").update({ read: true }).eq("id", id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     setUnreadCount(c => Math.max(0, c - 1));
-  };
+  }, []);
 
-  const markAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
+    if (!userId) return;
     await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     setUnreadCount(0);
-  };
+  }, [userId]);
 
-  return { notifications, unreadCount, loading, markAsRead, markAllAsRead };
+  return { notifications, unreadCount, loading, markAsRead, markAllAsRead, refresh: fetchNotifications };
 }
