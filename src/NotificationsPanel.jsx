@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
+const TYPE_CONFIG = {
+  new_post:            { icon: "📸", text: "shared a new post" },
+  connection_request:  { icon: "🤝", text: "sent you a connection request" },
+  connection_accepted: { icon: "✅", text: "accepted your connection" },
+  new_message:         { icon: "💬", text: "sent you a message" },
+  new_comment:         { icon: "💭", text: "commented on your post" },
+  new_like:            { icon: "❤️", text: "liked your post" },
+  new_event:           { icon: "📅", text: "created a new event" },
+};
+
 
 // --- 1. Hook Logic ---
 export function useNotifications(userId) {
