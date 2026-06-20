@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "./supabase";
+import React from "react";
+import { useNotifications } from "./useNotifications";
 
 const TYPE_CONFIG = {
   new_post:            { icon: "📸", text: "shared a new post" },
@@ -19,88 +19,6 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 86400)}d`;
 }
 
-/* ── Hook ── */
-export function useNotifications(userId) {
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  const fetchNotifications = useCallback(async () => {
-    if (!userId) { setLoading(false); return; }
-    setLoading(true);
-
-    const { data: notifs, error } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(50);
-
-    if (error) {
-      console.error("Notifications fetch error:", error);
-      setLoading(false);
-      return;
-    }
-
-    if (!notifs || notifs.length === 0) {
-      setNotifications([]);
-      setUnreadCount(0);
-      setLoading(false);
-      return;
-    }
-
-    const actorIds = [...new Set(notifs.map(n => n.actor_id).filter(Boolean))];
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, name, photo")
-      .in("id", actorIds);
-
-    const profileMap = {};
-    (profiles || []).forEach(p => { profileMap[p.id] = p; });
-
-    const merged = notifs.map(n => ({ ...n, actor: profileMap[n.actor_id] || null }));
-
-    setNotifications(merged);
-    setUnreadCount(merged.filter(n => !n.read).length);
-    setLoading(false);
-  }, [userId]);
-
-  useEffect(() => {
-    fetchNotifications();
-    if (!userId) return;
-
-    const sub = supabase
-      .channel("notifications_channel_" + userId)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "notifications",
-        filter: `user_id=eq.${userId}`,
-      }, () => {
-        fetchNotifications();
-      })
-      .subscribe();
-
-    return () => supabase.removeChannel(sub);
-  }, [userId, fetchNotifications]);
-
-  const markAsRead = useCallback(async (id) => {
-    await supabase.from("notifications").update({ read: true }).eq("id", id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    setUnreadCount(c => Math.max(0, c - 1));
-  }, []);
-
-  const markAllAsRead = useCallback(async () => {
-    if (!userId) return;
-    await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    setUnreadCount(0);
-  }, [userId]);
-
-  return { notifications, unreadCount, loading, markAsRead, markAllAsRead, refresh: fetchNotifications };
-}
-
-/* ── UI ── */
 const T = {
   bgCard: "#0b0d17", bgInput: "#0f1120", bgHover: "#141726",
   border: "#1a1f35", orange: "#f97316", orangeMd: "#f9731625",
@@ -126,13 +44,11 @@ export default function NotificationsPanel({ session, onClose, onNavigate }) {
 
   return (
     <>
-      {/* Backdrop */}
       <div
         onClick={onClose}
         style={{ position: "fixed", inset: 0, background: "#000000aa", zIndex: 800 }}
       />
 
-      {/* Panel */}
       <div style={{
         position: "fixed",
         bottom: 0, left: 0, right: 0,
@@ -148,12 +64,10 @@ export default function NotificationsPanel({ session, onClose, onNavigate }) {
         margin: "0 auto",
       }}>
 
-        {/* Handle */}
         <div style={{ padding: "12px 0 0", display: "flex", justifyContent: "center", flexShrink: 0 }}>
           <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4 }} />
         </div>
 
-        {/* Header */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "12px 20px 14px",
@@ -199,7 +113,6 @@ export default function NotificationsPanel({ session, onClose, onNavigate }) {
           </div>
         </div>
 
-        {/* List */}
         <div style={{ flex: 1, overflowY: "auto" }}>
 
           {loading && (
@@ -241,12 +154,8 @@ export default function NotificationsPanel({ session, onClose, onNavigate }) {
                   background: n.read ? "transparent" : T.orangeMd,
                   borderBottom: idx < notifications.length - 1 ? `1px solid ${T.border}` : "none",
                   cursor: "pointer",
-                  transition: "background .15s",
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = n.read ? T.bgHover : "#f9731633"}
-                onMouseLeave={e => e.currentTarget.style.background = n.read ? "transparent" : T.orangeMd}
               >
-                {/* Avatar + type badge */}
                 <div style={{ position: "relative", flexShrink: 0 }}>
                   <div style={{
                     width: 44, height: 44, borderRadius: "50%",
@@ -271,7 +180,6 @@ export default function NotificationsPanel({ session, onClose, onNavigate }) {
                   </div>
                 </div>
 
-                {/* Text */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: T.text, lineHeight: 1.5 }}>
                     <strong style={{ color: n.read ? T.text : T.orange }}>
@@ -284,7 +192,6 @@ export default function NotificationsPanel({ session, onClose, onNavigate }) {
                   </div>
                 </div>
 
-                {/* Unread dot */}
                 {!n.read && (
                   <div style={{
                     width: 10, height: 10, borderRadius: "50%",
