@@ -12,7 +12,7 @@ const T = {
 };
 
 /* ── CHANGE THIS to Lekhakraj's real user ID — same as LeadsPage.jsx ── */
-const ADMIN_USER_ID = "PASTE_LEKHAKRAJ_UUID_HERE";
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
 const ADMIN_UPI = "tezconnect@upi"; // for QR/manual payment fallback
 const ADMIN_PHONE = "917396180986";
 
@@ -151,7 +151,7 @@ function EventModal({ event, session, onClose, onSaved }) {
       max_attendees: form.max_attendees ? parseInt(form.max_attendees) : null,
       registration_fee: fee,
       is_paid: fee > 0,
-      creator_id: ADMIN_USER_ID,
+      creator_id: 3f1ec55b-a33f-462c-8d10-0197fea18e69,
     };
 
     let err;
