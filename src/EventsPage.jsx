@@ -289,7 +289,7 @@ function EventModal({ event, session, onClose, onSaved }) {
 }
 
 /* ── Event Card ── */
-function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData, onRsvp, onCancelRsvp, onPay, onEdit, onDelete }) {
+function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData, onRsvp, onCancelRsvp, onPay, onEdit, onDelete,onViewAttendees }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const isPast = new Date(event.event_date) < new Date();
   const isFull = event.max_attendees && attendeeCount >= event.max_attendees;
@@ -543,6 +543,7 @@ export default function EventsPage({ session,profile}) {
               onPay={setPayEvent}
               onEdit={setEditEvent}
               onDelete={handleDelete}
+              onViewAttendees={()=>{}}
             />
           ))}
         </div>
