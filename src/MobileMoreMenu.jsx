@@ -39,6 +39,23 @@ export default function MobileMoreMenu({ onNav, onLogout, onClose, session, prof
           animation: "slideUp .25s ease",
         }}
       > 
+        {/* Top bar with back button */}
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 16px 0" }}>
+    <button
+      onClick={onClose}
+      style={{
+        display: "flex", alignItems: "center", gap: 6,
+        background: T.bgInput, border: `1px solid ${T.border}`,
+        borderRadius: 9, padding: "7px 14px",
+        color: T.text, fontSize: 13, fontWeight: 700,
+        cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
+      }}
+    >
+      ← Back
+    </button>
+    <div style={{ fontWeight: 800, fontSize: 14, color: T.text }}>More</div>
+    <div style={{ width: 70 }} /> {/* spacer to center the title */}
+  </div>
         {/* Handle */}
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "8px auto 20px"}}/>
         {/* User info */}
