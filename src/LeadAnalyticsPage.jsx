@@ -18,6 +18,7 @@ const STATUS_CONFIG = {
   converted: { label: "Converted", color: T.success, bg: T.successLo },
   lost:      { label: "Lost",      color: T.error,   bg: T.errorLo },
 };
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69"; // same UUID as in LeadsPage.jsx
 
 function StatCard({ icon, label, value, color, change }) {
   return (
@@ -88,12 +89,12 @@ export default function LeadAnalyticsPage({ session }) {
   const [leads, setLeads]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod]   = useState("all");
+useEffect(() => {
+  supabase.from("leads").select("*").eq("user_id", ADMIN_USER_ID)
+    .order("created_at", { ascending: false })
+    .then(({ data }) => { setLeads(data || []); setLoading(false); });
+}, []);
 
-  useEffect(() => {
-    supabase.from("leads").select("*").eq("user_id", session.userId)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => { setLeads(data || []); setLoading(false); });
-  }, [session.userId]);
 
   const total     = leads.length;
   const converted = leads.filter(l => l.status === "converted").length;
@@ -134,14 +135,19 @@ export default function LeadAnalyticsPage({ session }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+{/* Header */}
+<div>
+  <div style={{ fontSize: 11, color: T.textLow, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 6 }}>📊 Lead Analytics</div>
+  <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text, letterSpacing: "-.03em" }}>
+    Lead <span style={{ color: T.orange }}>Insights</span>
+  </h2>
+  {session.userId !== ADMIN_USER_ID && (
+    <div style={{ fontSize: 11, color: T.textLow, marginTop: 6 }}>
+      👁️ Showing TezConnect team-wide lead insights
+    </div>
+  )}
+</div>
 
-      {/* Header */}
-      <div>
-        <div style={{ fontSize: 11, color: T.textLow, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 6 }}>📊 Lead Analytics</div>
-        <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text, letterSpacing: "-.03em" }}>
-          Lead <span style={{ color: T.orange }}>Insights</span>
-        </h2>
-      </div>
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
