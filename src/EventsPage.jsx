@@ -368,7 +368,7 @@ function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData,
         ) : (
           <button onClick={()=>onRsvp(event.id)}
             style={{ width:"100%", background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"12px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440" }}>
-            🎟️ RSVP Free
+            Register
           </button>
         )}
       </div>
