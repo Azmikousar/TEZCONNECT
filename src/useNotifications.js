@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./supabase";
 
 export function useNotifications(userId) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount]     = useState(0);
   const [loading, setLoading]             = useState(true);
+  const channelRef = useRef(null);
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) { setLoading(false); return; }
@@ -50,8 +51,12 @@ export function useNotifications(userId) {
     fetchNotifications();
     if (!userId) return;
 
+    // Unique channel name per hook instance — prevents collision when
+    // this hook is called from multiple components at the same time
+    const channelName = "notifications_channel_" + userId + "_" + Math.random().toString(36).slice(2, 8);
+
     const sub = supabase
-      .channel("notifications_channel_" + userId)
+      .channel(channelName)
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",
@@ -62,7 +67,14 @@ export function useNotifications(userId) {
       })
       .subscribe();
 
-    return () => supabase.removeChannel(sub);
+    channelRef.current = sub;
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
   }, [userId, fetchNotifications]);
 
   const markAsRead = useCallback(async (id) => {
