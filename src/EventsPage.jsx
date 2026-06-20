@@ -193,7 +193,7 @@ function EventModal({ event, session, onClose, onSaved }) {
       max_attendees: form.max_attendees ? parseInt(form.max_attendees) : null,
       registration_fee: fee,
       is_paid: fee > 0,
-      creator_id: 3f1ec55b-a33f-462c-8d10-0197fea18e69,
+      creator_id:ADMIN_USER_ID,
     };
 
     let err;
