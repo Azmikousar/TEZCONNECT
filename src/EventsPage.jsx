@@ -345,7 +345,7 @@ function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData,
           </div>
         )}
 
-        {/* Action button */}
+        
        {/* Action button */}
 {isAdmin ? (
   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", background:T.orangeMd, border:`1px solid ${T.orange}33`, borderRadius:10 }}>
@@ -379,6 +379,12 @@ function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData,
   <button onClick={()=>onRsvp(event.id)}
     style={{ width:"100%", background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"12px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440" }}>
     Register
+  </button>
+)}
+{isAdmin && attendeeCount > 0 && (
+  <button onClick={()=>onViewAttendees(event)}
+    style={{ width:"100%", marginTop:8, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.textMid, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+    👥 View {attendeeCount} Attendee{attendeeCount!==1?"s":""}
   </button>
 )}
 
