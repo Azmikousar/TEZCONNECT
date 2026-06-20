@@ -408,8 +408,8 @@ function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData,
 }
 
 /* ── Main EventsPage ── */
-export default function EventsPage({ session,profile}) {
-   isAdmin = session.userId === ADMIN_USER_ID;
+export default function EventsPage({ session, profile}) {
+  const isAdmin = session.userId === ADMIN_USER_ID;
 
   const [events, setEvents]       = useState([]);
   const [rsvps, setRsvps]         = useState([]);
