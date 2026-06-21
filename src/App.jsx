@@ -2028,9 +2028,10 @@ const NAV = [
   { id: "testimonials", icon: "🎬", label: "Testimonials" },
   { id: "settings", icon: "⚙", label: "Settings" },
   {id:"services", icon:"🚀", label:"Services"},
-   {id:"analytics", icon:"📊", label:"Analytics"},
-{id:"refer",     icon:"🎁", label:"Refer & Earn"},
-{id:"wallet",    icon:"💳", label:"Wallet"},
+  {id:"analytics", icon:"📊", label:"Analytics"},
+  {id:"refer",     icon:"🎁", label:"Refer & Earn"},
+  {id:"wallet",    icon:"💳", label:"Wallet"}, { id: "marketplace", icon: "🛍️", label: "Marketplace" },
+  { id: "myproducts",  icon: "📦", label: "My Listings" },
 
 
 ];
@@ -3404,6 +3405,9 @@ useEffect(() => {
     if (page === "messages") {
       return <MessagesPage session={session} />;
     }
+     if (page==="marketplace") return <MarketplacePage session={session}/>;
+if (page==="myproducts")  return <MyProductsPage session={session}/>;
+
     
      if (page==="analytics") return <LeadAnalyticsPage session={session}/>;
 if (page==="refer")     return <ReferEarnPage session={session}/>;
