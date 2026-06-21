@@ -14,8 +14,7 @@ const MORE_NAV = [
   { id: "analytics", icon: "📊", label: "Lead Analytics" },
 { id: "refer",     icon: "🎁", label: "Refer & Earn" },
 { id: "wallet",    icon: "💳", label: "Wallet" },
-   { id: "marketplace",  icon: "🛍️", label: "Marketplace" },
-  { id: "myproducts",   icon: "📦", label: "My Listings" },
+  
 
   
 
