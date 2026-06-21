@@ -24,6 +24,8 @@ import WalletPage from "./WalletPage";
 import MyProductsPage from "./MyProductsPage";
 import MarketplacePage from "./MarketplacePage";
 import TezPrintsPage from "./TezPrintsPage";
+import TezAppStorePage from "./TezAppStorePage";
+
 
 
 
