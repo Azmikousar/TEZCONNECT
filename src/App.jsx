@@ -2445,7 +2445,7 @@ function AimCard({ aim, i }) {
     </div>
   );
 }
-function DashboardScreen({ session, profile, onGoProfile }) {
+function DashboardScreen({ session, profile, onGoProfile, onNav }) {
   const stats = useDashboardStats(session.userId);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28, animation: "fadeUp .35s ease" }}>
@@ -2493,7 +2493,6 @@ function DashboardScreen({ session, profile, onGoProfile }) {
                 boxShadow: `0 0 8px ${T.success}`,
               }}
             />
-         
           </div>
           <h2
             style={{
@@ -2531,6 +2530,46 @@ function DashboardScreen({ session, profile, onGoProfile }) {
         </div>
       </div>
 
+      {/* Quick actions — Marketplace & My Listings */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+        <div
+          onClick={() => onNav("marketplace")}
+          style={{
+            background: "linear-gradient(135deg,#1a0a00,#0c0e1a)",
+            border: `1px solid ${T.orange}33`,
+            borderRadius: 16, padding: "20px",
+            cursor: "pointer", transition: "all .2s",
+            display: "flex", alignItems: "center", gap: 14,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = T.orange + "66"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = T.orange + "33"; e.currentTarget.style.transform = "translateY(0)"; }}
+        >
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: T.orangeLo, border: `1px solid ${T.orange}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>🛍️</div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>Marketplace</div>
+            <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Buy products & services from members</div>
+          </div>
+        </div>
+
+        <div
+          onClick={() => onNav("myproducts")}
+          style={{
+            background: "linear-gradient(135deg,#0a1a10,#0c0e1a)",
+            border: `1px solid ${T.success}33`,
+            borderRadius: 16, padding: "20px",
+            cursor: "pointer", transition: "all .2s",
+            display: "flex", alignItems: "center", gap: 14,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = T.success + "66"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = T.success + "33"; e.currentTarget.style.transform = "translateY(0)"; }}
+        >
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: T.successLo, border: `1px solid ${T.success}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>📦</div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>My Listings</div>
+            <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Sell your own products & services</div>
+          </div>
+        </div>
+      </div>
 
       {/* Aims grid */}
       <div>
@@ -2557,15 +2596,16 @@ function DashboardScreen({ session, profile, onGoProfile }) {
         >
           What You Can Do on <span style={{ color: T.orange }}>TezConnect</span>
         </h3>
-     <div style={{ display: "grid", gridTemplateColumns:  "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
-  {AIMS.map((aim, i) => (
-    <AimCard key={aim.title} aim={aim} i={i} />
-  ))}
-</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+          {AIMS.map((aim, i) => (
+            <AimCard key={aim.title} aim={aim} i={i} />
+          ))}
+        </div>
       </div>
     </div>
   );
 }
+
 function MobileTestimonialCard({ t }) {
   const [expanded, setExpanded] = useState(false);
   const [hov, setHov] = useState(false);
@@ -3368,19 +3408,22 @@ useEffect(() => {
         <PublicProfilePage profile={profile} onEdit={() => setEditingProfile(true)} session={session}/>
       );
     }
+     if (page === "dashboard") {
+  return (
+    <DashboardScreen
+      session={session}
+      profile={profile}
+      onGoProfile={() => {
+        setPage("profile");
+        setEditingProfile(true);
+      }}
+      onNav={(p) => { setPage(p); if (p !== "profile") setEditingProfile(false); }}
+    />
+  );
+}
 
-    if (page === "dashboard") {
-      return (
-        <DashboardScreen
-          session={session}
-          profile={profile}
-          onGoProfile={() => {
-            setPage("profile");
-            setEditingProfile(true);
-          }}
-        />
-      );
-    }
+
+  
 
     if (page === "services") {
   return <ServicesPage session={session} />;
