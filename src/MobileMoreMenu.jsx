@@ -14,6 +14,8 @@ const MORE_NAV = [
   { id: "analytics", icon: "📊", label: "Lead Analytics" },
 { id: "refer",     icon: "🎁", label: "Refer & Earn" },
 { id: "wallet",    icon: "💳", label: "Wallet" },
+ { id: "tezprints", icon: "🖨️", label: "Tez Prints" },
+ 
   
 
   
