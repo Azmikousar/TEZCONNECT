@@ -2536,7 +2536,7 @@ function DashboardScreen({ session, profile, onGoProfile, onNav }) {
         </div>
       </div>
 
-      
+       {/*  
       {/* Quick actions — Marketplace, My Listings & Tez Prints */}
 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
   <div onClick={() => onNav("marketplace")} style={{ background: "linear-gradient(135deg,#1a0a00,#0c0e1a)", border: `1px solid ${T.orange}33`, borderRadius: 16, padding: "20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
@@ -2562,7 +2562,8 @@ function DashboardScreen({ session, profile, onGoProfile, onNav }) {
       <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Official merchandise & prints</div>
     </div>
   </div>
-</div>
+</div>. */}
+       
 
 
       {/* Aims grid */}
