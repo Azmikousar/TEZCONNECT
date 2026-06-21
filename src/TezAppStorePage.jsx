@@ -240,4 +240,181 @@ function AppDetailModal({ app, session, owned, onClose, onPurchased }) {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: 18, color: T.text, lineHeight: 1.3 }}>{app.title}</div>
-              <span style={{ fontSize: 10, color: T.textLow, textTransform: "uppercase", f
+              <span style={{ fontSize: 10, color: T.textLow, textTransform: "uppercase", fontWeight: 700 }}>{app.category}</span>
+              {app.version && <div style={{ fontSize: 11, color: T.textMid, marginTop: 4 }}>Version {app.version}{app.size_info ? ` · ${app.size_info}` : ""}</div>}
+            </div>
+          </div>
+
+          {error && <div style={{ background: T.errorLo, border: `1px solid ${T.error}44`, borderRadius: 9, padding: "10px 14px", fontSize: 12, color: T.error, marginBottom: 16 }}>⚠ {error}</div>}
+
+          {owned ? (
+            <div style={{ background: T.successLo, border: `1px solid ${T.success}44`, borderRadius: 14, padding: "18px", marginBottom: 20, textAlign: "center" }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>✓</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: T.success, marginBottom: 12 }}>You own this app</div>
+              <a href={app.drive_link} target="_blank" rel="noopener noreferrer"
+                style={{ display: "inline-block", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 10, padding: "12px 28px", color: "#fff", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>
+                📥 Open Download Link
+              </a>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", background: T.orangeMd, border: `1px solid ${T.orange}44`, borderRadius: 14, marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 11, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em" }}>Price</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
+                  <span style={{ fontWeight: 800, fontSize: 26, color: T.orange }}>₹{app.price}</span>
+                  {app.compare_price && <span style={{ fontSize: 14, color: T.textLow, textDecoration: "line-through" }}>₹{app.compare_price}</span>}
+                </div>
+              </div>
+              {discount > 0 && <div style={{ background: T.error, color: "#fff", borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 800 }}>-{discount}%</div>}
+            </div>
+          )}
+
+          {app.description && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 8 }}>About</div>
+              <p style={{ fontSize: 13, color: T.textMid, lineHeight: 1.7 }}>{app.description}</p>
+            </div>
+          )}
+
+          <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px", display: "flex", gap: 10, alignItems: "center" }}>
+            <span style={{ fontSize: 18 }}>🔒</span>
+            <div style={{ fontSize: 12, color: T.textMid, lineHeight: 1.5 }}>Download link unlocks instantly after secure payment via Razorpay</div>
+          </div>
+
+          {!owned && (
+            <button onClick={handlePay} disabled={step === "processing"}
+              style={{ width: "100%", marginTop: 20, background: step === "processing" ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "15px", color: step === "processing" ? T.textMid : "#fff", fontSize: 15, fontWeight: 700, cursor: step === "processing" ? "wait" : "pointer" }}>
+              {step === "processing" ? "Processing…" : `Buy Now — ₹${app.price}`}
+            </button>
+          )}
+
+          {step === "success" && (
+            <div style={{ textAlign: "center", marginTop: 16, color: T.success, fontWeight: 700 }}>✓ Purchase successful! Unlocking…</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── App Card ── */
+function AppCard({ app, isAdmin, owned, onView, onEdit }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ background: T.bgCard, border: `1px solid ${hov ? T.orange + "55" : T.border}`, borderRadius: 16, padding: "16px", cursor: "pointer", transition: "all .2s", transform: hov ? "translateY(-3px)" : "none", position: "relative" }}
+      onClick={() => onView(app)}>
+      {isAdmin && (
+        <button onClick={(e) => { e.stopPropagation(); onEdit(app); }} style={{ position: "absolute", top: 10, right: 10, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 8, padding: "5px 9px", color: T.textMid, fontSize: 12, cursor: "pointer" }}>✏️</button>
+      )}
+      {owned && !isAdmin && (
+        <div style={{ position: "absolute", top: 10, right: 10, background: T.successLo, border: `1px solid ${T.success}44`, borderRadius: 8, padding: "3px 8px", fontSize: 10, fontWeight: 700, color: T.success }}>OWNED</div>
+      )}
+
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ width: 56, height: 56, borderRadius: 14, background: T.bgInput, overflow: "hidden", flexShrink: 0, border: `1px solid ${T.border}` }}>
+          {app.icon_url ? <img src={app.icon_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>📱</div>}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{app.title}</div>
+          <span style={{ fontSize: 10, color: T.textLow, textTransform: "uppercase", fontWeight: 700 }}>{app.category}</span>
+          <div style={{ fontWeight: 800, fontSize: 15, color: T.orange, marginTop: 4 }}>₹{app.price}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main Page ── */
+export default function TezAppStorePage({ session }) {
+  const isAdmin = session?.userId === ADMIN_USER_ID;
+  const [apps, setApps] = useState([]);
+  const [purchases, setPurchases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editApp, setEditApp] = useState(null);
+  const [viewApp, setViewApp] = useState(null);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All");
+
+  const fetchData = async () => {
+    const [{ data: appsData }, { data: purchData }] = await Promise.all([
+      supabase.from("tez_appstore").select("*").eq("is_active", true).order("created_at", { ascending: false }),
+      supabase.from("appstore_purchases").select("app_id").eq("user_id", session.userId),
+    ]);
+    setApps(appsData || []);
+    setPurchases((purchData || []).map(p => p.app_id));
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchData(); }, [session.userId]);
+
+  const categories = ["All", ...new Set(apps.map(a => a.category))];
+  const filtered = apps.filter(a => {
+    const matchSearch = !search || a.title.toLowerCase().includes(search.toLowerCase());
+    const matchCat = category === "All" || a.category === category;
+    return matchSearch && matchCat;
+  });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 11, color: T.textLow, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 6 }}>📱 Tez App Store</div>
+          <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text }}>Premium <span style={{ color: T.orange }}>Software</span></h2>
+        </div>
+        {isAdmin && (
+          <button onClick={() => setShowAdd(true)} style={{ background: T.orangeMd, border: `1px solid ${T.orange}44`, borderRadius: 10, padding: "9px 16px", color: T.orange, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ Add App</button>
+        )}
+      </div>
+
+      <div style={{ position: "relative" }}>
+        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: T.textLow }}>🔍</span>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search apps & software…"
+          style={{ width: "100%", background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px 10px 36px", color: T.text, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+      </div>
+
+      {categories.length > 1 && (
+        <div style={{ display: "flex", gap: 8, overflowX: "auto" }}>
+          {categories.map(c => (
+            <button key={c} onClick={() => setCategory(c)}
+              style={{ background: category === c ? T.orangeMd : T.bgCard, border: `1px solid ${category === c ? T.orange + "55" : T.border}`, borderRadius: 20, padding: "7px 16px", color: category === c ? T.orange : T.textMid, fontWeight: 700, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {loading && <div style={{ textAlign: "center", padding: 60, color: T.textMid }}>Loading…</div>}
+
+      {!loading && apps.length === 0 && (
+        <div style={{ textAlign: "center", padding: "60px 20px" }}>
+          <div style={{ fontSize: 56, marginBottom: 16 }}>📱</div>
+          <div style={{ fontWeight: 800, fontSize: 18, color: T.text, marginBottom: 8 }}>No apps listed yet</div>
+          {isAdmin && <button onClick={() => setShowAdd(true)} style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "12px 28px", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", marginTop: 10 }}>+ Add First App</button>}
+        </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+          {filtered.map(app => (
+            <AppCard key={app.id} app={app} isAdmin={isAdmin} owned={purchases.includes(app.id)} onView={setViewApp} onEdit={setEditApp} />
+          ))}
+        </div>
+      )}
+
+      {showAdd && <AppFormModal onClose={() => setShowAdd(false)} onSaved={fetchData} />}
+      {editApp && <AppFormModal app={editApp} onClose={() => setEditApp(null)} onSaved={fetchData} />}
+      {viewApp && (
+        <AppDetailModal
+          app={viewApp}
+          session={session}
+          owned={purchases.includes(viewApp.id)}
+          onClose={() => setViewApp(null)}
+          onPurchased={fetchData}
+        />
+      )}
+    </div>
+  );
+}
