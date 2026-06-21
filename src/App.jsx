@@ -3378,7 +3378,10 @@ useEffect(() => {
       );
     }
 
-    
+    if (page === "services") {
+  return <ServicesPage session={session} />;
+}
+
 
     if (page === "testimonials") {
       return <TestimonialsScreen session={session} />;
@@ -3399,9 +3402,7 @@ useEffect(() => {
     if (page === "messages") {
       return <MessagesPage session={session} />;
     }
-     if (page === "services") {
-        return <ServicesPage />;
-     }
+    
      if (page==="analytics") return <LeadAnalyticsPage session={session}/>;
 if (page==="refer")     return <ReferEarnPage session={session}/>;
 if (page==="wallet")    return <WalletPage session={session}/>;
