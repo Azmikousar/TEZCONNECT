@@ -15,6 +15,8 @@ const MORE_NAV = [
 { id: "refer",     icon: "🎁", label: "Refer & Earn" },
 { id: "wallet",    icon: "💳", label: "Wallet" },
  { id: "tezprints", icon: "🖨️", label: "Tez Prints" },
+{ id: "appstore", icon: "📱", label: "Tez App Store" },
+  
  
   
 
