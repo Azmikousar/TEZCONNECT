@@ -2554,7 +2554,7 @@ function DashboardScreen({ session, profile, onGoProfile, onNav }) {
       <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Sell your own products & services</div>
     </div>
   </div>
-
+</div>
   
        
 
