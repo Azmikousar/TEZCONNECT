@@ -2555,14 +2555,7 @@ function DashboardScreen({ session, profile, onGoProfile, onNav }) {
     </div>
   </div>
 
-  <div onClick={() => onNav("tezprints")} style={{ background: "linear-gradient(135deg,#1a1000,#0c0e1a)", border: `1px solid ${T.amber}33`, borderRadius: 16, padding: "20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
-    <div style={{ width: 48, height: 48, borderRadius: 12, background: "#fbbf2412", border: `1px solid ${T.amber}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>🖨️</div>
-    <div>
-      <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>Tez Prints</div>
-      <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Official merchandise & prints</div>
-    </div>
-  </div>
-</div>. */}
+  
        
 
 
