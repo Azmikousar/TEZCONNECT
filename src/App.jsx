@@ -23,6 +23,8 @@ import ReferEarnPage from "./ReferEarnPage";
 import WalletPage from "./WalletPage";
 import MyProductsPage from "./MyProductsPage";
 import MarketplacePage from "./MarketplacePage";
+import TezPrintsSection from "./TezPrintsSection";
+
 
 
 
@@ -2602,6 +2604,10 @@ function DashboardScreen({ session, profile, onGoProfile, onNav }) {
           ))}
         </div>
       </div>
+       
+
+      {/* Tez Prints — physical products store */}
+      <TezPrintsSection session={session} />
     </div>
   );
 }
