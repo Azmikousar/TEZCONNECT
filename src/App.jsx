@@ -67,6 +67,11 @@ const T = {
   sidebar: "#080a15",
   sidebarBorder: "#141830",
 };
+const MORE_NAV = [
+  { id: "marketplace",  icon: "🛍️", label: "Marketplace" },
+  { id: "myproducts",   icon: "📦", label: "My Listings" },
+  
+];
 
 /* ═══════════════════════════════════════════════════════════
    GLOBAL CSS
