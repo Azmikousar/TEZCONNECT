@@ -320,8 +320,8 @@ function ServiceCard({ service, index, isAdmin, onInquire, onEdit }) {
               style={{ flex: 2, background: `linear-gradient(135deg,${service.color},${service.color}cc)`, border: "none", borderRadius: 10, padding: "11px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", boxShadow: `0 4px 16px ${service.color}40` }}>
               🚀 Get Started
             </button>
-            <a href={`https://wa.me/917396180986?text=${encodeURIComponent(`Hi! I'm interested in your ${service.title} service. Please share more details.`)}`} target="_blank" rel="noopener noreferrer"
-              style={{ flex: 1, background: "#25d36618", border: "1px solid #25d36633", borderRadius: 10, padding: "11px", color: "#25d366", fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>💬</a>
+           
+              
           </div>
         )}
       </div>
