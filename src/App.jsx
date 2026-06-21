@@ -2040,6 +2040,8 @@ const NAV = [
    { id: "marketplace", icon: "🛍️", label: "Marketplace" },
   { id: "myproducts",  icon: "📦", label: "My Listings" },
    { id: "tezprints", icon: "🖨️", label: "Tez Prints" },
+   { id: "appstore", icon: "📱", label: "Tez App Store" },
+
 
 
 
@@ -2592,7 +2594,14 @@ function DashboardScreen({ session, profile, onGoProfile, onNav }) {
           ))}
         </div>
       </div>
-       
+       <div onClick={() => onNav("appstore")} style={{ background: "linear-gradient(135deg,#0a0a1a,#0c0e1a)", border: `1px solid #a78bfa33`, borderRadius: 16, padding: "20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
+  <div style={{ width: 48, height: 48, borderRadius: 12, background: "#a78bfa12", border: "1px solid #a78bfa33", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>📱</div>
+  <div>
+    <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>Tez App Store</div>
+    <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>CapCut, Canva & premium software</div>
+  </div>
+</div>
+
 
      
     </div>
@@ -3421,6 +3430,7 @@ useEffect(() => {
     if (page === "services") {
   return <ServicesPage session={session} />;
 }
+if (page === "appstore") return <TezAppStorePage session={session}/>;
 
 
     if (page === "testimonials") {
