@@ -21,6 +21,8 @@ import ShareApp from "./ShareApp";
 import LeadAnalyticsPage from "./LeadAnalyticsPage";
 import ReferEarnPage from "./ReferEarnPage";
 import WalletPage from "./WalletPage";
+import MyProductsPage from "./MyProductsPage";
+import MarketplacePage from "./MarketplacePage";
 
 
 
