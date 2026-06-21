@@ -9,6 +9,8 @@ const T = {
   error: "#f87171", errorLo: "#f8717112",
   info: "#38bdf8", amber: "#fbbf24",
 };
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
+
 
 const SERVICES = [
   {
@@ -396,27 +398,24 @@ function ServiceCard({ service, index, onInquire }) {
         </div>
 
         {/* CTA Buttons */}
-        <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
-          <button
-            onClick={() => onInquire(service)}
-            style={{
-              flex: 2,
-              background: `linear-gradient(135deg,${service.color},${service.color}cc)`,
-              border: "none", borderRadius: 10, padding: "11px",
-              color: "#fff", fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
-              boxShadow: `0 4px 16px ${service.color}40`,
-              transition: "all .2s",
-            }}
-          >
-            🚀 Get Started
-          </button>
-          
-        </div>
-      </div>
-    </div>
-  );
-}
+        {isAdmin ? (
+  <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
+    <button onClick={() => onEditService(service)}
+      style={{ flex: 1, background: T.orangeMd, border: `1px solid ${T.orange}44`, borderRadius: 10, padding: "11px", color: T.orange, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+      ✏️ Edit Service
+    </button>
+  </div>
+) : (
+  <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
+    <button onClick={() => onInquire(service)}
+      style={{ flex: 2, background: `linear-gradient(135deg,${service.color},${service.color}cc)`, border: "none", borderRadius: 10, padding: "11px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+      🚀 Get Started
+    </button>
+    <a href={`https://wa.me/917396180986?text=${encodeURIComponent(`Hi! I'm interested in your ${service.title} service.`)}`} target="_blank" rel="noopener noreferrer"
+      style={{ flex: 1, background: "#25d36618", border: "1px solid #25d36633", borderRadius: 10, padding: "11px", color: "#25d366", fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>💬</a>
+  </div>
+)}
+
 
 /* ── Contact Banner ── */
 function ContactBanner({ onInquire }) {
@@ -454,9 +453,11 @@ function ContactBanner({ onInquire }) {
 }
 
 /* ── Main Page ── */
-export default function ServicesPage() {
+export default function ServicesPage({session}) {
+  const isAdmin = session?.userId === ADMIN_USER_ID;
   const [filter, setFilter]       = useState("All");
   const [inquiryService, setInquiryService] = useState(null);
+  const [showAddService, setShowAddService] = useState(false);
 
   const filters = ["All", "Marketing", "Social", "SEO", "Automation", "Development", "ERP", "IoT", "Branding"];
   const filtered = filter === "All" ? SERVICES : SERVICES.filter(s => s.tag === filter);
@@ -476,12 +477,19 @@ export default function ServicesPage() {
           <p style={{ color: T.textMid, fontSize: 13, lineHeight: 1.7, maxWidth: 500, marginBottom: 16 }}>
             From digital marketing to custom software — end-to-end solutions to help Indian businesses connect faster and grow smarter.
           </p>
+          {isAdmin ? (
+  <button onClick={() => setShowAddService(true)}
+    style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 10, padding: "12px 24px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+    + Add Service
+  </button>
+) : (
           <button
             onClick={() => setInquiryService({ icon: "⚡", title: "General Inquiry", desc: "", features: [], color: T.orange, tag: "General" })}
             style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 10, padding: "12px 24px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: "0 4px 20px #f9731440" }}
           >
             🚀 Get Free Consultation
           </button>
+      )}
         </div>
       </div>
 
