@@ -23,7 +23,8 @@ import ReferEarnPage from "./ReferEarnPage";
 import WalletPage from "./WalletPage";
 import MyProductsPage from "./MyProductsPage";
 import MarketplacePage from "./MarketplacePage";
-import TezPrintsSection from "./TezPrintsSection";
+import TezPrintsPage from "./TezPrintsPage";
+
 
 
 
@@ -2033,8 +2034,11 @@ const NAV = [
   {id:"services", icon:"🚀", label:"Services"},
   {id:"analytics", icon:"📊", label:"Analytics"},
   {id:"refer",     icon:"🎁", label:"Refer & Earn"},
-  {id:"wallet",    icon:"💳", label:"Wallet"}, { id: "marketplace", icon: "🛍️", label: "Marketplace" },
+  {id:"wallet",    icon:"💳", label:"Wallet"}, 
+   { id: "marketplace", icon: "🛍️", label: "Marketplace" },
   { id: "myproducts",  icon: "📦", label: "My Listings" },
+   { id: "tezprints", icon: "🖨️", label: "Tez Prints" },
+
 
 
 ];
@@ -2532,46 +2536,34 @@ function DashboardScreen({ session, profile, onGoProfile, onNav }) {
         </div>
       </div>
 
-      {/* Quick actions — Marketplace & My Listings */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-        <div
-          onClick={() => onNav("marketplace")}
-          style={{
-            background: "linear-gradient(135deg,#1a0a00,#0c0e1a)",
-            border: `1px solid ${T.orange}33`,
-            borderRadius: 16, padding: "20px",
-            cursor: "pointer", transition: "all .2s",
-            display: "flex", alignItems: "center", gap: 14,
-          }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = T.orange + "66"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = T.orange + "33"; e.currentTarget.style.transform = "translateY(0)"; }}
-        >
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: T.orangeLo, border: `1px solid ${T.orange}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>🛍️</div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>Marketplace</div>
-            <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Buy products & services from members</div>
-          </div>
-        </div>
+      
+      {/* Quick actions — Marketplace, My Listings & Tez Prints */}
+<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+  <div onClick={() => onNav("marketplace")} style={{ background: "linear-gradient(135deg,#1a0a00,#0c0e1a)", border: `1px solid ${T.orange}33`, borderRadius: 16, padding: "20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
+    <div style={{ width: 48, height: 48, borderRadius: 12, background: T.orangeLo, border: `1px solid ${T.orange}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>🛍️</div>
+    <div>
+      <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>Marketplace</div>
+      <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Buy products & services from members</div>
+    </div>
+  </div>
 
-        <div
-          onClick={() => onNav("myproducts")}
-          style={{
-            background: "linear-gradient(135deg,#0a1a10,#0c0e1a)",
-            border: `1px solid ${T.success}33`,
-            borderRadius: 16, padding: "20px",
-            cursor: "pointer", transition: "all .2s",
-            display: "flex", alignItems: "center", gap: 14,
-          }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = T.success + "66"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = T.success + "33"; e.currentTarget.style.transform = "translateY(0)"; }}
-        >
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: T.successLo, border: `1px solid ${T.success}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>📦</div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>My Listings</div>
-            <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Sell your own products & services</div>
-          </div>
-        </div>
-      </div>
+  <div onClick={() => onNav("myproducts")} style={{ background: "linear-gradient(135deg,#0a1a10,#0c0e1a)", border: `1px solid ${T.success}33`, borderRadius: 16, padding: "20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
+    <div style={{ width: 48, height: 48, borderRadius: 12, background: T.successLo, border: `1px solid ${T.success}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>📦</div>
+    <div>
+      <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>My Listings</div>
+      <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Sell your own products & services</div>
+    </div>
+  </div>
+
+  <div onClick={() => onNav("tezprints")} style={{ background: "linear-gradient(135deg,#1a1000,#0c0e1a)", border: `1px solid ${T.amber}33`, borderRadius: 16, padding: "20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
+    <div style={{ width: 48, height: 48, borderRadius: 12, background: "#fbbf2412", border: `1px solid ${T.amber}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>🖨️</div>
+    <div>
+      <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>Tez Prints</div>
+      <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Official merchandise & prints</div>
+    </div>
+  </div>
+</div>
+
 
       {/* Aims grid */}
       <div>
@@ -2606,8 +2598,7 @@ function DashboardScreen({ session, profile, onGoProfile, onNav }) {
       </div>
        
 
-      {/* Tez Prints — physical products store */}
-      <TezPrintsSection session={session} />
+     
     </div>
   );
 }
@@ -3457,6 +3448,7 @@ useEffect(() => {
     }
      if (page==="marketplace") return <MarketplacePage session={session}/>;
 if (page==="myproducts")  return <MyProductsPage session={session}/>;
+if (page === "tezprints") return <TezPrintsPage session={session}/>;
 
     
      if (page==="analytics") return <LeadAnalyticsPage session={session}/>;
