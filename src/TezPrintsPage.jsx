@@ -287,7 +287,13 @@ function ShippingModal({ onClose, onConfirm }) {
         </div>
 
         {/* Always-visible footer button */}
-        <div style={{ padding: "16px 20px", flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}` }}>
+        <div style={{
+  padding: "16px 20px",
+  paddingBottom: "90px",
+  flexShrink: 0,
+  background: T.bgCard,
+  borderTop: `1px solid ${T.border}`
+}}>
           <button
             onClick={submit}
             style={{
