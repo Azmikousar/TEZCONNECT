@@ -232,7 +232,7 @@ function AppDetailModal({ app, session, owned, onClose, onPurchased }) {
           <button onClick={onClose} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer" }}>×</button>
         </div>
 
-        <div style={{ padding: "10px 20px 30px" }}>
+        <div style={{ padding: "10px 20px 120px" }}>
           {/* App header */}
           <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
             <div style={{ width: 76, height: 76, borderRadius: 18, background: T.bgInput, overflow: "hidden", flexShrink: 0, border: `1px solid ${T.border}` }}>
