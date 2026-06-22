@@ -201,7 +201,8 @@ function CartDrawer({ cart, onClose, onUpdateQty, onRemove, onCheckout, checking
         </div>
 
         {cart.length > 0 && (
-          <div style={{ padding: "16px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+          
+  <div style={{ padding: "16px 20px", paddingBottom: "calc(16px + env(safe-area-inset-bottom) + 70px)", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
               <span style={{ fontSize: 14, color: T.textMid }}>Total</span>
               <span style={{ fontSize: 20, fontWeight: 800, color: T.orange }}>₹{total.toFixed(2)}</span>
