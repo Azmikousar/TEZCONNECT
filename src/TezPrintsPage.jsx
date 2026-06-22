@@ -239,23 +239,74 @@ function ShippingModal({ onClose, onConfirm }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 750, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, padding: "20px", animation: "slideUp .3s ease" }}>
-        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "0 auto 20px" }} />
-        <div style={{ fontWeight: 800, fontSize: 18, color: T.text, marginBottom: 16 }}>📦 Shipping Details</div>
-        {error && <div style={{ color: T.error, fontSize: 12, marginBottom: 12 }}>⚠ {error}</div>}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Full Name" style={inputStyle} />
-          <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="Phone Number" type="tel" style={inputStyle} />
-          <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Full delivery address" rows={3} style={{ ...inputStyle, resize: "vertical" }} />
-          <button onClick={submit} style={{ width: "100%", background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "14px", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", marginTop: 8 }}>
-            Continue to Payment
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 950, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: T.bgCard,
+          border: `1px solid ${T.border}`,
+          borderRadius: "20px 20px 0 0",
+          width: "100%",
+          maxWidth: 480,
+          height: "min(75vh, 560px)",
+          display: "flex",
+          flexDirection: "column",
+          animation: "slideUp .3s ease",
+          overflow: "hidden",
+        }}
+      >
+        {/* Handle */}
+        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
+
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 0", minHeight: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 18, color: T.text, marginBottom: 16 }}>📦 Shipping Details</div>
+          {error && <div style={{ color: T.error, fontSize: 12, marginBottom: 12, background: T.errorLo, padding: "8px 12px", borderRadius: 8 }}>⚠ {error}</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <input
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Full Name"
+              style={inputStyle}
+            />
+            <input
+              value={form.phone}
+              onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+              placeholder="Phone Number"
+              type="tel"
+              style={inputStyle}
+            />
+            <textarea
+              value={form.address}
+              onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+              placeholder="Full delivery address"
+              rows={4}
+              style={{ ...inputStyle, resize: "none" }}
+            />
+          </div>
+        </div>
+
+        {/* Always-visible footer button */}
+        <div style={{ padding: "16px 20px", flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}` }}>
+          <button
+            onClick={submit}
+            style={{
+              width: "100%",
+              background: "linear-gradient(135deg,#f97316,#ea6008)",
+              border: "none", borderRadius: 12, padding: "14px",
+              color: "#fff", fontWeight: 700, fontSize: 15,
+              cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif",
+              boxShadow: "0 4px 20px #f9731440",
+            }}
+          >
+            Continue to Payment 💳
           </button>
         </div>
       </div>
     </div>
   );
 }
+
 
 /* ── Product Detail Modal ── */
 function ProductDetailModal({ product, onClose, onAddCart }) {
