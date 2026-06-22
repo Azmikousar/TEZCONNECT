@@ -333,7 +333,8 @@ function ProductDetailModal({ product, onClose, onAddCart }) {
           {discount > 0 && <div style={{ position: "absolute", top: 14, left: 14, background: T.error, color: "#fff", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 800 }}>-{discount}% OFF</div>}
         </div>
 
-        <div style={{ padding: "20px" }}>
+        <div style={{ padding: "20px",
+                    paddingBottom: "140px"}}>
           <span style={{ fontSize: 11, color: T.textLow, textTransform: "uppercase", fontWeight: 700, letterSpacing: ".06em" }}>{product.category}</span>
           <h2 style={{ fontWeight: 800, fontSize: 20, color: T.text, marginTop: 6, lineHeight: 1.3 }}>{product.title}</h2>
 
