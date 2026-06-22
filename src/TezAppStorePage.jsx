@@ -280,13 +280,39 @@ function AppDetailModal({ app, session, owned, onClose, onPurchased }) {
             <span style={{ fontSize: 18 }}>🔒</span>
             <div style={{ fontSize: 12, color: T.textMid, lineHeight: 1.5 }}>Download link unlocks instantly after secure payment via Razorpay</div>
           </div>
-
-          {!owned && (
-            <button onClick={handlePay} disabled={step === "processing"}
-              style={{ width: "100%", marginTop: 20, background: step === "processing" ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "15px", color: step === "processing" ? T.textMid : "#fff", fontSize: 15, fontWeight: 700, cursor: step === "processing" ? "wait" : "pointer" }}>
-              {step === "processing" ? "Processing…" : `Buy Now — ₹${app.price}`}
-            </button>
-          )}
+{!owned && (
+  <div
+    style={{
+      position: "sticky",
+      bottom: 0,
+      background: T.bg,
+      padding: "12px 0",
+      marginTop: 20
+    }}
+  >
+    <button
+      onClick={handlePay}
+      disabled={step === "processing"}
+      style={{
+        width: "100%",
+        background:
+          step === "processing"
+            ? "#1a1f35"
+            : "linear-gradient(135deg,#f97316,#ea6008)",
+        border: "none",
+        borderRadius: 12,
+        padding: "15px",
+        color: "#fff",
+        fontSize: 15,
+        fontWeight: 700
+      }}
+    >
+      {step === "processing"
+        ? "Processing..."
+        : `Buy Now — ₹${app.price}`}
+    </button>
+  </div>
+)}
 
           {step === "success" && (
             <div style={{ textAlign: "center", marginTop: 16, color: T.success, fontWeight: 700 }}>✓ Purchase successful! Unlocking…</div>
