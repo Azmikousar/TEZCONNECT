@@ -3780,18 +3780,19 @@ if (page==="wallet")    return <WalletPage session={session}/>;
 
     {/* Logout modal */}
     {logoutModal && (
-      <div onClick={() => setLogoutModal(false)} style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-        <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "28px 24px", maxWidth: 340, width: "100%", animation: "scaleIn .2s ease", textAlign: "center" }}>
-          <div style={{ width: 56, height: 56, borderRadius: "50%", background: T.errorLo, border: `1px solid ${T.error}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 14px" }}>⏏</div>
-          <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 8 }}>Sign Out?</div>
-          <div style={{ color: T.textMid, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>Your session will end and you'll be returned to the sign-in page.</div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <Btn variant="ghost" onClick={() => setLogoutModal(false)} fullWidth>Cancel</Btn>
-            <Btn onClick={onLogout} fullWidth>Yes, Sign Out</Btn>
-          </div>
-        </div>
+  <div onClick={() => setLogoutModal(false)} style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "28px 24px", maxWidth: 340, width: "100%", animation: "scaleIn .2s ease", textAlign: "center" }}>
+      <div style={{ width: 56, height: 56, borderRadius: "50%", background: T.errorLo, border: `1px solid ${T.error}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 14px" }}>⏏</div>
+      <div style={{ fontWeight: 800, fontSize: 17, color: T.text, marginBottom: 8 }}>Sign Out?</div>
+      <div style={{ color: T.textMid, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>Your session will end and you'll be returned to the sign-in page.</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <Btn onClick={onLogout} fullWidth>Yes, Sign Out</Btn>
+        <Btn variant="ghost" onClick={() => setLogoutModal(false)} fullWidth>Cancel</Btn>
       </div>
-    )}
+    </div>
+  </div>
+)}
+
   </div>
 );
 
