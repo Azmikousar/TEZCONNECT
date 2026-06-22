@@ -91,7 +91,7 @@ function ProductFormModal({ product, onClose, onSaved }) {
       <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, maxHeight: "calc(100vh - 80px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease" }}>
 
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0" }} />
-        <div style={{ padding: "16px 20px 40px" }}>
+        <div style={{ padding: "16px 20px 40px",overflow:"auto",flex:1,minHeight:0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <div style={{ fontWeight: 800, fontSize: 18, color: T.text }}>{isEdit ? "Edit Product" : "Add to Tez Prints"}</div>
             <button onClick={onClose} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer" }}>×</button>
