@@ -47,7 +47,9 @@ function BuyModal({ product, session, onClose, onPaid }) {
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 600, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, padding: "20px,20px,120px", animation: "slideUp .3s ease" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, padding: "20px", animation: "slideUp .3s ease",maxHeight: "85vh",
+    overflowY: "auto",
+    paddingBottom: "80px" }}>
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "0 auto 20px" }} />
         {step === "confirm" && (
           <>
