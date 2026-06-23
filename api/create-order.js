@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     const order = await razorpay.orders.create({
       amount: Math.round(amount * 100), // paise
       currency: "INR",
-      receipt: `evt_${eventId}_${Date.now()}`,
+      receipt: `app_${Date.now()}`,
       notes: { eventId, userId },
     });
 
