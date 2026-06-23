@@ -396,7 +396,7 @@ function AppDetailModal({ app, session, owned, onClose, onPurchased }) {
 
         {/* Fixed footer — Buy button always visible */}
         {!owned && step !== "success" && (
-          <div style={{ padding: "14px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard }}>
+          <div style={{ padding: "14px 20px 90px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard }}>
             <button
               onClick={handlePay}
               disabled={step === "processing"}
