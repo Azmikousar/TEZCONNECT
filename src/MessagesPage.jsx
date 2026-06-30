@@ -103,15 +103,12 @@ function ChatView({ contact, session, onBack }) {
       .or(`and(sender_id.eq.${session.userId},receiver_id.eq.${contact.id}),and(sender_id.eq.${contact.id},receiver_id.eq.${session.userId})`)
       .order("created_at", { ascending: true });
     setMessages(data || []);
-
-    // Mark as read
     await supabase.from("messages").update({ read: true })
       .eq("sender_id", contact.id).eq("receiver_id", session.userId).eq("read", false);
   }, [session.userId, contact.id]);
 
   useEffect(() => {
     fetchMessages();
-
     const channelName = "chat_" + session.userId + "_" + contact.id + "_" + Math.random().toString(36).slice(2, 6);
     channelRef.current = supabase.channel(channelName)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
@@ -122,7 +119,6 @@ function ChatView({ contact, session, onBack }) {
         }
       })
       .subscribe();
-
     return () => { if (channelRef.current) supabase.removeChannel(channelRef.current); };
   }, [contact.id, session.userId, fetchMessages]);
 
@@ -144,54 +140,80 @@ function ChatView({ contact, session, onBack }) {
   };
 
   const initials = (contact.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
-  const colors = ["linear-gradient(135deg,#f97316,#ea6008)", "linear-gradient(135deg,#7c3aed,#a78bfa)", "linear-gradient(135deg,#0369a1,#38bdf8)", "linear-gradient(135deg,#15803d,#22c55e)", "linear-gradient(135deg,#be123c,#f43f5e)"];
+  const colors = [
+    "linear-gradient(135deg,#f97316,#ea6008)",
+    "linear-gradient(135deg,#7c3aed,#a78bfa)",
+    "linear-gradient(135deg,#0369a1,#38bdf8)",
+    "linear-gradient(135deg,#15803d,#22c55e)",
+    "linear-gradient(135deg,#be123c,#f43f5e)",
+  ];
   const avatarBg = colors[(contact.name || "").charCodeAt(0) % colors.length];
 
   const attachOptions = [
-    { icon: "🖼️", label: "Gallery", color: "#7c3aed" },
-    { icon: "📷", label: "Camera", color: "#ea580c" },
+    { icon: "🖼️", label: "Gallery",  color: "#7c3aed" },
+    { icon: "📷", label: "Camera",   color: "#ea580c" },
     { icon: "📄", label: "Document", color: "#0369a1" },
     { icon: "📍", label: "Location", color: "#15803d" },
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.bg }}>
+    <div style={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 300,
+      background: T.bg,
+      display: "flex",
+      flexDirection: "column",
+      // Leave room for iOS safe area at bottom
+      paddingBottom: "env(safe-area-inset-bottom)",
+    }}>
 
-      {/* Chat Header */}
-      <div style={{ flexShrink: 0, background: T.bgCard, borderBottom: `1px solid ${T.border}`, padding: "12px 16px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", color: T.textMid, fontSize: 20, cursor: "pointer", padding: "2px 6px", flexShrink: 0 }}>←</button>
-          <div style={{ width: 42, height: 42, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, color: "#fff", overflow: "hidden", flexShrink: 0 }}>
+      {/* ── Chat Header ── */}
+      <div style={{ flexShrink: 0, background: T.bgCard, borderBottom: `1px solid ${T.border}`, padding: "10px 14px 10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <button onClick={onBack}
+            style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontSize: 16, cursor: "pointer", flexShrink: 0 }}>
+            ←
+          </button>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", overflow: "hidden", flexShrink: 0 }}>
             {contact.photo ? <img src={contact.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>{contact.name}</div>
-            <div style={{ fontSize: 11, color: T.textMid }}>{contact.designation || "TezConnect Member"} <span style={{ color: T.success }}>● Online</span></div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{contact.name}</div>
+            <div style={{ fontSize: 11, color: T.textMid }}>
+              {contact.designation || "TezConnect Member"}&nbsp;
+              <span style={{ color: T.success }}>● Online</span>
+            </div>
           </div>
-          <a href={`tel:${contact.mobile || contact.whatsapp || ""}`} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, textDecoration: "none", color: T.textMid }}>📞</a>
-          <button style={{ background: "none", border: "none", color: T.textMid, fontSize: 20, cursor: "pointer" }}>⋯</button>
+          <a href={`tel:${contact.mobile || contact.whatsapp || ""}`}
+            style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, textDecoration: "none", color: T.textMid, flexShrink: 0 }}>
+            📞
+          </a>
+          <button style={{ background: "none", border: "none", color: T.textMid, fontSize: 20, cursor: "pointer", flexShrink: 0 }}>⋯</button>
         </div>
 
-        {/* Contact info strip */}
-        <div style={{ display: "flex", gap: 10, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px" }}>
+        {/* Location / Industry strip */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px" }}>
           {contact.location && (
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, color: T.textLow, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>📍 Location</div>
-              <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{contact.location}</div>
+              <div style={{ fontSize: 9, color: T.textLow, textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 2 }}>📍 Location</div>
+              <div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{contact.location}</div>
             </div>
           )}
           {contact.industry && (
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, color: T.textLow, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>🏭 Industry</div>
-              <div style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{contact.industry}</div>
+              <div style={{ fontSize: 9, color: T.textLow, textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 2 }}>🏭 Industry</div>
+              <div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{contact.industry}</div>
             </div>
           )}
-          <button style={{ background: "none", border: "none", color: T.orange, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", alignSelf: "center" }}>View profile</button>
+          <button style={{ background: "none", border: "none", color: T.orange, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+            View profile
+          </button>
         </div>
       </div>
 
-      {/* Messages */}
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px", display: "flex", flexDirection: "column", gap: 4, minHeight: 0 }}>
+      {/* ── Messages ── */}
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 14px", display: "flex", flexDirection: "column", gap: 4, minHeight: 0 }}>
         {messages.length === 0 && (
           <div style={{ textAlign: "center", margin: "auto", padding: "40px 20px" }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>👋</div>
@@ -203,7 +225,6 @@ function ChatView({ contact, session, onBack }) {
         {messages.map((msg, i) => {
           const isMine = msg.sender_id === session.userId;
           const showSep = shouldShowDateSep(messages, i);
-
           return (
             <div key={msg.id}>
               {showSep && (
@@ -237,16 +258,22 @@ function ChatView({ contact, session, onBack }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Attachment panel */}
+      {/* ── Attachment Panel ── */}
       {showAttach && (
-        <div style={{ flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}`, padding: "16px 20px 20px" }}>
+        <div style={{ flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}`, padding: "14px 20px 18px", animation: "slideUp .25s ease" }}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-            <button onClick={() => setShowAttach(false)} style={{ background: "none", border: "none", color: T.textMid, fontSize: 18, cursor: "pointer" }}>▾</button>
+            <button onClick={() => setShowAttach(false)}
+              style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 20, padding: "4px 20px", color: T.textMid, fontSize: 14, cursor: "pointer" }}>
+              ▾
+            </button>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
             {attachOptions.map(opt => (
-              <div key={opt.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <div style={{ width: 54, height: 54, borderRadius: 16, background: opt.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{opt.icon}</div>
+              <div key={opt.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer" }}
+                onClick={() => setShowAttach(false)}>
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: opt.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>
+                  {opt.icon}
+                </div>
                 <span style={{ fontSize: 11, color: T.textMid, fontWeight: 600 }}>{opt.label}</span>
               </div>
             ))}
@@ -254,28 +281,55 @@ function ChatView({ contact, session, onBack }) {
         </div>
       )}
 
-      {/* Input bar */}
-      <div style={{ flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}`, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-        <button style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", flexShrink: 0 }}>😊</button>
-        <div style={{ flex: 1, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 24, display: "flex", alignItems: "center", padding: "0 14px" }}>
+      {/* ── Input Bar ── */}
+      <div style={{
+        flexShrink: 0,
+        background: T.bgCard,
+        borderTop: `1px solid ${T.border}`,
+        padding: "10px 14px",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+      }}>
+        <button style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", flexShrink: 0, lineHeight: 1 }}>😊</button>
+
+        <div style={{ flex: 1, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 24, display: "flex", alignItems: "center", padding: "2px 14px" }}>
           <input
             ref={inputRef}
             value={text}
             onChange={e => setText(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder="Type a message..."
-            style={{ flex: 1, background: "none", border: "none", color: T.text, fontSize: 14, outline: "none", padding: "10px 0", fontFamily: "'Plus Jakarta Sans',sans-serif" }}
+            style={{ flex: 1, background: "none", border: "none", color: T.text, fontSize: 14, outline: "none", padding: "10px 0", fontFamily: "'Plus Jakarta Sans',sans-serif", minWidth: 0 }}
           />
         </div>
-        <button onClick={() => setShowAttach(a => !a)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", flexShrink: 0 }}>📎</button>
-        <button onClick={send} disabled={!text.trim() || sending}
-          style={{ width: 42, height: 42, borderRadius: "50%", background: text.trim() ? "linear-gradient(135deg,#f97316,#ea6008)" : T.bgInput, border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: text.trim() ? "pointer" : "default", flexShrink: 0, boxShadow: text.trim() ? "0 4px 14px #f9731440" : "none", transition: "all .2s" }}>
-          <span style={{ fontSize: 16, color: text.trim() ? "#fff" : T.textLow, transform: "rotate(45deg)", display: "block" }}>➤</span>
+
+        <button
+          onClick={() => setShowAttach(a => !a)}
+          style={{ background: showAttach ? T.orangeMd : "none", border: showAttach ? `1px solid ${T.orange}44` : "none", borderRadius: "50%", width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, cursor: "pointer", flexShrink: 0 }}>
+          📎
+        </button>
+
+        <button
+          onClick={send}
+          disabled={!text.trim() || sending}
+          style={{
+            width: 42, height: 42, borderRadius: "50%",
+            background: text.trim() ? "linear-gradient(135deg,#f97316,#ea6008)" : T.bgInput,
+            border: text.trim() ? "none" : `1px solid ${T.border}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: text.trim() ? "pointer" : "default",
+            flexShrink: 0,
+            boxShadow: text.trim() ? "0 4px 14px #f9731440" : "none",
+            transition: "all .2s",
+          }}>
+          <span style={{ fontSize: 18, color: text.trim() ? "#fff" : T.textLow, transform: "rotate(45deg)", display: "block", marginLeft: 2 }}>➤</span>
         </button>
       </div>
     </div>
   );
 }
+
 
 /* ── Main MessagesPage ── */
 export default function MessagesPage({ session }) {
