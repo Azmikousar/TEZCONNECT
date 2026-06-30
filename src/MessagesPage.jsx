@@ -1,86 +1,120 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 
-// --- Theme Config ---
+// --- Theme & Constants ---
 const T = {
   bg: "#06070d", bgCard: "#0b0d17", bgInput: "#0f1120", border: "#1a1f35",
-  orange: "#f97316", orangeLo: "#f9731612", orangeMd: "#f9731625",
+  orange: "#f97316", orangeMd: "#f9731625",
   text: "#eef0f8", textMid: "#6b7594", textLow: "#343c58",
   success: "#22c55e",
 };
 
-// ... (Include your existing Avatar, timeLabel, dateSep, showSep functions here)
-
-// --- Bottom Navigation Component ---
-function BottomNav({ active, setActive }) {
-  const items = [
-    { id: "home", icon: "🏠", label: "Home" },
-    { id: "network", icon: "👥", label: "Network" },
-    { id: "messages", icon: "💬", label: "Messages" },
-    { id: "profile", icon: "👤", label: "Profile" },
-    { id: "more", icon: "⋯", label: "More" },
-  ];
-
-  return (
-    <div style={{
-      position: "fixed", bottom: 0, left: 0, right: 0,
-      background: T.bgCard, borderTop: `1px solid ${T.border}`,
-      display: "flex", justifyContent: "space-around", padding: "12px 0",
-      paddingBottom: "max(12px, env(safe-area-inset-bottom))",
-      zIndex: 1000
-    }}>
-      {items.map(item => (
-        <div key={item.id} onClick={() => setActive(item.id)} style={{
-          display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-          color: active === item.id ? T.orange : T.textMid, cursor: "pointer"
-        }}>
-          <span style={{ fontSize: 20 }}>{item.icon}</span>
-          <span style={{ fontSize: 10, fontWeight: 600 }}>{item.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
+// --- Helper Functions ---
+const timeLabel = (ts) => {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const now = new Date();
+  return d.toDateString() === now.toDateString() 
+    ? d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+};
 
 // --- Main Page Component ---
 export default function MessagesPage({ session }) {
-  // ... (Keep your existing state logic for contacts, search, etc.)
-  
-  return (
-    <div style={{ background: T.bg, minHeight: "100vh", padding: "20px 16px 100px 16px" }}>
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeContact, setActiveContact] = useState(null);
+
+  const fetchContacts = useCallback(async () => {
+    if (!session?.userId) return;
+    
+    // Fetch latest messages for the current user
+    const { data: msgs, error } = await supabase
+      .from("messages")
+      .select("*")
+      .or(`sender_id.eq.${session.userId},receiver_id.eq.${session.userId}`)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Fetch Error:", error);
+      setLoading(false);
+      return;
+    }
+
+    // Logic to group unique contacts
+    const uniqueContacts = [];
+    const seenIds = new Set();
+    
+    (msgs || []).forEach(msg => {
+      const otherId = msg.sender_id === session.userId ? msg.receiver_id : msg.sender_id;
+      if (!seenIds.has(otherId)) {
+        seenIds.add(otherId);
+        uniqueContacts.push({
+          id: otherId,
+          lastMsg: msg.content,
+          time: msg.created_at
+        });
+      }
+    });
+
+    setContacts(uniqueContacts);
+    setLoading(false);
+  }, [session.userId]);
+
+  useEffect(() => {
+    fetchContacts();
+    // Subscribe to real-time updates
+    const channel = supabase.channel("realtime_msgs")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, fetchContacts)
+      .subscribe();
       
-      {/* Messages Header */}
-      <div style={{ marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h2 style={{ fontSize: 24, color: T.text, margin: 0 }}>Messages <span style={{ color: T.orange }}>●</span></h2>
-          <div style={{ color: T.textMid, fontSize: 13 }}>Stay connected, grow together.</div>
-        </div>
-        {/* Top Right Icons */}
-        <div style={{ display: "flex", gap: 15, fontSize: 20, color: T.text }}>
-          <span>✉️</span>
-          <span>🔔</span>
-          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#333", overflow: "hidden" }}>
-            <img src={session.avatar_url} alt="Profile" />
-          </div>
-        </div>
+    return () => supabase.removeChannel(channel);
+  }, [fetchContacts]);
+
+  return (
+    <div style={{ background: T.bg, minHeight: "100vh", color: T.text, paddingBottom: 80 }}>
+      {/* Header */}
+      <div style={{ padding: "20px 16px" }}>
+        <h2 style={{ fontSize: 24, margin: 0 }}>Messages <span style={{ color: T.orange }}>●</span></h2>
+        <p style={{ color: T.textMid, fontSize: 13, marginTop: 4 }}>Stay connected, grow together.</p>
       </div>
 
-      {/* Search and Tabs remains same as your provided code */}
-      {/* ... (Insert your Search/Tabs/List code here) ... */}
+      {/* Content List */}
+      <div style={{ padding: "0 16px" }}>
+        {loading ? (
+          <div style={{ color: T.textMid }}>Loading conversations...</div>
+        ) : contacts.length === 0 ? (
+          <div style={{ textAlign: "center", marginTop: 50, color: T.textMid }}>
+            <div style={{ fontSize: 40 }}>💬</div>
+            <p>No conversations yet. Start by connecting with someone!</p>
+          </div>
+        ) : (
+          contacts.map(contact => (
+            <div 
+              key={contact.id} 
+              onClick={() => setActiveContact(contact)}
+              style={{
+                background: T.bgCard, padding: 15, borderRadius: 12,
+                marginBottom: 10, border: `1px solid ${T.border}`, cursor: "pointer"
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontWeight: 700 }}>User {contact.id.slice(0, 5)}...</span>
+                <span style={{ fontSize: 11, color: T.textMid }}>{timeLabel(contact.time)}</span>
+              </div>
+              <p style={{ fontSize: 13, color: T.textMid, margin: "5px 0 0" }}>{contact.lastMsg}</p>
+            </div>
+          ))
+        )}
+      </div>
 
       {/* Floating Action Button */}
       <div style={{
-        position: "fixed", right: 20, bottom: 90,
-        width: 56, height: 56, borderRadius: "50%",
-        background: T.orange, color: "#fff",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 28, boxShadow: "0 4px 12px rgba(249, 115, 22, 0.4)",
-        cursor: "pointer", zIndex: 900
+        position: "fixed", right: 20, bottom: 90, width: 56, height: 56,
+        borderRadius: "50%", background: T.orange, display: "flex",
+        alignItems: "center", justifyContent: "center", fontSize: 24, cursor: "pointer"
       }}>+</div>
-
-      {/* Bottom Navigation */}
-      <BottomNav active="messages" setActive={() => {}} />
     </div>
   );
 }
