@@ -14,13 +14,10 @@ function timeLabel(ts) {
   const d = new Date(ts);
   const now = new Date();
   const diff = (now - d) / 1000;
-  if (diff < 86400 && d.getDate() === now.getDate()) {
+  if (diff < 86400 && d.getDate() === now.getDate())
     return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-  }
   if (diff < 172800) return "Yesterday";
-  const day = d.getDate();
-  const month = d.toLocaleString("en-IN", { month: "short" });
-  return `${day} ${month}`;
+  return `${d.getDate()} ${d.toLocaleString("en-IN", { month: "short" })}`;
 }
 
 function dateSeparator(ts) {
@@ -35,17 +32,25 @@ function dateSeparator(ts) {
 
 function shouldShowDateSep(messages, index) {
   if (index === 0) return true;
-  const curr = new Date(messages[index].created_at);
-  const prev = new Date(messages[index - 1].created_at);
-  return curr.toDateString() !== prev.toDateString();
+  return new Date(messages[index].created_at).toDateString() !==
+         new Date(messages[index - 1].created_at).toDateString();
+}
+
+const avatarColors = [
+  "linear-gradient(135deg,#f97316,#ea6008)",
+  "linear-gradient(135deg,#7c3aed,#a78bfa)",
+  "linear-gradient(135deg,#0369a1,#38bdf8)",
+  "linear-gradient(135deg,#15803d,#22c55e)",
+  "linear-gradient(135deg,#be123c,#f43f5e)",
+];
+
+function getAvatarBg(name) {
+  return avatarColors[(name || "").charCodeAt(0) % avatarColors.length];
 }
 
 /* ── Contact Row ── */
 function ContactRow({ conv, isActive, onClick }) {
   const initials = (conv.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
-  const colors = ["linear-gradient(135deg,#f97316,#ea6008)", "linear-gradient(135deg,#7c3aed,#a78bfa)", "linear-gradient(135deg,#0369a1,#38bdf8)", "linear-gradient(135deg,#15803d,#22c55e)", "linear-gradient(135deg,#be123c,#f43f5e)"];
-  const bg = colors[(conv.name || "").charCodeAt(0) % colors.length];
-
   return (
     <div
       onClick={onClick}
@@ -53,18 +58,17 @@ function ContactRow({ conv, isActive, onClick }) {
         display: "flex", alignItems: "center", gap: 12,
         padding: "14px 16px", cursor: "pointer",
         background: isActive ? "#f9731610" : "transparent",
-        borderLeft: isActive ? `3px solid ${T.orange}` : "3px solid transparent",
+        borderLeft: `3px solid ${isActive ? T.orange : "transparent"}`,
         borderBottom: `1px solid ${T.border}`,
-        transition: "all .15s",
+        transition: "background .15s",
       }}
     >
       <div style={{ position: "relative", flexShrink: 0 }}>
-        <div style={{ width: 50, height: 50, borderRadius: "50%", background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff", overflow: "hidden" }}>
+        <div style={{ width: 50, height: 50, borderRadius: "50%", background: getAvatarBg(conv.name), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, color: "#fff", overflow: "hidden" }}>
           {conv.photo ? <img src={conv.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
         </div>
         <div style={{ position: "absolute", bottom: 1, right: 1, width: 11, height: 11, borderRadius: "50%", background: T.success, border: `2px solid ${T.bg}` }} />
       </div>
-
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
           <span style={{ fontWeight: 700, fontSize: 14, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "65%" }}>{conv.name}</span>
@@ -98,8 +102,7 @@ function ChatView({ contact, session, onBack }) {
 
   const fetchMessages = useCallback(async () => {
     const { data } = await supabase
-      .from("messages")
-      .select("*")
+      .from("messages").select("*")
       .or(`and(sender_id.eq.${session.userId},receiver_id.eq.${contact.id}),and(sender_id.eq.${contact.id},receiver_id.eq.${session.userId})`)
       .order("created_at", { ascending: true });
     setMessages(data || []);
@@ -109,10 +112,9 @@ function ChatView({ contact, session, onBack }) {
 
   useEffect(() => {
     fetchMessages();
-    const channelName = "chat_" + session.userId + "_" + contact.id + "_" + Math.random().toString(36).slice(2, 6);
-    channelRef.current = supabase.channel(channelName)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
-        const m = payload.new;
+    const name = "chat_" + [session.userId, contact.id].sort().join("_") + "_" + Math.random().toString(36).slice(2, 6);
+    channelRef.current = supabase.channel(name)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, ({ new: m }) => {
         if ((m.sender_id === session.userId && m.receiver_id === contact.id) ||
             (m.sender_id === contact.id && m.receiver_id === session.userId)) {
           setMessages(prev => [...prev, m]);
@@ -123,14 +125,14 @@ function ChatView({ contact, session, onBack }) {
   }, [contact.id, session.userId, fetchMessages]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
   }, [messages]);
 
   const send = async () => {
     if (!text.trim() || sending) return;
-    setSending(true);
     const content = text.trim();
     setText("");
+    setSending(true);
     await supabase.from("messages").insert({
       sender_id: session.userId, receiver_id: contact.id,
       content, read: false, created_at: new Date().toISOString(),
@@ -140,14 +142,6 @@ function ChatView({ contact, session, onBack }) {
   };
 
   const initials = (contact.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
-  const colors = [
-    "linear-gradient(135deg,#f97316,#ea6008)",
-    "linear-gradient(135deg,#7c3aed,#a78bfa)",
-    "linear-gradient(135deg,#0369a1,#38bdf8)",
-    "linear-gradient(135deg,#15803d,#22c55e)",
-    "linear-gradient(135deg,#be123c,#f43f5e)",
-  ];
-  const avatarBg = colors[(contact.name || "").charCodeAt(0) % colors.length];
 
   const attachOptions = [
     { icon: "🖼️", label: "Gallery",  color: "#7c3aed" },
@@ -159,23 +153,19 @@ function ChatView({ contact, session, onBack }) {
   return (
     <div style={{
       position: "fixed",
-      inset: 0,
-      zIndex: 300,
+      top: 0, left: 0, right: 0, bottom: 0,
+      zIndex: 999,
       background: T.bg,
       display: "flex",
       flexDirection: "column",
-      // Leave room for iOS safe area at bottom
-      paddingBottom: "env(safe-area-inset-bottom)",
+      overflow: "hidden",
     }}>
 
-      {/* ── Chat Header ── */}
-      <div style={{ flexShrink: 0, background: T.bgCard, borderBottom: `1px solid ${T.border}`, padding: "10px 14px 10px" }}>
+      {/* Header */}
+      <div style={{ flexShrink: 0, background: T.bgCard, borderBottom: `1px solid ${T.border}`, padding: "10px 14px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <button onClick={onBack}
-            style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontSize: 16, cursor: "pointer", flexShrink: 0 }}>
-            ←
-          </button>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", overflow: "hidden", flexShrink: 0 }}>
+          <button onClick={onBack} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontSize: 16, cursor: "pointer", flexShrink: 0 }}>←</button>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", background: getAvatarBg(contact.name), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", overflow: "hidden", flexShrink: 0 }}>
             {contact.photo ? <img src={contact.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -185,14 +175,11 @@ function ChatView({ contact, session, onBack }) {
               <span style={{ color: T.success }}>● Online</span>
             </div>
           </div>
-          <a href={`tel:${contact.mobile || contact.whatsapp || ""}`}
-            style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, textDecoration: "none", color: T.textMid, flexShrink: 0 }}>
-            📞
-          </a>
+          <a href={`tel:${contact.mobile || contact.whatsapp || ""}`} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, textDecoration: "none", color: T.textMid, flexShrink: 0 }}>📞</a>
           <button style={{ background: "none", border: "none", color: T.textMid, fontSize: 20, cursor: "pointer", flexShrink: 0 }}>⋯</button>
         </div>
 
-        {/* Location / Industry strip */}
+        {/* Info strip */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px" }}>
           {contact.location && (
             <div style={{ flex: 1 }}>
@@ -212,10 +199,10 @@ function ChatView({ contact, session, onBack }) {
         </div>
       </div>
 
-      {/* ── Messages ── */}
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 14px", display: "flex", flexDirection: "column", gap: 4, minHeight: 0 }}>
+      {/* Messages scroll area */}
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 14px", minHeight: 0 }}>
         {messages.length === 0 && (
-          <div style={{ textAlign: "center", margin: "auto", padding: "40px 20px" }}>
+          <div style={{ textAlign: "center", paddingTop: 60 }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>👋</div>
             <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 6 }}>Start the conversation</div>
             <div style={{ fontSize: 13, color: T.textLow }}>Say hello to {contact.name?.split(" ")[0]}</div>
@@ -228,15 +215,15 @@ function ChatView({ contact, session, onBack }) {
           return (
             <div key={msg.id}>
               {showSep && (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0" }}>
                   <div style={{ flex: 1, height: 1, background: T.border }} />
-                  <span style={{ fontSize: 11, color: T.textLow, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 20, padding: "3px 10px", fontWeight: 600 }}>
+                  <span style={{ fontSize: 11, color: T.textLow, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 20, padding: "3px 12px", fontWeight: 600 }}>
                     {dateSeparator(msg.created_at)}
                   </span>
                   <div style={{ flex: 1, height: 1, background: T.border }} />
                 </div>
               )}
-              <div style={{ display: "flex", justifyContent: isMine ? "flex-end" : "flex-start", marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: isMine ? "flex-end" : "flex-start", marginBottom: 6 }}>
                 <div style={{
                   maxWidth: "72%",
                   background: isMine ? "linear-gradient(135deg,#f97316,#ea6008)" : T.bgCard,
@@ -246,34 +233,28 @@ function ChatView({ contact, session, onBack }) {
                   boxShadow: isMine ? "0 4px 16px #f9731430" : "none",
                 }}>
                   <div style={{ fontSize: 14, color: isMine ? "#fff" : T.text, lineHeight: 1.5, wordBreak: "break-word" }}>{msg.content}</div>
-                  <div style={{ fontSize: 10, color: isMine ? "rgba(255,255,255,0.7)" : T.textLow, marginTop: 4, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                  <div style={{ fontSize: 10, color: isMine ? "rgba(255,255,255,0.7)" : T.textLow, marginTop: 5, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
                     {timeLabel(msg.created_at)}
-                    {isMine && <span style={{ color: msg.read ? "#60a5fa" : "rgba(255,255,255,0.6)" }}>{msg.read ? "✓✓" : "✓"}</span>}
+                    {isMine && <span style={{ color: msg.read ? "#60a5fa" : "rgba(255,255,255,0.55)", fontSize: 11 }}>{msg.read ? "✓✓" : "✓"}</span>}
                   </div>
                 </div>
               </div>
             </div>
           );
         })}
-        <div ref={bottomRef} />
+        <div ref={bottomRef} style={{ height: 8 }} />
       </div>
 
-      {/* ── Attachment Panel ── */}
+      {/* Attachment panel */}
       {showAttach && (
-        <div style={{ flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}`, padding: "14px 20px 18px", animation: "slideUp .25s ease" }}>
+        <div style={{ flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}`, padding: "14px 20px 18px", animation: "slideUp .2s ease" }}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-            <button onClick={() => setShowAttach(false)}
-              style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 20, padding: "4px 20px", color: T.textMid, fontSize: 14, cursor: "pointer" }}>
-              ▾
-            </button>
+            <button onClick={() => setShowAttach(false)} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 20, padding: "4px 24px", color: T.textMid, fontSize: 14, cursor: "pointer" }}>▾</button>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
             {attachOptions.map(opt => (
-              <div key={opt.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer" }}
-                onClick={() => setShowAttach(false)}>
-                <div style={{ width: 56, height: 56, borderRadius: 16, background: opt.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>
-                  {opt.icon}
-                </div>
+              <div key={opt.label} onClick={() => setShowAttach(false)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: opt.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>{opt.icon}</div>
                 <span style={{ fontSize: 11, color: T.textMid, fontWeight: 600 }}>{opt.label}</span>
               </div>
             ))}
@@ -281,32 +262,33 @@ function ChatView({ contact, session, onBack }) {
         </div>
       )}
 
-      {/* ── Input Bar ── */}
+      {/* Input bar — always pinned to bottom */}
       <div style={{
         flexShrink: 0,
         background: T.bgCard,
         borderTop: `1px solid ${T.border}`,
         padding: "10px 14px",
+        paddingBottom: "max(10px, env(safe-area-inset-bottom))",
         display: "flex",
         alignItems: "center",
         gap: 10,
       }}>
-        <button style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", flexShrink: 0, lineHeight: 1 }}>😊</button>
+        <button style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", flexShrink: 0, lineHeight: 1 }}>😊</button>
 
-        <div style={{ flex: 1, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 24, display: "flex", alignItems: "center", padding: "2px 14px" }}>
+        <div style={{ flex: 1, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 24, display: "flex", alignItems: "center", paddingLeft: 14, paddingRight: 6 }}>
           <input
             ref={inputRef}
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder="Type a message..."
-            style={{ flex: 1, background: "none", border: "none", color: T.text, fontSize: 14, outline: "none", padding: "10px 0", fontFamily: "'Plus Jakarta Sans',sans-serif", minWidth: 0 }}
+            style={{ flex: 1, background: "none", border: "none", color: T.text, fontSize: 14, outline: "none", padding: "11px 0", fontFamily: "'Plus Jakarta Sans',sans-serif", minWidth: 0 }}
           />
         </div>
 
         <button
           onClick={() => setShowAttach(a => !a)}
-          style={{ background: showAttach ? T.orangeMd : "none", border: showAttach ? `1px solid ${T.orange}44` : "none", borderRadius: "50%", width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, cursor: "pointer", flexShrink: 0 }}>
+          style={{ background: showAttach ? T.orangeMd : "none", border: showAttach ? `1px solid ${T.orange}44` : "none", borderRadius: "50%", width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, cursor: "pointer", flexShrink: 0, transition: "all .2s" }}>
           📎
         </button>
 
@@ -320,16 +302,15 @@ function ChatView({ contact, session, onBack }) {
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: text.trim() ? "pointer" : "default",
             flexShrink: 0,
-            boxShadow: text.trim() ? "0 4px 14px #f9731440" : "none",
+            boxShadow: text.trim() ? "0 4px 14px #f9731444" : "none",
             transition: "all .2s",
           }}>
-          <span style={{ fontSize: 18, color: text.trim() ? "#fff" : T.textLow, transform: "rotate(45deg)", display: "block", marginLeft: 2 }}>➤</span>
+          <span style={{ fontSize: 18, color: text.trim() ? "#fff" : T.textLow, transform: "rotate(45deg)", display: "block", marginLeft: 3 }}>➤</span>
         </button>
       </div>
     </div>
   );
 }
-
 
 /* ── Main MessagesPage ── */
 export default function MessagesPage({ session }) {
@@ -342,8 +323,7 @@ export default function MessagesPage({ session }) {
 
   const fetchContacts = useCallback(async () => {
     const { data: msgs } = await supabase
-      .from("messages")
-      .select("*")
+      .from("messages").select("*")
       .or(`sender_id.eq.${session.userId},receiver_id.eq.${session.userId}`)
       .order("created_at", { ascending: false });
 
@@ -364,16 +344,14 @@ export default function MessagesPage({ session }) {
       const unread = msgs.filter(m => m.sender_id === otherId && m.receiver_id === session.userId && !m.read).length;
       convs.push({ ...profile, id: otherId, last_message: msg.content, last_message_at: msg.created_at, unread });
     }
-
     setContacts(convs);
     setLoading(false);
   }, [session.userId]);
 
   useEffect(() => {
     fetchContacts();
-    const sub = supabase.channel("messages_list_" + session.userId)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
-        const m = payload.new;
+    const sub = supabase.channel("msgs_list_" + session.userId)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, ({ new: m }) => {
         if (m.sender_id === session.userId || m.receiver_id === session.userId) fetchContacts();
       })
       .subscribe();
@@ -382,10 +360,9 @@ export default function MessagesPage({ session }) {
 
   const filtered = contacts.filter(c => {
     const q = search.toLowerCase();
-    const matchSearch = !q || c.name?.toLowerCase().includes(q) || c.designation?.toLowerCase().includes(q);
-    if (activeTab === "connections") return matchSearch;
-    if (activeTab === "requests") return matchSearch && c.unread > 0;
-    return matchSearch;
+    const match = !q || c.name?.toLowerCase().includes(q) || c.designation?.toLowerCase().includes(q);
+    if (activeTab === "requests") return match && c.unread > 0;
+    return match;
   });
 
   const tabs = [
@@ -394,38 +371,28 @@ export default function MessagesPage({ session }) {
     { id: "requests", label: "Requests", badge: contacts.filter(c => c.unread > 0).length },
   ];
 
-  // Mobile: show chat fullscreen
+  // Mobile full-screen chat
   if (isMobile && activeContact) {
-    return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 200, background: T.bg, display: "flex", flexDirection: "column" }}>
-        <ChatView contact={activeContact} session={session} onBack={() => setActiveContact(null)} />
-      </div>
-    );
+    return <ChatView contact={activeContact} session={session} onBack={() => setActiveContact(null)} />;
   }
 
   return (
-    <div style={{ display: "flex", height: isMobile ? "auto" : "calc(100vh - 80px)", gap: 0 }}>
+    <div style={{ display: "flex", height: isMobile ? "auto" : "calc(100vh - 80px)" }}>
 
-      {/* ── Contacts Sidebar ── */}
-      <div style={{
-        width: isMobile ? "100%" : 340,
-        flexShrink: 0,
-        display: "flex",
-        flexDirection: "column",
-        background: T.bg,
-        borderRight: isMobile ? "none" : `1px solid ${T.border}`,
-      }}>
+      {/* Contacts sidebar */}
+      <div style={{ width: isMobile ? "100%" : 340, flexShrink: 0, display: "flex", flexDirection: "column", background: T.bg, borderRight: isMobile ? "none" : `1px solid ${T.border}` }}>
+
         {/* Header */}
-        <div style={{ padding: "20px 16px 14px", flexShrink: 0 }}>
+        <div style={{ padding: "20px 16px 12px", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text, letterSpacing: "-.02em" }}>Messages</h2>
+            <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text }}>Messages</h2>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.orange, boxShadow: `0 0 8px ${T.orange}` }} />
           </div>
           <div style={{ fontSize: 12, color: T.textLow }}>Stay connected, grow together.</div>
         </div>
 
         {/* Search */}
-        <div style={{ padding: "0 12px 12px", flexShrink: 0, display: "flex", gap: 8 }}>
+        <div style={{ padding: "0 12px 10px", display: "flex", gap: 8, flexShrink: 0 }}>
           <div style={{ flex: 1, position: "relative" }}>
             <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: T.textLow, pointerEvents: "none" }}>🔍</span>
             <input
@@ -441,19 +408,17 @@ export default function MessagesPage({ session }) {
         </div>
 
         {/* Tabs */}
-        <div style={{ padding: "0 12px 10px", flexShrink: 0, display: "flex", gap: 8 }}>
+        <div style={{ padding: "0 12px 10px", display: "flex", gap: 8, flexShrink: 0 }}>
           {tabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              style={{ display: "flex", alignItems: "center", gap: 5, background: activeTab === tab.id ? T.orangeMd : T.bgInput, border: `1px solid ${activeTab === tab.id ? T.orange + "55" : T.border}`, borderRadius: 20, padding: "6px 14px", color: activeTab === tab.id ? T.orange : T.textMid, fontSize: 12, fontWeight: 700, cursor: "pointer", position: "relative" }}>
+              style={{ display: "flex", alignItems: "center", gap: 5, background: activeTab === tab.id ? T.orangeMd : T.bgInput, border: `1px solid ${activeTab === tab.id ? T.orange + "55" : T.border}`, borderRadius: 20, padding: "6px 14px", color: activeTab === tab.id ? T.orange : T.textMid, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
               {tab.label}
-              {tab.badge > 0 && (
-                <span style={{ background: T.orange, color: "#fff", borderRadius: "50%", minWidth: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, padding: "0 3px" }}>{tab.badge}</span>
-              )}
+              {tab.badge > 0 && <span style={{ background: T.orange, color: "#fff", borderRadius: "50%", minWidth: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, padding: "0 3px" }}>{tab.badge}</span>}
             </button>
           ))}
         </div>
 
-        {/* Contact list */}
+        {/* List */}
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0 }}>
           {loading && (
             <div style={{ display: "flex", flexDirection: "column" }}>
@@ -461,7 +426,7 @@ export default function MessagesPage({ session }) {
                 <div key={i} style={{ display: "flex", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${T.border}` }}>
                   <div style={{ width: 50, height: 50, borderRadius: "50%", background: T.bgInput, flexShrink: 0 }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ width: "55%", height: 13, background: T.bgInput, borderRadius: 4, marginBottom: 7 }} />
+                    <div style={{ width: "55%", height: 13, background: T.bgInput, borderRadius: 4, marginBottom: 8 }} />
                     <div style={{ width: "40%", height: 11, background: T.bgInput, borderRadius: 4 }} />
                   </div>
                 </div>
@@ -487,15 +452,15 @@ export default function MessagesPage({ session }) {
           ))}
         </div>
 
-        {/* New message FAB */}
+        {/* FAB */}
         <div style={{ padding: "12px 16px", flexShrink: 0, display: "flex", justifyContent: "flex-end", borderTop: `1px solid ${T.border}` }}>
-          <button style={{ width: 48, height: 48, borderRadius: "50%", background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, cursor: "pointer", boxShadow: "0 4px 16px #f9731444" }}>
+          <button style={{ width: 48, height: 48, borderRadius: "50%", background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, cursor: "pointer", boxShadow: "0 4px 16px #f9731444", color: "#fff", fontWeight: 300 }}>
             +
           </button>
         </div>
       </div>
 
-      {/* ── Chat Panel (desktop) ── */}
+      {/* Desktop chat panel */}
       {!isMobile && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           {activeContact ? (
@@ -504,9 +469,7 @@ export default function MessagesPage({ session }) {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16, background: T.bg }}>
               <div style={{ width: 80, height: 80, borderRadius: "50%", background: T.orangeLo, border: `1px solid ${T.orange}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36 }}>💬</div>
               <div style={{ fontWeight: 800, fontSize: 18, color: T.text }}>Your Messages</div>
-              <div style={{ fontSize: 13, color: T.textLow, textAlign: "center", maxWidth: 280, lineHeight: 1.6 }}>
-                Select a conversation from the left to start chatting with a TezConnect member
-              </div>
+              <div style={{ fontSize: 13, color: T.textLow, textAlign: "center", maxWidth: 280, lineHeight: 1.6 }}>Select a conversation to start chatting</div>
             </div>
           )}
         </div>
