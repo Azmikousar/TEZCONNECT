@@ -2457,156 +2457,180 @@ function AimCard({ aim, i }) {
 }
 function DashboardScreen({ session, profile, onGoProfile, onNav }) {
   const stats = useDashboardStats(session.userId);
+  const pct = ProfilePct(profile);
+  const firstName = session.name?.split(" ")[0] || "there";
+
+  const statCards = [
+    { icon: "👥", label: "Connections", value: stats.connections ?? "—", color: "#3b82f6", bg: "#1e3a5f", trend: "+12%", emoji: "↑" },
+    { icon: "🎯", label: "Leads",        value: stats.leads       ?? "—", color: "#a855f7", bg: "#3b1f5e", trend: "+18%", emoji: "↑" },
+    { icon: "👁️", label: "Profile Views", value: stats.views      ?? "—", color: "#f97316", bg: "#5f2a00", trend: "+24%", emoji: "↑" },
+    { icon: "💬", label: "Messages",     value: stats.messages    ?? "—", color: "#06b6d4", bg: "#0c3a4a", trend: "+8%",  emoji: "↑" },
+  ];
+
+  const exploreItems = [
+    { id: "marketplace",  label: "Marketplace",  sub: "Buy products & services",         emoji: "🛍️",  bg: "linear-gradient(135deg,#c2410c,#f97316)" },
+    { id: "myproducts",   label: "My Listings",  sub: "Sell your products & services",   emoji: "📦",  bg: "linear-gradient(135deg,#15803d,#22c55e)" },
+    { id: "network",      label: "Network",      sub: "Connect with professionals",       emoji: "🌐",  bg: "linear-gradient(135deg,#1d4ed8,#60a5fa)" },
+    { id: "services",     label: "Promote",      sub: "Boost your business",              emoji: "📣",  bg: "linear-gradient(135deg,#7c3aed,#a78bfa)" },
+    { id: "tezprints",    label: "Tez Prints",   sub: "Official merchandise & prints",    emoji: "🖨️",  bg: "linear-gradient(135deg,#b45309,#fbbf24)" },
+    { id: "appstore",     label: "App Store",    sub: "CapCut, Canva & more",             emoji: "📱",  bg: "linear-gradient(135deg,#0e7490,#38bdf8)" },
+    { id: "events",       label: "Events",       sub: "Browse & register for events",     emoji: "📅",  bg: "linear-gradient(135deg,#be123c,#f43f5e)" },
+    { id: "leads",        label: "Leads",        sub: "Manage your business leads",       emoji: "🎯",  bg: "linear-gradient(135deg,#4f46e5,#818cf8)" },
+  ];
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 28, animation: "fadeUp .35s ease" }}>
-      {/* Welcome */}
-      <div
-        style={{
-          background: "linear-gradient(135deg,#0d1020,#0c0e1a)",
-          border: `1px solid ${T.orange}33`,
-          borderRadius: 20,
-          padding: "32px 36px",
-          position: "relative",
-          overflow: "hidden",
-          boxShadow: "0 0 60px #f9731608",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: -50,
-            right: -50,
-            width: 200,
-            height: 200,
-            borderRadius: "50%",
-            background: T.orange + "07",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 1,
-            background: "linear-gradient(90deg,transparent,#f9731644,transparent)",
-          }}
-        />
-        <div style={{ position: "relative" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-            <div
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: T.success,
-                boxShadow: `0 0 8px ${T.success}`,
-              }}
-            />
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, animation: "fadeUp .35s ease" }}>
+
+      {/* ── Hero Banner ── */}
+      <div style={{
+        borderRadius: 24,
+        padding: "28px 24px",
+        position: "relative",
+        overflow: "hidden",
+        background: "linear-gradient(135deg,#0a0f2e 0%,#0d1545 40%,#0a1628 100%)",
+        border: "1px solid #1e2d6b",
+        minHeight: 220,
+      }}>
+        {/* Glow orbs */}
+        <div style={{ position: "absolute", top: -40, right: -40, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle,#3b82f620 0%,transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: -30, left: -30, width: 160, height: 160, borderRadius: "50%", background: "radial-gradient(circle,#f9731615 0%,transparent 70%)", pointerEvents: "none" }} />
+
+        {/* Rocket illustration — SVG inline */}
+        <div style={{ position: "absolute", top: 16, right: 16, fontSize: 80, opacity: 0.9, userSelect: "none", animation: "fadeUp .6s ease" }}>🚀</div>
+        <div style={{ position: "absolute", top: 60, right: 80, fontSize: 28, opacity: 0.6, animation: "pulse 2s ease infinite" }}>📊</div>
+        <div style={{ position: "absolute", top: 110, right: 36, fontSize: 22, opacity: 0.5, animation: "pulse 2.5s ease infinite" }}>🎯</div>
+        <div style={{ position: "absolute", top: 28, right: 140, fontSize: 20, opacity: 0.4, animation: "pulse 3s ease infinite" }}>👥</div>
+
+        {/* Dotted trail */}
+        <div style={{ position: "absolute", top: 50, right: 60, width: 120, height: 120, background: "radial-gradient(ellipse,#f9731610 0%,transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
+
+        {/* Content */}
+        <div style={{ position: "relative", maxWidth: "62%" }}>
+          <div style={{ fontFamily: "'Instrument Serif',serif", fontStyle: "italic", fontSize: 15, color: "#94a3b8", marginBottom: 2, letterSpacing: ".01em" }}>
+            Welcome back,
           </div>
-          <h2
-            style={{
-              fontFamily: "'Instrument Serif',serif",
-              fontStyle: "italic",
-              fontWeight: 400,
-              fontSize: 30,
-              color: T.text,
-              marginBottom: 10,
-              lineHeight: 1.2,
-            }}
-          >
-            Welcome back, <span style={{ color: T.orange }}>{session.name.split(" ")[0]}</span> 👋
-          </h2>
-          <p
-            style={{
-              color: T.textMid,
-              fontSize: 14,
-              marginBottom: 20,
-              maxWidth: 500,
-              lineHeight: 1.7,
-            }}
-          >
-            Your TezConnect B2B dashboard. Build connections, generate leads, and grow your
-            business.
+          <h1 style={{ fontWeight: 800, fontSize: 30, color: T.text, letterSpacing: "-.03em", lineHeight: 1.1, marginBottom: 10 }}>
+            {firstName} <span style={{ display: "inline-block" }}>👋</span>
+          </h1>
+          <p style={{ color: "#94a3b8", fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
+            Your <strong style={{ color: T.orange }}>TezConnect B2B</strong> dashboard.<br />
+            Build connections, generate leads, and grow your business.
           </p>
-          <ProfileCompleteness profile={profile} />
-          {ProfilePct(profile) < 50 && (
-            <div style={{ marginTop: 14 }}>
-              <Btn onClick={onGoProfile} small icon="✏️">
-                Complete Your Profile
-              </Btn>
+
+          {/* Profile completeness */}
+          <div style={{ background: "#ffffff10", backdropFilter: "blur(8px)", border: "1px solid #ffffff18", borderRadius: 14, padding: "12px 14px", marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>Profile Completeness</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: T.orange }}>{pct}%</span>
             </div>
+            <div style={{ height: 6, background: "#ffffff18", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg,#f97316,#fbbf24)", borderRadius: 4, transition: "width .8s ease" }} />
+            </div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>Complete your profile to unlock full visibility</div>
+          </div>
+
+          {pct < 100 && (
+            <button
+              onClick={onGoProfile}
+              style={{ background: "transparent", border: "1.5px solid #f97316", borderRadius: 10, padding: "9px 18px", color: T.orange, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+            >
+              Complete Profile →
+            </button>
           )}
         </div>
       </div>
 
-       
-      {/* Quick actions — Marketplace, My Listings & Tez Prints */}
-<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-  <div onClick={() => onNav("marketplace")} style={{ background: "linear-gradient(135deg,#1a0a00,#0c0e1a)", border: `1px solid ${T.orange}33`, borderRadius: 16, padding: "20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
-    <div style={{ width: 48, height: 48, borderRadius: 12, background: T.orangeLo, border: `1px solid ${T.orange}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>🛍️</div>
-    <div>
-      <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>Marketplace</div>
-      <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Buy products & services from members</div>
-    </div>
-  </div>
+      {/* ── Stats Row ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
+        {statCards.map((s, i) => (
+          <div key={s.label} style={{ background: `linear-gradient(135deg,${s.bg}cc,#0b0d1799)`, border: `1px solid ${s.color}33`, borderRadius: 18, padding: "16px", position: "relative", overflow: "hidden", animation: `fadeUp .4s ease ${i * 60}ms both` }}>
+            <div style={{ position: "absolute", top: -20, right: -20, width: 80, height: 80, borderRadius: "50%", background: `radial-gradient(circle,${s.color}22 0%,transparent 70%)` }} />
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 12, background: s.color + "28", border: `1px solid ${s.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{s.icon}</div>
+              <span style={{ fontSize: 10, color: T.success, fontWeight: 700, background: T.successLo, border: `1px solid ${T.success}44`, borderRadius: 20, padding: "2px 7px" }}>{s.emoji} {s.trend}</span>
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 26, color: T.text, letterSpacing: "-.02em", lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, fontWeight: 600 }}>{s.label}</div>
+            {/* Mini wave */}
+            <div style={{ marginTop: 10, height: 24, opacity: 0.4 }}>
+              <svg viewBox="0 0 80 24" width="100%" height="24" preserveAspectRatio="none">
+                <polyline points="0,18 12,12 24,16 36,8 48,14 60,6 72,10 80,4" fill="none" stroke={s.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </div>
+        ))}
+      </div>
 
-  <div onClick={() => onNav("myproducts")} style={{ background: "linear-gradient(135deg,#0a1a10,#0c0e1a)", border: `1px solid ${T.success}33`, borderRadius: 16, padding: "20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
-    <div style={{ width: 48, height: 48, borderRadius: 12, background: T.successLo, border: `1px solid ${T.success}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>📦</div>
-    <div>
-      <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>My Listings</div>
-      <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>Sell your own products & services</div>
-    </div>
-  </div>
-</div>
-  
-       
-
-
-      {/* Aims grid */}
+      {/* ── Explore TezConnect ── */}
       <div>
-        <div
-          style={{
-            fontSize: 11,
-            color: T.textLow,
-            fontWeight: 700,
-            letterSpacing: ".1em",
-            textTransform: "uppercase",
-            marginBottom: 8,
-          }}
-        >
-          Platform Capabilities
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 800, fontSize: 17, color: T.text }}>Explore TezConnect</span>
+            <span style={{ fontSize: 16 }}>✨</span>
+          </div>
+          <button style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+            See all ›
+          </button>
         </div>
-        <h3
-          style={{
-            fontWeight: 800,
-            fontSize: 20,
-            color: T.text,
-            letterSpacing: "-.03em",
-            marginBottom: 16,
-          }}
-        >
-          What You Can Do on <span style={{ color: T.orange }}>TezConnect</span>
-        </h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
+          {exploreItems.map((item, i) => (
+            <div
+              key={item.id}
+              onClick={() => onNav(item.id)}
+              style={{ borderRadius: 18, padding: "18px 16px", cursor: "pointer", position: "relative", overflow: "hidden", background: item.bg, transition: "transform .2s, box-shadow .2s", animation: `fadeUp .4s ease ${i * 50}ms both` }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 12px 32px #00000066"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              {/* Glow */}
+              <div style={{ position: "absolute", top: -30, right: -30, width: 100, height: 100, borderRadius: "50%", background: "#ffffff10", pointerEvents: "none" }} />
+
+              {/* Emoji illustration */}
+              <div style={{ fontSize: 36, marginBottom: 8, filter: "drop-shadow(0 4px 8px #00000044)" }}>{item.emoji}</div>
+
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#fff", marginBottom: 4, lineHeight: 1.2 }}>{item.label}</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", lineHeight: 1.4, marginBottom: 12 }}>{item.sub}</div>
+
+              {/* Arrow button */}
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#ffffff22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#fff" }}>→</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Premium Banner ── */}
+      <div style={{ borderRadius: 20, padding: "20px 20px", background: "linear-gradient(135deg,#1a0a2e,#2d1854,#1a0a2e)", border: "1px solid #7c3aed44", position: "relative", overflow: "hidden", display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ position: "absolute", top: -30, right: -30, width: 140, height: 140, borderRadius: "50%", background: "radial-gradient(circle,#a855f720 0%,transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ fontSize: 44, flexShrink: 0, filter: "drop-shadow(0 4px 12px #f9731444)" }}>👑</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 800, fontSize: 16, color: T.text, lineHeight: 1.2, marginBottom: 4 }}>
+            Unlock <span style={{ color: T.orange }}>Premium Benefits</span>
+          </div>
+          <div style={{ fontSize: 12, color: "#94a3b8" }}>Get more visibility, leads & growth</div>
+        </div>
+        <button
+          onClick={() => onNav("services")}
+          style={{ flexShrink: 0, background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "10px 16px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 4px 16px #f9731444" }}>
+          Upgrade Now →
+        </button>
+      </div>
+
+      {/* ── What You Can Do ── */}
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <span style={{ fontWeight: 800, fontSize: 17, color: T.text }}>Platform Capabilities</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
           {AIMS.map((aim, i) => (
             <AimCard key={aim.title} aim={aim} i={i} />
           ))}
         </div>
       </div>
-       <div onClick={() => onNav("appstore")} style={{ background: "linear-gradient(135deg,#0a0a1a,#0c0e1a)", border: `1px solid #a78bfa33`, borderRadius: 16, padding: "20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
-  <div style={{ width: 48, height: 48, borderRadius: 12, background: "#a78bfa12", border: "1px solid #a78bfa33", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>📱</div>
-  <div>
-    <div style={{ fontWeight: 800, fontSize: 15, color: T.text }}>Tez App Store</div>
-    <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>CapCut, Canva & premium software</div>
-  </div>
-</div>
 
-
-     
     </div>
   );
 }
+
 
 function MobileTestimonialCard({ t }) {
   const [expanded, setExpanded] = useState(false);
