@@ -3316,11 +3316,13 @@ const [showMoreMenu, setShowMoreMenu] = useState(false);
 
  useEffect(() => {
   const handler = (e) => {
-    setPage(e.detail.page);
+    if (e.detail?.userId){
     setViewingUserId(e.detail.userId);
+     setPage("publicprofile");
+    }
   };
-  window.addEventListener("tez-navigate", handler);
-  return () => window.removeEventListener("tez-navigate", handler);
+  window.addEventListener("tez-view-profile", handler);
+  return () => window.removeEventListener("tez-view-profile", handler);
 }, []);
   
 
