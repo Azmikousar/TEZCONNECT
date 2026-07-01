@@ -429,6 +429,24 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile })
             style={{ flex:1, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
             📤 Share Profile
           </button>
+          {/* Message button */}
+<button
+  onClick={() => {
+    window.dispatchEvent(new CustomEvent("tez-navigate", {
+      detail: { page: "messages", userId: profile.id }
+    }));
+  }}
+  style={{
+    flex: 1,
+    background: "linear-gradient(135deg,#f97316,#ea6008)",
+    border: "none", borderRadius: 12, padding: "12px",
+    color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+    boxShadow: "0 4px 16px #f9731440",
+  }}
+>
+  💬 Message
+</button>
         </div>
 
         {/* Feed / Grid toggle */}
