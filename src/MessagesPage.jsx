@@ -82,7 +82,26 @@ function ChatView({ contact, session, onBack,onViewProfile}) {
       .eq("receiver_id", session.userId)
       .eq("read", false);
   }, [session.userId, contact.id]);
+useEffect(() => {
+  const handler = async (e) => {
+    const { userId } = e.detail || {};
+    if (!userId) return;
 
+    // fetch the profile and open chat directly
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (profile) setActive(profile);
+  };
+
+  window.addEventListener("tez-open-chat", handler);
+  return () => window.removeEventListener("tez-open-chat", handler);
+}, []);
+
+  
   useEffect(() => {
     loadMsgs();
     const ch = `chat_${[session.userId, contact.id].sort().join("_")}_${Math.random().toString(36).slice(2, 7)}`;
@@ -569,9 +588,19 @@ export default function MessagesPage({ session }) {
         <ChatView contact={active} session={session} onBack={() => setActive(null)} 
           onViewProfile={(userId) => {
       setActive(null);
-      // navigate to public profile
-      window.dispatchEvent(new CustomEvent("tez-navigate", { detail: { page: "publicprofile", userId } }));
-    }}
+      // navigate to public 
+            onClick={() => {
+  window.dispatchEvent(new CustomEvent("tez-navigate", {
+    detail: { page: "messages" }
+  }));
+  // small delay so MessagesPage mounts before the open-chat event fires
+  setTimeout(() => {
+    window.dispatchEvent(new CustomEvent("tez-open-chat", {
+      detail: { userId: profile.id }
+    }));
+  }, 150);
+}}
+
           />,
         document.body
       )}
