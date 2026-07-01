@@ -262,58 +262,135 @@ function ChatView({ contact, session, onBack }) {
         )}
 
         {msgs.map((msg, i) => {
-          const mine = msg.sender_id === session.userId;
-          const hasLink = msg.content?.includes("http");
-          const linkUrl = hasLink ? msg.content.split(" ").find(w => w.startsWith("http")) : null;
-          return (
-            <div key={msg.id || i}>
-              {needsSep(msgs, i) && (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0" }}>
-                  <div style={{ flex: 1, height: 1, background: T.border }} />
-                  <span style={{
-                    fontSize: 11, color: T.textLow, fontWeight: 600,
-                    background: T.bgInput, border: `1px solid ${T.border}`,
-                    borderRadius: 20, padding: "3px 12px",
-                  }}>{fmtSep(msg.created_at)}</span>
-                  <div style={{ flex: 1, height: 1, background: T.border }} />
-                </div>
-              )}
-              <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", marginBottom: 6 }}>
-                <div style={{
-                  maxWidth: "72%",
-                  background: mine ? "linear-gradient(135deg,#f97316,#ea6008)" : T.bgCard,
-                  border: mine ? "none" : `1px solid ${T.border}`,
-                  borderRadius: mine ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                  padding: "10px 14px",
-                  boxShadow: mine ? "0 4px 16px #f9731430" : "none",
-                }}>
-                  {linkUrl ? (
-                    <a href={linkUrl} target="_blank" rel="noopener noreferrer" style={{
-                      fontSize: 13, color: mine ? "#fff" : T.orange,
-                      lineHeight: 1.5, wordBreak: "break-all", textDecoration: "underline", display: "block",
-                    }}>{msg.content}</a>
-                  ) : (
-                    <div style={{ fontSize: 14, color: mine ? "#fff" : T.text, lineHeight: 1.5, wordBreak: "break-word" }}>
-                      {msg.content}
-                    </div>
-                  )}
-                  <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4,
-                    marginTop: 4, fontSize: 10,
-                    color: mine ? "rgba(255,255,255,0.65)" : T.textLow,
-                  }}>
-                    {fmtTime(msg.created_at)}
-                    {mine && (
-                      <span style={{ color: msg.read ? "#60a5fa" : "rgba(255,255,255,0.5)" }}>
-                        {msg.read ? "✓✓" : "✓"}
-                      </span>
-                    )}
-                  </div>
-                </div>
+  const mine = msg.sender_id === session.userId;
+  const isImage = msg.content?.startsWith("📷") && msg.content?.includes("http");
+  const isDoc = msg.content?.startsWith("📄") && msg.content?.includes("http");
+  const isLocation = msg.content?.startsWith("📍") && msg.content?.includes("http");
+  const linkUrl = msg.content?.split(" ").find(w => w.startsWith("http"));
+
+  return (
+    <div key={msg.id || i}>
+      {needsSep(msgs, i) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0" }}>
+          <div style={{ flex: 1, height: 1, background: T.border }} />
+          <span style={{
+            fontSize: 11, color: T.textLow, fontWeight: 600,
+            background: T.bgInput, border: `1px solid ${T.border}`,
+            borderRadius: 20, padding: "3px 12px",
+          }}>{fmtSep(msg.created_at)}</span>
+          <div style={{ flex: 1, height: 1, background: T.border }} />
+        </div>
+      )}
+      <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", marginBottom: 6 }}>
+        <div style={{
+          maxWidth: "75%",
+          background: mine ? "linear-gradient(135deg,#f97316,#ea6008)" : T.bgCard,
+          border: mine ? "none" : `1px solid ${T.border}`,
+          borderRadius: mine ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+          padding: isImage ? "4px" : "10px 14px",
+          boxShadow: mine ? "0 4px 16px #f9731430" : "none",
+          overflow: "hidden",
+        }}>
+          {/* Image message */}
+          {isImage && linkUrl && (
+            <div>
+              <a href={linkUrl} target="_blank" rel="noopener noreferrer">
+                <img src={linkUrl} alt="Shared image" style={{
+                  width: "100%", maxWidth: 240, height: 180,
+                  objectFit: "cover", borderRadius: 14, display: "block",
+                }} />
+              </a>
+              <div style={{
+                fontSize: 10, padding: "4px 10px 6px",
+                color: mine ? "rgba(255,255,255,0.65)" : T.textLow,
+                textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4,
+              }}>
+                {fmtTime(msg.created_at)}
+                {mine && <span style={{ color: msg.read ? "#60a5fa" : "rgba(255,255,255,0.5)" }}>{msg.read ? "✓✓" : "✓"}</span>}
               </div>
             </div>
-          );
-        })}
+          )}
+
+          {/* Document message */}
+          {isDoc && linkUrl && (
+            <div>
+              <a href={linkUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  background: mine ? "rgba(0,0,0,0.15)" : T.bgInput,
+                  borderRadius: 10, padding: "10px 12px", marginBottom: 4,
+                }}>
+                  <div style={{ fontSize: 28, flexShrink: 0 }}>📄</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: mine ? "#fff" : T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {msg.content.split(" ")[1] || "Document"}
+                    </div>
+                    <div style={{ fontSize: 10, color: mine ? "rgba(255,255,255,0.6)" : T.textLow, marginTop: 2 }}>
+                      Tap to open
+                    </div>
+                  </div>
+                </div>
+              </a>
+              <div style={{
+                fontSize: 10, paddingTop: 2,
+                color: mine ? "rgba(255,255,255,0.65)" : T.textLow,
+                textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4,
+              }}>
+                {fmtTime(msg.created_at)}
+                {mine && <span style={{ color: msg.read ? "#60a5fa" : "rgba(255,255,255,0.5)" }}>{msg.read ? "✓✓" : "✓"}</span>}
+              </div>
+            </div>
+          )}
+
+          {/* Location message */}
+          {isLocation && linkUrl && (
+            <div>
+              <a href={linkUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  background: mine ? "rgba(0,0,0,0.15)" : T.bgInput,
+                  borderRadius: 10, padding: "10px 12px", marginBottom: 4,
+                }}>
+                  <div style={{ fontSize: 28, flexShrink: 0 }}>📍</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: mine ? "#fff" : T.text }}>Shared Location</div>
+                    <div style={{ fontSize: 10, color: mine ? "rgba(255,255,255,0.6)" : T.textLow, marginTop: 2 }}>Tap to open in Maps</div>
+                  </div>
+                </div>
+              </a>
+              <div style={{
+                fontSize: 10, paddingTop: 2,
+                color: mine ? "rgba(255,255,255,0.65)" : T.textLow,
+                textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4,
+              }}>
+                {fmtTime(msg.created_at)}
+                {mine && <span style={{ color: msg.read ? "#60a5fa" : "rgba(255,255,255,0.5)" }}>{msg.read ? "✓✓" : "✓"}</span>}
+              </div>
+            </div>
+          )}
+
+          {/* Regular text message */}
+          {!isImage && !isDoc && !isLocation && (
+            <div>
+              <div style={{ fontSize: 14, color: mine ? "#fff" : T.text, lineHeight: 1.5, wordBreak: "break-word" }}>
+                {msg.content}
+              </div>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4,
+                marginTop: 4, fontSize: 10,
+                color: mine ? "rgba(255,255,255,0.65)" : T.textLow,
+              }}>
+                {fmtTime(msg.created_at)}
+                {mine && <span style={{ color: msg.read ? "#60a5fa" : "rgba(255,255,255,0.5)" }}>{msg.read ? "✓✓" : "✓"}</span>}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+})}
+
         <div ref={bottomRef} style={{ height: 4 }} />
       </div>
 
