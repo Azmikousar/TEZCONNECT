@@ -3313,6 +3313,15 @@ const { unreadCount: notifUnread } = useNotifications(session.userId);
 const isMobile = useIsMobile();
 const [showMoreMenu, setShowMoreMenu] = useState(false);
  const [showShare, setShowShare] = useState(false);
+
+ useEffect(() => {
+  const handler = (e) => {
+    setPage(e.detail.page);
+    setViewingUserId(e.detail.userId);
+  };
+  window.addEventListener("tez-navigate", handler);
+  return () => window.removeEventListener("tez-navigate", handler);
+}, []);
   
 
 useEffect(() => {
@@ -3448,6 +3457,7 @@ useEffect(() => {
   );
 }
 
+if (page === "publicprofile") return <PublicProfilePage userId={viewingUserId} session={session} />;
 
   
 
