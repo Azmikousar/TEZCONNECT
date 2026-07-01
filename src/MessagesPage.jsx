@@ -62,7 +62,7 @@ function needsSep(msgs, i) {
 }
 
 /* ─── CHAT VIEW ─── */
-function ChatView({ contact, session, onBack }) {
+function ChatView({ contact, session, onBack,onViewProfile}) {
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -187,7 +187,9 @@ function ChatView({ contact, session, onBack }) {
                 <div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{contact.industry}</div>
               </div>
             )}
-            <button style={{ background: "none", border: "none", color: T.orange, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+            <button 
+              onClick={() => { onBack(); onViewProfile(contact.id); }}
+              style={{ background: "none", border: "none", color: T.orange, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
               View profile
             </button>
           </div>
