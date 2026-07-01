@@ -430,13 +430,12 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile })
             📤 Share Profile
           </button>
           {/* Message button */}
+           <button
+  onClick={() => {
+    window.location.href = `/messages?user=${profile.id}`;
+  }}
 
-          <button
-            onClick={()=>{
-              const url=window.location.origin+(profile.username?`/u/${profile.username}`:"");
-              if(navigator.share){navigator.share({title:profile.name+" on TezConnect",url});}
-              else{navigator.clipboard.writeText(url);}
-            }}
+  
             style={{ flex:1, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
                🏹 send
           </button>
