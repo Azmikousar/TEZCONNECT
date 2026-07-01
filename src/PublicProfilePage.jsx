@@ -429,16 +429,6 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile })
             style={{ flex:1, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
             📤 Share Profile
           </button>
-          {/* Message button */}
-           <button
-  onClick={() => {
-    window.location.href = `/messages?user=${profile.id}`;
-  }}
-
-  
-            style={{ flex:1, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-               🏹 send
-          </button>
   
         </div>
 
