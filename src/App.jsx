@@ -3305,6 +3305,7 @@ function AppShell({ session, onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [profile, setProfile] = useState({});
 const [profileLoading, setProfileLoading] = useState(true);
+const [viewingUserId, setViewingUserId] = useState(null);
 
 const { pendingReceived, accepted, getStatus, sendRequest,
         acceptRequest, rejectRequest, removeConnection } = useConnections(session.userId);
