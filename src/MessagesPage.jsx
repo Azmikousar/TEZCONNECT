@@ -584,21 +584,50 @@ export default function MessagesPage({ session }) {
   return (
     <>
       {/* Chat view via portal — covers top bar and bottom nav completely */}
-      {active && createPortal(
-        <ChatView contact={active} session={session} onBack={() => setActive(null)} 
+     return (
+  <>
+    {/* Chat view via portal — covers top bar and bottom nav completely */}
+    {active &&
+      createPortal(
+        <ChatView
+          contact={active}
+          session={session}
+          onBack={() => setActive(null)}
           onViewProfile={(userId) => {
-      setActive(null);
-      // navigate to public 
-            onClick={() => {
-  window.dispatchEvent(new CustomEvent("tez-navigate", {
-    detail: { page: "messages" }
-  }));
-  // small delay so MessagesPage mounts before the open-chat event fires
-  setTimeout(() => {
-    window.dispatchEvent(new CustomEvent("tez-open-chat", {
-      detail: { userId: profile.id }
-    }));
-  }, 150);
+            // Close chat
+            setActive(null);
+
+            // Navigate to Messages page
+            window.dispatchEvent(
+              new CustomEvent("tez-navigate", {
+                detail: { page: "messages" },
+              })
+            );
+
+            // Open the selected user's chat
+            setTimeout(() => {
+              window.dispatchEvent(
+                new CustomEvent("tez-open-chat", {
+                  detail: { userId },
+                })
+              );
+            }, 150);
+          }}
+        />,
+        document.body
+      )}
+
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 0,
+      }}
+    >
+      {/* Your remaining page content */}
+    </div>
+  </>
+);
 }}
 
           />,
