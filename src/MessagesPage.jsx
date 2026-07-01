@@ -114,12 +114,105 @@ function ChatView({ contact, session, onBack,onViewProfile}) {
     inputRef.current?.focus();
   };
 
-  const attachOpts = [
-    { icon: "🖼️", label: "Gallery",  color: "#7c3aed" },
-    { icon: "📷", label: "Camera",   color: "#ea580c" },
-    { icon: "📄", label: "Document", color: "#0369a1" },
-    { icon: "📍", label: "Location", color: "#15803d" },
-  ];
+const attachOpts = [
+  {
+    icon: "🖼️", label: "Gallery", color: "#7c3aed",
+    action: () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.multiple = true;
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const path = `messages/${session.userId}/${Date.now()}_${file.name}`;
+        const { error } = await supabase.storage.from("avatars").upload(path, file, { contentType: file.type });
+        if (!error) {
+          const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+          await supabase.from("messages").insert({
+            sender_id: session.userId, receiver_id: contact.id,
+            content: `📷 [Image] ${data.publicUrl}`,
+            read: false, created_at: new Date().toISOString(),
+          });
+        }
+      };
+      input.click();
+      setShowAttach(false);
+    },
+  },
+  {
+    icon: "📷", label: "Camera", color: "#ea580c",
+    action: () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.capture = "environment";
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const path = `messages/${session.userId}/${Date.now()}_${file.name}`;
+        const { error } = await supabase.storage.from("avatars").upload(path, file, { contentType: file.type });
+        if (!error) {
+          const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+          await supabase.from("messages").insert({
+            sender_id: session.userId, receiver_id: contact.id,
+            content: `📷 [Photo] ${data.publicUrl}`,
+            read: false, created_at: new Date().toISOString(),
+          });
+        }
+      };
+      input.click();
+      setShowAttach(false);
+    },
+  },
+  {
+    icon: "📄", label: "Document", color: "#0369a1",
+    action: () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt";
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const path = `messages/${session.userId}/${Date.now()}_${file.name}`;
+        const { error } = await supabase.storage.from("avatars").upload(path, file, { contentType: file.type });
+        if (!error) {
+          const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+          await supabase.from("messages").insert({
+            sender_id: session.userId, receiver_id: contact.id,
+            content: `📄 [Document] ${file.name} — ${data.publicUrl}`,
+            read: false, created_at: new Date().toISOString(),
+          });
+        }
+      };
+      input.click();
+      setShowAttach(false);
+    },
+  },
+  {
+    icon: "📍", label: "Location", color: "#15803d",
+    action: () => {
+      setShowAttach(false);
+      if (!navigator.geolocation) {
+        alert("Location not supported on this device");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          const mapsUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
+          await supabase.from("messages").insert({
+            sender_id: session.userId, receiver_id: contact.id,
+            content: `📍 [Location] ${mapsUrl}`,
+            read: false, created_at: new Date().toISOString(),
+          });
+        },
+        () => alert("Could not get your location. Please allow location access.")
+      );
+    },
+  },
+];
+
 
   return (
     <div style={{
@@ -277,7 +370,7 @@ function ChatView({ contact, session, onBack,onViewProfile}) {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
             {attachOpts.map(opt => (
-              <div key={opt.label} onClick={() => setShowAttach(false)}
+              <div key={opt.label} onClick={opt.action}
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer" }}>
                 <div style={{
                   width: 54, height: 54, borderRadius: 16,
