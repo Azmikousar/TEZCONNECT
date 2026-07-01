@@ -61,8 +61,7 @@ function needsSep(msgs, i) {
   return new Date(msgs[i].created_at).toDateString() !== new Date(msgs[i - 1].created_at).toDateString();
 }
 
-/* ─── CHAT VIEW ─── */
-function ChatView({ contact, session, onBack,onViewProfile}) {
+function ChatView({ contact, session, onBack }) {
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -82,26 +81,7 @@ function ChatView({ contact, session, onBack,onViewProfile}) {
       .eq("receiver_id", session.userId)
       .eq("read", false);
   }, [session.userId, contact.id]);
-useEffect(() => {
-  const handler = async (e) => {
-    const { userId } = e.detail || {};
-    if (!userId) return;
 
-    // fetch the profile and open chat directly
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-
-    if (profile) setActive(profile);
-  };
-
-  window.addEventListener("tez-open-chat", handler);
-  return () => window.removeEventListener("tez-open-chat", handler);
-}, []);
-
-  
   useEffect(() => {
     loadMsgs();
     const ch = `chat_${[session.userId, contact.id].sort().join("_")}_${Math.random().toString(36).slice(2, 7)}`;
@@ -133,121 +113,84 @@ useEffect(() => {
     inputRef.current?.focus();
   };
 
-const attachOpts = [
-  {
-    icon: "🖼️", label: "Gallery", color: "#7c3aed",
-    action: () => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "image/*";
-      input.multiple = true;
-      input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const path = `messages/${session.userId}/${Date.now()}_${file.name}`;
-        const { error } = await supabase.storage.from("avatars").upload(path, file, { contentType: file.type });
-        if (!error) {
-          const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-          await supabase.from("messages").insert({
-            sender_id: session.userId, receiver_id: contact.id,
-            content: `📷 [Image] ${data.publicUrl}`,
-            read: false, created_at: new Date().toISOString(),
-          });
-        }
-      };
-      input.click();
-      setShowAttach(false);
-    },
-  },
-  {
-    icon: "📷", label: "Camera", color: "#ea580c",
-    action: () => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "image/*";
-      input.capture = "environment";
-      input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const path = `messages/${session.userId}/${Date.now()}_${file.name}`;
-        const { error } = await supabase.storage.from("avatars").upload(path, file, { contentType: file.type });
-        if (!error) {
-          const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-          await supabase.from("messages").insert({
-            sender_id: session.userId, receiver_id: contact.id,
-            content: `📷 [Photo] ${data.publicUrl}`,
-            read: false, created_at: new Date().toISOString(),
-          });
-        }
-      };
-      input.click();
-      setShowAttach(false);
-    },
-  },
-  {
-    icon: "📄", label: "Document", color: "#0369a1",
-    action: () => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt";
-      input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const path = `messages/${session.userId}/${Date.now()}_${file.name}`;
-        const { error } = await supabase.storage.from("avatars").upload(path, file, { contentType: file.type });
-        if (!error) {
-          const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-          await supabase.from("messages").insert({
-            sender_id: session.userId, receiver_id: contact.id,
-            content: `📄 [Document] ${file.name} — ${data.publicUrl}`,
-            read: false, created_at: new Date().toISOString(),
-          });
-        }
-      };
-      input.click();
-      setShowAttach(false);
-    },
-  },
-  {
-    icon: "📍", label: "Location", color: "#15803d",
-    action: () => {
-      setShowAttach(false);
-      if (!navigator.geolocation) {
-        alert("Location not supported on this device");
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const { latitude, longitude } = pos.coords;
-          const mapsUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
-          await supabase.from("messages").insert({
-            sender_id: session.userId, receiver_id: contact.id,
-            content: `📍 [Location] ${mapsUrl}`,
-            read: false, created_at: new Date().toISOString(),
-          });
-        },
-        () => alert("Could not get your location. Please allow location access.")
-      );
-    },
-  },
-];
+  const viewProfile = () => {
+    onBack();
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("tez-view-profile", { detail: { userId: contact.id } }));
+    }, 100);
+  };
 
+  const uploadAndSend = async (file, label) => {
+    const path = `msg/${session.userId}/${Date.now()}_${file.name}`;
+    const { error } = await supabase.storage.from("avatars").upload(path, file, { contentType: file.type });
+    if (!error) {
+      const { data: d } = supabase.storage.from("avatars").getPublicUrl(path);
+      await supabase.from("messages").insert({
+        sender_id: session.userId, receiver_id: contact.id,
+        content: `${label} ${d.publicUrl}`,
+        read: false, created_at: new Date().toISOString(),
+      });
+    }
+  };
+
+  const attachOpts = [
+    {
+      icon: "🖼️", label: "Gallery", color: "#7c3aed",
+      action: () => {
+        const inp = document.createElement("input");
+        inp.type = "file"; inp.accept = "image/*";
+        inp.onchange = e => { if (e.target.files[0]) uploadAndSend(e.target.files[0], "📷"); };
+        inp.click(); setShowAttach(false);
+      },
+    },
+    {
+      icon: "📷", label: "Camera", color: "#ea580c",
+      action: () => {
+        const inp = document.createElement("input");
+        inp.type = "file"; inp.accept = "image/*"; inp.capture = "environment";
+        inp.onchange = e => { if (e.target.files[0]) uploadAndSend(e.target.files[0], "📷"); };
+        inp.click(); setShowAttach(false);
+      },
+    },
+    {
+      icon: "📄", label: "Document", color: "#0369a1",
+      action: () => {
+        const inp = document.createElement("input");
+        inp.type = "file"; inp.accept = ".pdf,.doc,.docx,.xls,.xlsx,.txt";
+        inp.onchange = e => { if (e.target.files[0]) uploadAndSend(e.target.files[0], `📄 ${e.target.files[0].name}`); };
+        inp.click(); setShowAttach(false);
+      },
+    },
+    {
+      icon: "📍", label: "Location", color: "#15803d",
+      action: () => {
+        setShowAttach(false);
+        if (!navigator.geolocation) { alert("Location not supported"); return; }
+        navigator.geolocation.getCurrentPosition(
+          async pos => {
+            const url = `https://maps.google.com/?q=${pos.coords.latitude},${pos.coords.longitude}`;
+            await supabase.from("messages").insert({
+              sender_id: session.userId, receiver_id: contact.id,
+              content: `📍 My Location: ${url}`,
+              read: false, created_at: new Date().toISOString(),
+            });
+          },
+          () => alert("Could not get location. Please allow location access.")
+        );
+      },
+    },
+  ];
 
   return (
     <div style={{
-      position: "fixed",
-      top: 0, left: 0, right: 0, bottom: 0,
-      zIndex: 99999,
-      background: T.bg,
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      zIndex: 99999, background: T.bg,
+      display: "flex", flexDirection: "column", overflow: "hidden",
     }}>
 
       {/* TOP BAR */}
       <div style={{
-        flexShrink: 0,
-        background: T.bgCard,
+        flexShrink: 0, background: T.bgCard,
         borderBottom: `1px solid ${T.border}`,
         paddingTop: "env(safe-area-inset-top, 0px)",
       }}>
@@ -259,15 +202,16 @@ const attachOpts = [
             color: T.text, fontSize: 18, cursor: "pointer", flexShrink: 0,
           }}>←</button>
 
-          <Avatar name={contact.name} photo={contact.photo} size={40} />
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {contact.name}
-            </div>
-            <div style={{ fontSize: 11, color: T.textMid }}>
-              {contact.designation || "TezConnect Member"}
-              &nbsp;<span style={{ color: T.success }}>● Online</span>
+          <div onClick={viewProfile} style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, cursor: "pointer" }}>
+            <Avatar name={contact.name} photo={contact.photo} size={40} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: 15, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {contact.name}
+              </div>
+              <div style={{ fontSize: 11, color: T.textMid }}>
+                {contact.designation || "TezConnect Member"}&nbsp;
+                <span style={{ color: T.success }}>● Online</span>
+              </div>
             </div>
           </div>
 
@@ -299,21 +243,16 @@ const attachOpts = [
                 <div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{contact.industry}</div>
               </div>
             )}
-            <button 
-              onClick={() => { onBack(); onViewProfile(contact.id); }}
-              style={{ background: "none", border: "none", color: T.orange, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-              View profile
-            </button>
+            <button onClick={viewProfile} style={{
+              background: "none", border: "none", color: T.orange,
+              fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+            }}>View profile</button>
           </div>
         )}
       </div>
 
       {/* MESSAGES */}
-      <div style={{
-        flex: 1, overflowY: "auto",
-        WebkitOverflowScrolling: "touch",
-        padding: "14px", minHeight: 0,
-      }}>
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "14px", minHeight: 0 }}>
         {msgs.length === 0 && (
           <div style={{ textAlign: "center", paddingTop: 60 }}>
             <div style={{ fontSize: 52, marginBottom: 14 }}>👋</div>
@@ -324,6 +263,8 @@ const attachOpts = [
 
         {msgs.map((msg, i) => {
           const mine = msg.sender_id === session.userId;
+          const hasLink = msg.content?.includes("http");
+          const linkUrl = hasLink ? msg.content.split(" ").find(w => w.startsWith("http")) : null;
           return (
             <div key={msg.id || i}>
               {needsSep(msgs, i) && (
@@ -337,11 +278,7 @@ const attachOpts = [
                   <div style={{ flex: 1, height: 1, background: T.border }} />
                 </div>
               )}
-              <div style={{
-                display: "flex",
-                justifyContent: mine ? "flex-end" : "flex-start",
-                marginBottom: 6,
-              }}>
+              <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", marginBottom: 6 }}>
                 <div style={{
                   maxWidth: "72%",
                   background: mine ? "linear-gradient(135deg,#f97316,#ea6008)" : T.bgCard,
@@ -350,9 +287,16 @@ const attachOpts = [
                   padding: "10px 14px",
                   boxShadow: mine ? "0 4px 16px #f9731430" : "none",
                 }}>
-                  <div style={{ fontSize: 14, color: mine ? "#fff" : T.text, lineHeight: 1.5, wordBreak: "break-word" }}>
-                    {msg.content}
-                  </div>
+                  {linkUrl ? (
+                    <a href={linkUrl} target="_blank" rel="noopener noreferrer" style={{
+                      fontSize: 13, color: mine ? "#fff" : T.orange,
+                      lineHeight: 1.5, wordBreak: "break-all", textDecoration: "underline", display: "block",
+                    }}>{msg.content}</a>
+                  ) : (
+                    <div style={{ fontSize: 14, color: mine ? "#fff" : T.text, lineHeight: 1.5, wordBreak: "break-word" }}>
+                      {msg.content}
+                    </div>
+                  )}
                   <div style={{
                     display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4,
                     marginTop: 4, fontSize: 10,
@@ -392,10 +336,8 @@ const attachOpts = [
               <div key={opt.label} onClick={opt.action}
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer" }}>
                 <div style={{
-                  width: 54, height: 54, borderRadius: 16,
-                  background: opt.color,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 24,
+                  width: 54, height: 54, borderRadius: 16, background: opt.color,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24,
                 }}>{opt.icon}</div>
                 <span style={{ fontSize: 11, color: T.textMid, fontWeight: 600 }}>{opt.label}</span>
               </div>
@@ -406,16 +348,13 @@ const attachOpts = [
 
       {/* INPUT BAR */}
       <div style={{
-        flexShrink: 0,
-        background: T.bgCard,
+        flexShrink: 0, background: T.bgCard,
         borderTop: `1px solid ${T.border}`,
         padding: "10px 14px",
         paddingBottom: "max(10px, env(safe-area-inset-bottom, 10px))",
         display: "flex", alignItems: "center", gap: 10,
       }}>
-        <button style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", flexShrink: 0 }}>
-          😊
-        </button>
+        <button style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", flexShrink: 0 }}>😊</button>
 
         <div style={{
           flex: 1, background: T.bgInput, border: `1px solid ${T.border}`,
@@ -444,12 +383,11 @@ const attachOpts = [
           fontSize: 20, cursor: "pointer", transition: "all .2s",
         }}>📎</button>
 
-        {/* SEND BUTTON — always visible orange circle with paper plane SVG */}
         <button onClick={send} disabled={sending} style={{
           width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
           background: text.trim()
             ? "linear-gradient(135deg,#f97316,#ea6008)"
-            : "linear-gradient(135deg,#f9731666,#ea600866)",
+            : "linear-gradient(135deg,#f9731655,#ea600855)",
           border: "none",
           display: "flex", alignItems: "center", justifyContent: "center",
           cursor: text.trim() ? "pointer" : "default",
@@ -466,7 +404,6 @@ const attachOpts = [
   );
 }
 
-/* ─── CONTACT ROW ─── */
 function ContactRow({ conv, isActive, onClick }) {
   return (
     <div onClick={onClick} style={{
@@ -485,7 +422,6 @@ function ContactRow({ conv, isActive, onClick }) {
           background: T.success, border: `2px solid ${T.bg}`,
         }} />
       </div>
-
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
           <span style={{ fontWeight: 700, fontSize: 14, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "66%" }}>
@@ -515,7 +451,6 @@ function ContactRow({ conv, isActive, onClick }) {
   );
 }
 
-/* ─── MAIN PAGE ─── */
 export default function MessagesPage({ session }) {
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -534,7 +469,6 @@ export default function MessagesPage({ session }) {
     const ids = [...new Set(msgs.map(m =>
       m.sender_id === session.userId ? m.receiver_id : m.sender_id
     ))];
-
     const { data: profiles } = await supabase.from("profiles").select("*").in("id", ids);
     const pm = {};
     (profiles || []).forEach(p => { pm[p.id] = p; });
@@ -566,6 +500,17 @@ export default function MessagesPage({ session }) {
     return () => supabase.removeChannel(sub);
   }, [session.userId, loadContacts]);
 
+  useEffect(() => {
+    const handler = async (e) => {
+      const { userId } = e.detail || {};
+      if (!userId) return;
+      const { data: p } = await supabase.from("profiles").select("*").eq("id", userId).single();
+      if (p) setActive(p);
+    };
+    window.addEventListener("tez-open-chat", handler);
+    return () => window.removeEventListener("tez-open-chat", handler);
+  }, []);
+
   const filtered = contacts.filter(c => {
     const q = search.toLowerCase();
     const match = !q || c.name?.toLowerCase().includes(q) || c.designation?.toLowerCase().includes(q);
@@ -573,70 +518,21 @@ export default function MessagesPage({ session }) {
     return match;
   });
 
-  const unreadTotal = contacts.filter(c => c.unread > 0).length;
-
   const tabs = [
     { id: "all",         label: "All" },
     { id: "connections", label: "Connections" },
-    { id: "requests",    label: "Requests", badge: unreadTotal },
+    { id: "requests",    label: "Requests", badge: contacts.filter(c => c.unread > 0).length },
   ];
 
   return (
     <>
-      {/* Chat view via portal — covers top bar and bottom nav completely */}
-     return (
-  <>
-    {/* Chat view via portal — covers top bar and bottom nav completely */}
-    {active &&
-      createPortal(
-        <ChatView
-          contact={active}
-          session={session}
-          onBack={() => setActive(null)}
-          onViewProfile={(userId) => {
-            // Close chat
-            setActive(null);
-
-            // Navigate to Messages page
-            window.dispatchEvent(
-              new CustomEvent("tez-navigate", {
-                detail: { page: "messages" },
-              })
-            );
-
-            // Open the selected user's chat
-            setTimeout(() => {
-              window.dispatchEvent(
-                new CustomEvent("tez-open-chat", {
-                  detail: { userId },
-                })
-              );
-            }, 150);
-          }}
-        />,
-        document.body
-      )}
-
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 0,
-      }}
-    >
-      {/* Your remaining page content */}
-    </div>
-  </>
-);
-}}
-
-          />,
+      {active && createPortal(
+        <ChatView contact={active} session={session} onBack={() => setActive(null)} />,
         document.body
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
 
-        {/* Header */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text, margin: 0 }}>Messages</h2>
@@ -645,7 +541,6 @@ export default function MessagesPage({ session }) {
           <div style={{ fontSize: 12, color: T.textLow }}>Stay connected, grow together.</div>
         </div>
 
-        {/* Search */}
         <div style={{ position: "relative", marginBottom: 12 }}>
           <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: T.textLow, pointerEvents: "none" }}>🔍</span>
           <input
@@ -662,7 +557,6 @@ export default function MessagesPage({ session }) {
           />
         </div>
 
-        {/* Tabs */}
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
@@ -686,10 +580,7 @@ export default function MessagesPage({ session }) {
           ))}
         </div>
 
-        {/* Contact list */}
         <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-
-          {/* Loading skeletons */}
           {loading && [1, 2, 3, 4].map(i => (
             <div key={i} style={{ display: "flex", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${T.border}` }}>
               <div style={{ width: 50, height: 50, borderRadius: "50%", background: T.bgInput, flexShrink: 0 }} />
@@ -701,7 +592,6 @@ export default function MessagesPage({ session }) {
             </div>
           ))}
 
-          {/* Empty state */}
           {!loading && filtered.length === 0 && (
             <div style={{ textAlign: "center", padding: "50px 20px" }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
@@ -709,12 +599,11 @@ export default function MessagesPage({ session }) {
                 {search ? "No results found" : "No conversations yet"}
               </div>
               <div style={{ fontSize: 13, color: T.textLow }}>
-                {search ? "Try a different name" : "Connect with members in Network to start chatting"}
+                {search ? "Try a different name" : "Connect with members to start chatting"}
               </div>
             </div>
           )}
 
-          {/* Rows */}
           {!loading && filtered.map(contact => (
             <ContactRow
               key={contact.id}
@@ -725,7 +614,6 @@ export default function MessagesPage({ session }) {
           ))}
         </div>
 
-        {/* New message FAB */}
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
           <button style={{
             width: 50, height: 50, borderRadius: "50%",
