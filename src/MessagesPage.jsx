@@ -473,7 +473,13 @@ export default function MessagesPage({ session }) {
     <>
       {/* Chat view via portal — covers top bar and bottom nav completely */}
       {active && createPortal(
-        <ChatView contact={active} session={session} onBack={() => setActive(null)} />,
+        <ChatView contact={active} session={session} onBack={() => setActive(null)} 
+          onViewProfile={(userId) => {
+      setActive(null);
+      // navigate to public profile
+      window.dispatchEvent(new CustomEvent("tez-navigate", { detail: { page: "publicprofile", userId } }));
+    }}
+          />,
         document.body
       )}
 
