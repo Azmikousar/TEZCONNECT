@@ -243,7 +243,7 @@ function ChatView({ contact, session, onBack }) {
                 <div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{contact.industry}</div>
               </div>
             )}
-            
+          </div>
         )}
       </div>
 
