@@ -131,7 +131,17 @@ function ProductModal({ product, session, onClose, onSaved }) {
           </div>
         </div>
 
-        <div style={{ padding: "14px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+        <div
+  style={{
+    padding: "14px 20px calc(14px + env(safe-area-inset-bottom))",
+    borderTop: `1px solid ${T.border}`,
+    flexShrink: 0,
+    background: T.bgCard,
+    position: "sticky",
+    bottom: 0,
+    zIndex: 10,
+  }}
+>
           <button onClick={save} disabled={saving}
             style={{ width: "100%", background: saving ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "14px", color: saving ? T.textMid : "#fff", fontSize: 15, fontWeight: 700, cursor: saving ? "wait" : "pointer" }}>
             {saving ? "Saving…" : isEdit ? "Update Listing" : "Publish Listing 🚀"}
