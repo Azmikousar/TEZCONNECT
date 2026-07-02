@@ -243,11 +243,7 @@ function ChatView({ contact, session, onBack }) {
                 <div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{contact.industry}</div>
               </div>
             )}
-            <button onClick={viewProfile(member.id)} style={{
-              background: "none", border: "none", color: T.orange,
-              fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
-            }}>View profile</button>
-          </div>
+            
         )}
       </div>
 
