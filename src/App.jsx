@@ -4024,6 +4024,15 @@ export default function App() {
   if (publicProfileMatch) {
     return <PublicProfilePage username={publicProfileMatch[1]} />;
   }
+   useEffect(() => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    if (event === "PASSWORD_RECOVERY") {
+      setPage("update-password");
+    }
+  });
+  return () => subscription.unsubscribe();
+}, []);
+
 
  useEffect(() => {
   supabase.auth.getSession().then(({ data: { session } }) => {
