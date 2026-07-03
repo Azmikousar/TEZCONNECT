@@ -3589,7 +3589,21 @@ const [showMoreMenu, setShowMoreMenu] = useState(false);
   window.addEventListener("tez-view-profile", handler);
   return () => window.removeEventListener("tez-view-profile", handler);
 }, []);
-  
+  useEffect(() => {
+  // Handle password reset redirect from email link
+  const hash = window.location.hash;
+  if (hash.includes("type=recovery")) {
+    const newPassword = prompt("Enter your new password (min 6 characters):");
+    if (newPassword && newPassword.length >= 6) {
+      supabase.auth.updateUser({ password: newPassword }).then(({ error }) => {
+        if (error) alert("Error: " + error.message);
+        else alert("✅ Password updated successfully! Please sign in.");
+        window.location.hash = "";
+      });
+    }
+  }
+}, []);
+
 
 useEffect(() => {
   supabase
