@@ -3291,7 +3291,9 @@ function SignInPage({ onNav, onLogin, prefill = "" }) {
 >
   <span
     style={{
-      color: "#2563EB",
+      color: "#F97316",
+      hover:"#EA580C",
+
       fontSize: 14,
       fontWeight: 500,
       cursor: "pointer",
