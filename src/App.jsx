@@ -4099,6 +4099,8 @@ export default function App() {
       {page === "signin" && (
         <SignInPage onNav={nav} onLogin={login} prefill={navData.prefill || ""} />
       )}
+       {page === "forgot-password" && <ForgotPasswordPage onNav={nav} />}
+       {page === "update-password" && <UpdatePasswordPage onNav={nav} />}
       {page === "app" && session && <AppShell session={session} onLogout={logout} />}
        
 
