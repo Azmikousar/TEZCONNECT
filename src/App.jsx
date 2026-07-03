@@ -27,6 +27,8 @@ import TezPrintsPage from "./TezPrintsPage";
 import TezAppStorePage from "./TezAppStorePage";
 
 
+import { UpdatePasswordPage } from "./UpdatePasswordPage";
+
 
 
 
