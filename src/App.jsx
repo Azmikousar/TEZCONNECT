@@ -3336,15 +3336,42 @@ function ForgotPasswordPage({ onNav }) {
     else setMessage("Check your email for the password reset link.");
     setLoading(false);
   };
-
+   
   return (
-    <div>
-      <h2>Reset Password</h2>
-      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <button onClick={handleReset} disabled={loading}>Send Reset Email</button>
-      <button onClick={() => onNav("signin")}>Back to Sign In</button>
-      {message && <p>{message}</p>}
+    <div style={pageStyle}>
+      <div style={cardStyle}>
+        <h2 style={{ fontFamily: "'Instrument Serif',serif", fontSize: "28px" }}>Reset Password</h2>
+        
+        <input 
+          type="email" 
+          value={email} 
+          onChange={(e) => setEmail(e.target.value)} 
+          placeholder="you@company.com"
+          style={{ 
+            width: "100%", 
+            padding: "12px", 
+            borderRadius: "9px", 
+            border: "1.5px solid #1a1f35",
+            background: "#0f1120", // T.bgInput
+            color: "#eef0f8"
+          }}
+        />
+
+        <button onClick={handleReset} style={buttonStyle} disabled={loading}>
+          {loading ? "Sending..." : "Send Reset Email"}
+        </button>
+        
+        <button 
+          onClick={() => onNav("signin")} 
+          style={{ background: "transparent", border: "none", color: "#6b7594", cursor: "pointer" }}
+        >
+          Back to Sign In
+        </button>
+
+        {message && <p style={{ fontSize: "13px", color: "#f97316" }}>{message}</p>}
+      </div>
     </div>
+  
   );
 }
 {/* update password*/}
