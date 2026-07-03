@@ -3282,6 +3282,24 @@ function SignInPage({ onNav, onLogin, prefill = "" }) {
                 />
               </div>
             </div>
+             <div
+  style={{
+    display: "flex",
+    justifyContent: "flex-end",
+    marginTop: -8,
+  }}
+>
+  <span
+    style={{
+      color: "#2563EB",
+      fontSize: 14,
+      fontWeight: 500,
+      cursor: "pointer",
+    }}
+  >
+    Forgot Password?
+  </span>
+</div>
             <div style={{ paddingTop: 4 }}>
               <Btn onClick={submit} loading={loading} fullWidth>
                 Sign In
