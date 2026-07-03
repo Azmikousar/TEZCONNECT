@@ -3290,6 +3290,7 @@ function SignInPage({ onNav, onLogin, prefill = "" }) {
   }}
 >
   <span
+     onClick={()=> onNav("forgot-password")}
     style={{
       color: "#F97316",
       hover:"#EA580C",
@@ -3314,6 +3315,65 @@ function SignInPage({ onNav, onLogin, prefill = "" }) {
           </div>
         </AuthCard>
       </div>
+    </div>
+  );
+}
+{/*Forgot password*/}
+function ForgotPasswordPage({ onNav }) {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const handleReset = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Point this to the route where your "Update Password" component lives
+      redirectTo: `${window.location.origin}/update-password`,
+    });
+    
+    if (error) setMessage(`Error: ${error.message}`);
+    else setMessage("Check your email for the password reset link.");
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <h2>Reset Password</h2>
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <button onClick={handleReset} disabled={loading}>Send Reset Email</button>
+      <button onClick={() => onNav("signin")}>Back to Sign In</button>
+      {message && <p>{message}</p>}
+    </div>
+  );
+}
+{/* update password*/}
+function UpdatePasswordPage() {
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Supabase will automatically handle the session when the user clicks the link
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        // You are now authenticated with the recovery token
+      }
+    });
+  }, []);
+
+  const updatePassword = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) alert(error.message);
+    else alert("Password updated successfully!");
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <h2>Set New Password</h2>
+      <input type="password" onChange={(e) => setPassword(e.target.value)} />
+      <button onClick={updatePassword} disabled={loading}>Update</button>
     </div>
   );
 }
