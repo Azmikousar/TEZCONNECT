@@ -3319,91 +3319,253 @@ function SignInPage({ onNav, onLogin, prefill = "" }) {
   );
 }
 {/*Forgot password*/}
+/* ═══════════════════════════════════════════════════════════
+   FORGOT PASSWORD PAGE
+═══════════════════════════════════════════════════════════ */
 function ForgotPasswordPage({ onNav }) {
+  // Add the missing states to prevent the blank page crash
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   const handleReset = async (e) => {
     e.preventDefault();
+    if (!email.trim()) {
+      setError("Email is required.");
+      return;
+    }
+    if (!isEmail(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      // Point this to the route where your "Update Password" component lives
+    setError("");
+    setMessage("");
+
+    const { error: supabaseError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/update-password`,
     });
     
-    if (error) setMessage(`Error: ${error.message}`);
-    else setMessage("Check your email for the password reset link.");
+    if (supabaseError) {
+      setError(supabaseError.message);
+    } else {
+      setMessage("Check your email for the password reset link.");
+    }
     setLoading(false);
   };
-   
+
   return (
-    <div style={pageStyle}>
-      <div style={cardStyle}>
-        <h2 style={{ fontFamily: "'Instrument Serif',serif", fontSize: "28px" }}>Reset Password</h2>
-        
-        <input 
-          type="email" 
-          value={email} 
-          onChange={(e) => setEmail(e.target.value)} 
-          placeholder="you@company.com"
-          style={{ 
-            width: "100%", 
-            padding: "12px", 
-            borderRadius: "9px", 
-            border: "1.5px solid #1a1f35",
-            background: "#0f1120", // T.bgInput
-            color: "#eef0f8"
-          }}
-        />
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "28px 20px",
+        position: "relative",
+      }}
+    >
+      <Background />
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          zIndex: 1,
+          display: "flex",
+          flexDirection: "column",
+          gap: 22,
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ marginBottom: 20 }}>
+            <Logo size="lg" />
+          </div>
+          <h1
+            style={{
+              fontFamily: "'Instrument Serif',serif",
+              fontStyle: "italic",
+              fontWeight: 400,
+              fontSize: 28,
+              color: T.text,
+              marginBottom: 6,
+            }}
+          >
+            Reset Password
+          </h1>
+          <p style={{ color: T.textMid, fontSize: 13 }}>
+            Enter your email to receive a recovery link.
+          </p>
+        </div>
 
-        <button onClick={handleReset} style={buttonStyle} disabled={loading}>
-          {loading ? "Sending..." : "Send Reset Email"}
-        </button>
-        
-        <button 
-          onClick={() => onNav("signin")} 
-          style={{ background: "transparent", border: "none", color: "#6b7594", cursor: "pointer" }}
-        >
-          Back to Sign In
-        </button>
+        <AuthCard>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {error && (
+              <Alert type="error" onDismiss={() => setError("")}>
+                {error}
+              </Alert>
+            )}
+            {message && (
+              <Alert type="success">
+                {message}
+              </Alert>
+            )}
 
-        {message && <p style={{ fontSize: "13px", color: "#f97316" }}>{message}</p>}
+            <div onKeyDown={(e) => e.key === "Enter" && handleReset(e)}>
+              <Field
+                label="Email Address"
+                type="email"
+                value={email}
+                onChange={(v) => {
+                  setEmail(v);
+                  setError("");
+                }}
+                placeholder="you@company.com"
+                icon="✉"
+              />
+            </div>
+
+            <div style={{ paddingTop: 4 }}>
+              <Btn onClick={handleReset} loading={loading} fullWidth>
+                Send Reset Link
+              </Btn>
+            </div>
+
+            <Divider label="Remembered it?" />
+            
+            <Btn variant="ghost" onClick={() => onNav("signin")} fullWidth>
+              Back to Sign In
+            </Btn>
+          </div>
+        </AuthCard>
       </div>
     </div>
-  
   );
 }
-{/* update password*/}
-function UpdatePasswordPage() {
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Supabase will automatically handle the session when the user clicks the link
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        // You are now authenticated with the recovery token
-      }
-    });
-  }, []);
+{/* update password*/}
+/* ═══════════════════════════════════════════════════════════
+   UPDATE PASSWORD PAGE
+═══════════════════════════════════════════════════════════ */
+function UpdatePasswordPage({ onNav }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const updatePassword = async () => {
+    if (!password) {
+      setError("Password is required.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) alert(error.message);
-    else alert("Password updated successfully!");
-    setLoading(false);
+    setError("");
+
+    const { error: supabaseError } = await supabase.auth.updateUser({ password });
+    
+    if (supabaseError) {
+      setError(supabaseError.message);
+      setLoading(false);
+    } else {
+      setSuccess(true);
+      setLoading(false);
+      setTimeout(() => {
+        onNav("signin");
+      }, 2500);
+    }
   };
 
   return (
-    <div>
-      <h2>Set New Password</h2>
-      <input type="password" onChange={(e) => setPassword(e.target.value)} />
-      <button onClick={updatePassword} disabled={loading}>Update</button>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "28px 20px",
+        position: "relative",
+      }}
+    >
+      <Background />
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          zIndex: 1,
+          display: "flex",
+          flexDirection: "column",
+          gap: 22,
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ marginBottom: 20 }}>
+            <Logo size="lg" />
+          </div>
+          <h1
+            style={{
+              fontFamily: "'Instrument Serif',serif",
+              fontStyle: "italic",
+              fontWeight: 400,
+              fontSize: 28,
+              color: T.text,
+              marginBottom: 6,
+            }}
+          >
+            Create New Password
+          </h1>
+          <p style={{ color: T.textMid, fontSize: 13 }}>
+            Please enter a strong new password for your account.
+          </p>
+        </div>
+
+        <AuthCard>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {error && (
+              <Alert type="error" onDismiss={() => setError("")}>
+                {error}
+              </Alert>
+            )}
+            {success && (
+              <Alert type="success">
+                Password updated successfully! Redirecting to sign in...
+              </Alert>
+            )}
+
+            <div onKeyDown={(e) => e.key === "Enter" && updatePassword()}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <Field
+                  label="New Password"
+                  type="password"
+                  value={password}
+                  onChange={(v) => {
+                    setPassword(v);
+                    setError("");
+                  }}
+                  placeholder="Minimum 8 characters"
+                  icon="🔒"
+                />
+                <PasswordStrength pwd={password} />
+              </div>
+            </div>
+
+            <div style={{ paddingTop: 4 }}>
+              <Btn onClick={updatePassword} loading={loading} disabled={success} fullWidth>
+                Update Password
+              </Btn>
+            </div>
+          </div>
+        </AuthCard>
+      </div>
     </div>
   );
 }
+
 
 
 /* ═══════════════════════════════════════════════════════════
