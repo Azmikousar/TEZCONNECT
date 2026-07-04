@@ -354,10 +354,12 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile, o
         <div style={{ fontWeight:800, fontSize:18, color:T.text, letterSpacing:"-.02em" }}>
           {profile.username ? `@${profile.username}` : profile.name || "My Profile"}
         </div>
+        {isOwnProfile && (
         <button onClick={()=>setShowCreate(true)}
           style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"8px 16px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", display:"flex", alignItems:"center", gap:6, boxShadow:"0 4px 14px #f9731440" }}>
           <span style={{ fontSize:16 }}>+</span> New Post
         </button>
+      )}
       </div>
 
       {/* Profile header */}
