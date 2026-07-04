@@ -310,7 +310,9 @@ function PostDetailModal({ post, session, onClose, onDeleted }) {
 }
 
 /* ── Main ProfilePage ── */
-export default function ProfilePage({ session, profile, onEdit, onSaveProfile }) {
+export default function ProfilePage({ session, profile, onEdit, onSaveProfile, onMessage}) {
+  const targetUserId = profile.id || session.userId;
+  const isOwnProfile = !profile.id || profile.id === session.userId;
   const [posts, setPosts]       = useState([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [view, setView]         = useState("feed"); // "feed" | "grid"
@@ -321,10 +323,9 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile })
 
   const fetchPosts = async () => {
     setPostsLoading(true);
-    const { data } = await supabase.from("posts").select("*, profiles(name, photo)")
-      .eq("user_id", session.userId).order("created_at", { ascending: false });
-    setPosts(data || []);
-    setPostsLoading(false);
+  const { data } = await supabase.from("posts").select("*, profiles(name, photo)")
+  .eq("user_id", targetUserId).order("created_at", { ascending: false });
+
 
     // Get total likes and comments
     if (data?.length) {
@@ -338,7 +339,8 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile })
     }
   };
 
-  useEffect(() => { fetchPosts(); }, [session.userId]);
+  useEffect(() => { fetchPosts(); }, [targetUserId]);
+
 
   const handleDeleted = (id) => setPosts(prev => prev.filter(p => p.id !== id));
 
@@ -414,23 +416,44 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile })
           </div>
         )}
 
-        {/* Action buttons */}
-        <div style={{ display:"flex", gap:10, marginBottom:16 }}>
-          <button onClick={onEdit}
-            style={{ flex:1, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-            ✏️ Edit Profile
-          </button>
-          <button
-            onClick={()=>{
-              const url=window.location.origin+(profile.username?`/u/${profile.username}`:"");
-              if(navigator.share){navigator.share({title:profile.name+" on TezConnect",url});}
-              else{navigator.clipboard.writeText(url);}
-            }}
-            style={{ flex:1, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-            📤 Share Profile
-          </button>
-  
-        </div>
+        
+{/* Action buttons */}
+<div style={{ display:"flex", gap:10, marginBottom:16 }}>
+  {isOwnProfile ? (
+    <>
+      <button onClick={onEdit}
+        style={{ flex:1, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+        ✏️ Edit Profile
+      </button>
+      <button
+        onClick={()=>{
+          const url=window.location.origin+(profile.username?`/u/${profile.username}`:"");
+          if(navigator.share){navigator.share({title:profile.name+" on TezConnect",url});}
+          else{navigator.clipboard.writeText(url);}
+        }}
+        style={{ flex:1, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+        📤 Share Profile
+      </button>
+    </>
+  ) : (
+    <>
+      <button
+        onClick={() => onMessage && onMessage(profile)}
+        style={{ flex:1, background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"10px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 14px #f9731440" }}>
+        💬 Message
+      </button>
+      <button
+        onClick={()=>{
+          const url=window.location.origin+(profile.username?`/u/${profile.username}`:"");
+          if(navigator.share){navigator.share({title:profile.name+" on TezConnect",url});}
+          else{navigator.clipboard.writeText(url);}
+        }}
+        style={{ flex:1, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+        📤 Share Profile
+      </button>
+    </>
+  )}
+</div>
 
         {/* Feed / Grid toggle */}
         <div style={{ display:"flex", borderBottom:`1px solid ${T.border}` }}>
