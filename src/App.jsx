@@ -3586,17 +3586,56 @@ const { unreadCount: notifUnread } = useNotifications(session.userId);
 const isMobile = useIsMobile();
 const [showMoreMenu, setShowMoreMenu] = useState(false);
  const [showShare, setShowShare] = useState(false);
+const [viewedProfile, setViewedProfile] = useState(null);
 
- useEffect(() => {
+const mapProfileRow = (data) => ({
+  id: data.id,
+  name: data.name || "",
+  photo: data.photo || "",
+  cover: data.cover || "",
+  designation: data.designation || "",
+  bio: data.bio || "",
+  location: data.location || "",
+  company: data.company || "",
+  companyLogo: data.company_logo || "",
+  industry: data.industry || "",
+  category: data.category || "",
+  experience: data.experience || "",
+  teamSize: data.team_size || "",
+  website: data.website || "",
+  mobile: data.mobile || "",
+  whatsapp: data.whatsapp || "",
+  linkedin: data.linkedin || "",
+  facebook: data.facebook || "",
+  instagram: data.instagram || "",
+  twitter: data.twitter || "",
+  youtube: data.youtube || "",
+  skills: data.skills || [],
+  services: data.services || [],
+  achievements: data.achievements || [],
+  portfolio: data.portfolio || [],
+  certifications: data.certifications || [],
+});
+
+const handleViewProfile = useCallback(async (contactOrId) => {
+  const userId = typeof contactOrId === "string" ? contactOrId : contactOrId?.id;
+  if (!userId) return;
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
+  if (error) { console.error("handleViewProfile fetch failed:", error); return; }
+  setViewedProfile(mapProfileRow(data));
+  setPage("publicprofile");
+}, []);
+
+// kept as a fallback path in case anything else in the app still dispatches this event
+useEffect(() => {
   const handler = (e) => {
-    if (e.detail?.userId){
-    setViewingUserId(e.detail.userId);
-     setPage("publicprofile");
-    }
+    if (e.detail?.userId) handleViewProfile(e.detail.userId);
   };
   window.addEventListener("tez-view-profile", handler);
   return () => window.removeEventListener("tez-view-profile", handler);
-}, []);
+}, [handleViewProfile]);
+
+ 
   
 
 
@@ -3733,7 +3772,8 @@ useEffect(() => {
   );
 }
 
-if (page === "publicprofile") return <PublicProfilePage userId={viewingUserId} session={session} />;
+if (page === "publicprofile") return <PublicProfilePage profile={viewedProfile} session={session} />;
+
 
   
 
@@ -3760,8 +3800,9 @@ if (page === "appstore") return <TezAppStorePage session={session}/>;
     }
 
     if (page === "messages") {
-      return <MessagesPage session={session} />;
-    }
+  return <MessagesPage session={session} onViewProfile={handleViewProfile} />;
+}
+
      if (page==="marketplace") return <MarketplacePage session={session}/>;
 if (page==="myproducts")  return <MyProductsPage session={session}/>;
 if (page === "tezprints") return <TezPrintsPage session={session}/>;
