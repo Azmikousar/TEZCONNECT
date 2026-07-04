@@ -344,6 +344,8 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
   const bottomRef = useRef();
   const inputRef = useRef();
   const chanRef = useRef();
+  const hiddenIdsRef = useRef(new Set());      // delete-for-me / clear-chat: hide even if a stale reload races ahead of the write
+  const forceDeletedRef = useRef(new Set());   // delete-for-everyone: show the "deleted" placeholder even if a stale reload races ahead
 
   const online = isOnline(contact.id);
 
@@ -376,10 +378,13 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
 
     if (error) { console.error("loadMsgs failed:", error); return; }
 
-    const visible = (data || []).filter(m => {
-      if (m.deleted) return true; // show "deleted" placeholder to everyone
-      return !(m.deleted_for || []).includes(session.userId);
-    });
+    const visible = (data || [])
+      .filter(m => {
+        if (hiddenIdsRef.current.has(m.id)) return false; // being deleted-for-me right now / just cleared
+        if (m.deleted) return true; // show "deleted" placeholder to everyone
+        return !(m.deleted_for || []).includes(session.userId);
+      })
+      .map(m => forceDeletedRef.current.has(m.id) ? { ...m, deleted: true, content: null } : m);
     setMsgs(visible);
 
     const unread = (data || []).filter(m => m.sender_id === contact.id && m.receiver_id === session.userId && !m.read);
@@ -424,13 +429,20 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
 
   /* ── Delete for me (optimistic + error-safe) ── */
   const deleteForMe = async (msgId) => {
-    // 1. Instant local removal so it always visibly disappears for the person tapping it
+    // 1. Instant + durable local removal — stays hidden even if a stale
+    // realtime reload lands before our write below completes.
+    hiddenIdsRef.current.add(msgId);
     setMsgs(prev => prev.filter(m => m.id !== msgId));
 
     // 2. Read the current deleted_for straight from the server (avoids stale local copies)
     const { data: current, error: readErr } = await supabase
       .from("messages").select("deleted_for").eq("id", msgId).single();
-    if (readErr) { console.error("deleteForMe read failed:", readErr); loadMsgs(); return; }
+    if (readErr) {
+      console.error("deleteForMe read failed:", readErr);
+      hiddenIdsRef.current.delete(msgId);
+      loadMsgs();
+      return;
+    }
 
     const arr = Array.isArray(current?.deleted_for) ? [...current.deleted_for] : [];
     if (!arr.includes(session.userId)) arr.push(session.userId);
@@ -439,13 +451,16 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
     if (updateErr) {
       console.error("deleteForMe update failed (check RLS: sender OR receiver must be allowed to UPDATE):", updateErr);
       alert("Couldn't delete this message. Please try again.");
-      loadMsgs(); // restore true state if the write failed
+      hiddenIdsRef.current.delete(msgId); // write failed, so stop force-hiding it
+      loadMsgs(); // restore true state
     }
   };
 
   /* ── Delete for everyone ── */
   const deleteForEveryone = async (msgId) => {
-    // optimistic: show the "deleted" placeholder immediately
+    // optimistic + durable: show the "deleted" placeholder immediately and
+    // keep it that way even if a stale realtime reload lands mid-write
+    forceDeletedRef.current.add(msgId);
     setMsgs(prev => prev.map(m => m.id === msgId ? { ...m, deleted: true, content: null } : m));
 
     const { error } = await supabase.from("messages").update({
@@ -462,7 +477,8 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
         'but Delete-for-Everyone also needs to write "content", "deleted", "delivered", "read", and "deleted_at". ' +
         "Update the RLS policy/GRANT to allow sender_id = auth.uid() to update all of those columns."
       );
-      loadMsgs(); // revert optimistic change to the real server state
+      forceDeletedRef.current.delete(msgId); // write failed, stop forcing the placeholder
+      loadMsgs(); // revert to the real server state
       return;
     }
     loadMsgs();
@@ -484,12 +500,14 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
     const ids = msgs.map(m => m.id);
     if (!ids.length) return;
     const prevMsgs = msgs;
+    ids.forEach(id => hiddenIdsRef.current.add(id));
     setMsgs([]);
 
     const { data: rows, error: readErr } = await supabase.from("messages").select("id,deleted_for").in("id", ids);
     if (readErr) {
       console.error("clearChat read failed:", readErr);
       alert("Couldn't clear chat: " + readErr.message);
+      ids.forEach(id => hiddenIdsRef.current.delete(id));
       setMsgs(prevMsgs);
       return;
     }
@@ -499,7 +517,11 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
       const arr = Array.isArray(row.deleted_for) ? [...row.deleted_for] : [];
       if (!arr.includes(session.userId)) arr.push(session.userId);
       const { error } = await supabase.from("messages").update({ deleted_for: arr }).eq("id", row.id);
-      if (error) { console.error("clearChat row failed:", row.id, error); anyFailed = true; }
+      if (error) {
+        console.error("clearChat row failed:", row.id, error);
+        hiddenIdsRef.current.delete(row.id); // this one failed — stop force-hiding it
+        anyFailed = true;
+      }
     }
 
     if (anyFailed) {
@@ -525,21 +547,21 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
   };
 
   /* ── View profile.
-     Blank page fix: previously only a bare userId was handed off, so
-     if your Profile screen expects the profile fields directly (or its
-     own re-fetch is blocked by RLS on other users' rows), it rendered
-     nothing. Now the FULL profile object is passed both to the prop
-     callback and the fallback event, and navigation is deferred slightly
-     so it doesn't race with this chat's portal unmounting. ── */
+     The "flash and bounce back to messages" symptom is a double-transition:
+     closing this chat (onBack) shows the contacts list for a moment, THEN
+     navigation to the profile screen kicks in — and if anything in your
+     parent app reacts to that intermediate state, it can snap back.
+     Fix: when a real onViewProfile handler is wired, call it directly and
+     let the PARENT be solely responsible for swapping the screen (which
+     naturally removes this chat too) — don't call onBack ourselves.
+     Only fall back to closing the chat manually if no handler is wired. ── */
   const viewProfile = () => {
-    onBack();
-    setTimeout(() => {
-      if (typeof onViewProfile === "function") {
-        onViewProfile(contact);
-      } else {
-        window.dispatchEvent(new CustomEvent("tez-view-profile", { detail: { userId: contact.id, profile: contact } }));
-      }
-    }, 120);
+    if (typeof onViewProfile === "function") {
+      onViewProfile(contact);
+    } else {
+      window.dispatchEvent(new CustomEvent("tez-view-profile", { detail: { userId: contact.id, profile: contact } }));
+      onBack();
+    }
   };
 
   const chatMenuOptions = [
@@ -900,7 +922,17 @@ export default function MessagesPage({ session, onViewProfile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.userId]);
 
-  /* ── GLOBAL INCOMING CALL LISTENER (works no matter which screen is open) ── */
+  const contactsRef = useRef(contacts);
+  useEffect(() => { contactsRef.current = contacts; }, [contacts]);
+
+  /* ── GLOBAL INCOMING CALL LISTENER (works no matter which screen is open) ──
+     IMPORTANT: this subscription must stay open continuously. Previously it
+     depended on `contacts`, which changes almost constantly (any message
+     insert anywhere reloads the contacts list), so the channel was being
+     torn down and recreated over and over. Any call-request that arrived
+     during one of those teardown windows was silently lost — which is why
+     calls sometimes never reached the other side. It now depends only on
+     session.userId and reads contacts via a ref instead. */
   useEffect(() => {
     signalChanRef.current = supabase.channel(`signals_${session.userId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "webrtc_signals", filter: `to_user=eq.${session.userId}` }, async ({ new: sig }) => {
@@ -910,7 +942,7 @@ export default function MessagesPage({ session, onViewProfile }) {
           return "pending"; // placeholder while we fetch the caller's profile
         });
 
-        let caller = contacts.find(c => c.id === sig.from_user);
+        let caller = contactsRef.current.find(c => c.id === sig.from_user);
         if (!caller) {
           const { data: p } = await supabase.from("profiles").select("*").eq("id", sig.from_user).single();
           caller = p || { id: sig.from_user, name: "Unknown" };
@@ -923,8 +955,7 @@ export default function MessagesPage({ session, onViewProfile }) {
       .subscribe();
 
     return () => { if (signalChanRef.current) supabase.removeChannel(signalChanRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.userId, contacts]);
+  }, [session.userId]);
 
   /* ── Open chat from elsewhere in the app ── */
   useEffect(() => {
