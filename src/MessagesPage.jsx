@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
+import { usePresence } from "./PresenceProvider";
 
 /*
   FIXES IN THIS VERSION
@@ -837,13 +838,10 @@ export default function MessagesPage({ session, onViewProfile }) {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("all");
   const [active, setActive] = useState(null);
-  const [onlineIds, setOnlineIds] = useState(new Set());
+  const { isOnline, onlineIds } = usePresence(); // now sourced from login-scoped PresenceProvider — see PresenceProvider.jsx
   const [activeCall, setActiveCall] = useState(null); // { contact, callType, isIncoming, incomingOffer }
 
-  const presenceChanRef = useRef();
   const signalChanRef = useRef();
-
-  const isOnline = useCallback((id) => onlineIds.has(id), [onlineIds]);
 
   /* ── Load conversation list ── */
   const loadContacts = useCallback(async () => {
@@ -883,44 +881,18 @@ export default function MessagesPage({ session, onViewProfile }) {
     return () => supabase.removeChannel(sub);
   }, [session.userId, loadContacts]);
 
-  /* ── GLOBAL PRESENCE (whatsapp-style online/last-seen for the WHOLE page) ── */
+  /* ── Refresh contacts' last_seen whenever someone's global online state
+     changes (they just went offline and PresenceProvider stamped last_seen,
+     or they just came online). Actual online/offline tracking itself now
+     lives in PresenceProvider, tied to the login session — not to whether
+     this Messages page happens to be open. ── */
+  const prevOnlineIdsRef = useRef(onlineIds);
   useEffect(() => {
-    const ch = supabase.channel("global_presence", { config: { presence: { key: session.userId } } });
-
-    ch.on("presence", { event: "sync" }, () => {
-        const state = ch.presenceState();
-        setOnlineIds(new Set(Object.keys(state)));
-      })
-      .on("presence", { event: "join" }, ({ key }) => {
-        setOnlineIds(prev => new Set(prev).add(key));
-      })
-      .on("presence", { event: "leave" }, ({ key }) => {
-        setOnlineIds(prev => { const s = new Set(prev); s.delete(key); return s; });
-        // Refresh contacts so we pick up the last_seen the departing user just stamped
-        loadContacts();
-      })
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await ch.track({ online_at: new Date().toISOString() });
-          await supabase.from("profiles").update({ is_online: true }).eq("id", session.userId);
-        }
-      });
-
-    presenceChanRef.current = ch;
-
-    const goOffline = () => {
-      supabase.from("profiles").update({ is_online: false, last_seen: new Date().toISOString() }).eq("id", session.userId);
-    };
-    window.addEventListener("beforeunload", goOffline);
-
-    return () => {
-      goOffline();
-      ch.untrack();
-      supabase.removeChannel(ch);
-      window.removeEventListener("beforeunload", goOffline);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.userId]);
+    if (prevOnlineIdsRef.current !== onlineIds) {
+      prevOnlineIdsRef.current = onlineIds;
+      loadContacts();
+    }
+  }, [onlineIds, loadContacts]);
 
   const contactsRef = useRef(contacts);
   useEffect(() => { contactsRef.current = contacts; }, [contacts]);
