@@ -12,7 +12,7 @@ import EventsPage from "./EventsPage";
 import MessagesPage from "./MessagesPage";
 import PublicProfilePage from "./PublicProfilePage";
 import SettingsPage from "./SettingsPage";
-
+import { PresenceProvider } from "./PresenceProvider";
 import BottomNav from "./BottomNav";
 import MobileTopBar from "./MobileTopBar";
 import MobileMoreMenu from "./MobileMoreMenu";
@@ -4291,6 +4291,11 @@ export default function App() {
         <Spinner size={28} />
       </div>
     );
+   return (
+    <PresenceProvider session={session}>
+      {session ? <YourAuthenticatedApp /> : <LoginScreen />}
+    </PresenceProvider>
+  );
 
   return (
     <>
