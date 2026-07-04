@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
@@ -9,17 +10,14 @@ const T = {
   success: "#22c55e",
 };
 
-const COLORS = [
+const AVATAR_COLORS = [
   "linear-gradient(135deg,#f97316,#ea6008)",
   "linear-gradient(135deg,#7c3aed,#a78bfa)",
   "linear-gradient(135deg,#0369a1,#38bdf8)",
   "linear-gradient(135deg,#15803d,#22c55e)",
   "linear-gradient(135deg,#be123c,#f43f5e)",
 ];
-
-function getColor(name) {
-  return COLORS[(name || "A").charCodeAt(0) % COLORS.length];
-}
+const getColor = (name) => AVATAR_COLORS[(name || "A").charCodeAt(0) % AVATAR_COLORS.length];
 
 function Avatar({ name, photo, size = 44 }) {
   const initials = (name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
@@ -54,211 +52,374 @@ function needsSep(msgs, i) {
   return new Date(msgs[i].created_at).toDateString() !== new Date(msgs[i - 1].created_at).toDateString();
 }
 
-function lastSeenText(ts) {
+function lastSeenText(profile) {
+  if (profile?.is_online) return null; // online — don't show last seen
+  const ts = profile?.last_seen;
   if (!ts) return "last seen a long time ago";
   const diff = (Date.now() - new Date(ts)) / 1000;
   if (diff < 60) return "last seen just now";
   if (diff < 3600) return `last seen ${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `last seen today at ${new Date(ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`;
-  if (diff < 172800) return `last seen yesterday at ${new Date(ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`;
-  return `last seen ${new Date(ts).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
+  const timeStr = new Date(ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  const d = new Date(ts), now = new Date();
+  if (d.toDateString() === now.toDateString()) return `last seen today at ${timeStr}`;
+  const y = new Date(); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return `last seen yesterday at ${timeStr}`;
+  return `last seen ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
 }
 
-/* ─── PRESENCE HOOK ─── */
-function usePresence(userId, contactId) {
-  const [onlineUsers, setOnlineUsers] = useState({});
-  const channelRef = useRef(null);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const channel = supabase.channel("presence_" + [userId, contactId].sort().join("_"), {
-      config: { presence: { key: userId } },
-    });
-
-    channel
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState();
-        const online = {};
-        Object.entries(state).forEach(([key, presences]) => {
-          online[key] = presences[0]?.online_at || true;
-        });
-        setOnlineUsers(online);
-      })
-      .on("presence", { event: "join" }, ({ key }) => {
-        setOnlineUsers(prev => ({ ...prev, [key]: new Date().toISOString() }));
-      })
-      .on("presence", { event: "leave" }, ({ key }) => {
-        setOnlineUsers(prev => {
-          const next = { ...prev };
-          delete next[key];
-          return next;
-        });
-      })
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await channel.track({ online_at: new Date().toISOString() });
-        }
-      });
-
-    channelRef.current = channel;
-    return () => {
-      channel.untrack();
-      supabase.removeChannel(channel);
-    };
-  }, [userId, contactId]);
-
-  const isOnline = (id) => !!onlineUsers[id];
-  return { isOnline, onlineUsers };
+/* ─── TICK COMPONENT ─── */
+function Tick({ msg, mine }) {
+  if (!mine || msg.deleted) return null;
+  if (msg.read) return <span style={{ fontSize: 12, color: "#60a5fa", letterSpacing: "-2px" }}>✓✓</span>;
+  if (msg.delivered) return <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", letterSpacing: "-2px" }}>✓✓</span>;
+  return <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>✓</span>;
 }
 
-/* ─── MENU MODAL ─── */
-function MenuModal({ onClose, options }) {
+/* ─── BOTTOM MENU ─── */
+function BottomMenu({ options, onClose }) {
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000a", zIndex: 99999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, animation: "slideUp .25s ease", overflow: "hidden" }}>
-        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 8px" }} />
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000a", zIndex: 999999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, overflow: "hidden", animation: "slideUp .2s ease" }}>
+        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 6px" }} />
         {options.map((opt, i) => (
           <button key={i} onClick={() => { opt.action(); onClose(); }}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", background: "none", border: "none", borderBottom: i < options.length - 1 ? `1px solid ${T.border}` : "none", color: opt.danger ? "#f87171" : T.text, fontSize: 14, fontWeight: opt.danger ? 700 : 600, cursor: "pointer", textAlign: "left", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-            <span style={{ fontSize: 20 }}>{opt.icon}</span>
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", background: "none", border: "none", borderTop: i === 0 ? "none" : `1px solid ${T.border}`, color: opt.danger ? "#f87171" : T.text, fontSize: 15, fontWeight: 600, cursor: "pointer", textAlign: "left", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
             <span>{opt.label}</span>
+            <span style={{ fontSize: 20 }}>{opt.icon}</span>
           </button>
         ))}
-        <div style={{ height: 8 }} />
+        <div style={{ height: "max(16px, env(safe-area-inset-bottom))" }} />
       </div>
     </div>
   );
 }
 
-/* ─── MESSAGE BUBBLE TICK ─── */
-function MsgTick({ msg, mine }) {
-  if (!mine) return null;
-  if (msg.deleted) return null;
-  // Blue double tick = read, Grey double tick = delivered, Single grey = sent
-  const color = msg.read ? "#60a5fa" : "rgba(255,255,255,0.55)";
-  if (msg.read) {
-    return <span style={{ fontSize: 11, color }}>✓✓</span>;
-  }
-  if (msg.delivered) {
-    return <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>✓✓</span>;
-  }
-  return <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>✓</span>;
+/* ─── WEBRTC CALL SCREEN ─── */
+function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onEnd }) {
+  const localVideoRef = useRef();
+  const remoteVideoRef = useRef();
+  const pcRef = useRef();
+  const localStreamRef = useRef();
+  const [callState, setCallState] = useState(isIncoming ? "incoming" : "calling");
+  const [muted, setMuted] = useState(false);
+  const [camOff, setCamOff] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const timerRef = useRef();
+  const chanRef = useRef();
+
+  const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] };
+
+  const sendSignal = async (type, data) => {
+    await supabase.from("webrtc_signals").insert({ from_user: session.userId, to_user: contact.id, type, data });
+  };
+
+  const getMedia = async () => {
+    const constraints = callType === "video" ? { video: true, audio: true } : { audio: true };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints).catch(() => null);
+    if (!stream) return null;
+    localStreamRef.current = stream;
+    if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+    return stream;
+  };
+
+  const createPC = async (stream) => {
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+    pcRef.current = pc;
+    stream?.getTracks().forEach(t => pc.addTrack(t, stream));
+    pc.ontrack = e => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0]; };
+    pc.onicecandidate = e => { if (e.candidate) sendSignal("ice-candidate", { candidate: e.candidate }); };
+    return pc;
+  };
+
+  const startCall = async () => {
+    const stream = await getMedia();
+    if (!stream) { alert("Could not access camera/microphone"); onEnd(); return; }
+    const pc = await createPC(stream);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await sendSignal("call-request", { callType, offer });
+    setCallState("calling");
+  };
+
+  const acceptCall = async () => {
+    setCallState("connected");
+    timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
+    const stream = await getMedia();
+    const pc = await createPC(stream);
+    await pc.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await sendSignal("answer", { answer });
+  };
+
+  const hangUp = async () => {
+    await sendSignal("hang-up", {});
+    cleanup();
+    onEnd();
+  };
+
+  const cleanup = () => {
+    clearInterval(timerRef.current);
+    localStreamRef.current?.getTracks().forEach(t => t.stop());
+    pcRef.current?.close();
+    if (chanRef.current) supabase.removeChannel(chanRef.current);
+  };
+
+  useEffect(() => {
+    if (!isIncoming) startCall();
+
+    // Listen for signals
+    const ch = `webrtc_${[session.userId, contact.id].sort().join("_")}`;
+    chanRef.current = supabase.channel(ch)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "webrtc_signals", filter: `to_user=eq.${session.userId}` }, async ({ new: sig }) => {
+        const pc = pcRef.current;
+        if (sig.type === "answer" && pc) {
+          await pc.setRemoteDescription(new RTCSessionDescription(sig.data.answer));
+          setCallState("connected");
+          timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
+        }
+        if (sig.type === "ice-candidate" && pc) {
+          await pc.addIceCandidate(new RTCIceCandidate(sig.data.candidate)).catch(() => {});
+        }
+        if (sig.type === "hang-up") { cleanup(); onEnd(); }
+      })
+      .subscribe();
+
+    return cleanup;
+  }, []);
+
+  const fmtDur = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  const isVideo = callType === "video";
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 999999, background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+      {/* Remote video / background */}
+      {isVideo && callState === "connected" ? (
+        <video ref={remoteVideoRef} autoPlay playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : (
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,#0d1545,#06070d)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 100, height: 100, borderRadius: "50%", background: getColor(contact.name), overflow: "hidden", margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, fontWeight: 800, color: "#fff", border: "3px solid rgba(255,255,255,0.2)" }}>
+              {contact.photo ? <img src={contact.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (contact.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 24, color: "#fff", marginBottom: 8 }}>{contact.name}</div>
+            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>
+              {callState === "incoming" ? `Incoming ${isVideo ? "video" : "voice"} call…` :
+               callState === "calling" ? "Calling…" :
+               fmtDur(duration)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Local video (PiP) */}
+      {isVideo && (
+        <video ref={localVideoRef} autoPlay playsInline muted style={{ position: "absolute", top: 20, right: 20, width: 100, height: 140, borderRadius: 16, objectFit: "cover", border: "2px solid rgba(255,255,255,0.3)", zIndex: 2 }} />
+      )}
+
+      {/* Call controls */}
+      <div style={{ position: "absolute", bottom: 60, left: 0, right: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 20, zIndex: 3 }}>
+        {callState === "incoming" ? (
+          <>
+            <button onClick={hangUp} style={{ width: 70, height: 70, borderRadius: "50%", background: "#f87171", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, boxShadow: "0 4px 20px #f8717166" }}>📵</button>
+            <button onClick={acceptCall} style={{ width: 70, height: 70, borderRadius: "50%", background: T.success, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, boxShadow: `0 4px 20px ${T.success}66` }}>📞</button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => { setMuted(m => !m); localStreamRef.current?.getAudioTracks().forEach(t => t.enabled = !t.enabled); }}
+              style={{ width: 56, height: 56, borderRadius: "50%", background: muted ? "#f87171" : "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+              {muted ? "🔇" : "🎤"}
+            </button>
+            {isVideo && (
+              <button onClick={() => { setCamOff(c => !c); localStreamRef.current?.getVideoTracks().forEach(t => t.enabled = !t.enabled); }}
+                style={{ width: 56, height: 56, borderRadius: "50%", background: camOff ? "#f87171" : "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+                {camOff ? "📵" : "📹"}
+              </button>
+            )}
+            <button onClick={hangUp} style={{ width: 70, height: 70, borderRadius: "50%", background: "#f87171", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, boxShadow: "0 4px 20px #f8717166" }}>📵</button>
+            <button onClick={() => { /* speaker toggle */ }}
+              style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+              🔊
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /* ─── CHAT VIEW ─── */
-function ChatView({ contact, session, onBack, onBlockUser }) {
+function ChatView({ contact: initialContact, session, onBack }) {
+  const [contact, setContact] = useState(initialContact);
   const [msgs, setMsgs] = useState([]);
-  const [text, setText] = useState([]);
-  const [text2, setText2] = useState("");
+  const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
+  const [showChatMenu, setShowChatMenu] = useState(false);
+  const [showCallMenu, setShowCallMenu] = useState(false);
   const [selectedMsg, setSelectedMsg] = useState(null);
-  const [showMsgMenu, setShowMsgMenu] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
+  const [callScreen, setCallScreen] = useState(null);
+  const [incomingCall, setIncomingCall] = useState(null);
   const bottomRef = useRef();
   const inputRef = useRef();
   const chanRef = useRef();
+  const signalChanRef = useRef();
+  const presenceChanRef = useRef();
 
-  const { isOnline, onlineUsers } = usePresence(session.userId, contact.id);
-  const contactOnline = isOnline(contact.id);
-  const contactLastSeen = !contactOnline ? contact.last_seen : null;
-
+  /* ── Load messages ── */
   const loadMsgs = useCallback(async () => {
     const { data } = await supabase
       .from("messages").select("*")
       .or(`and(sender_id.eq.${session.userId},receiver_id.eq.${contact.id}),and(sender_id.eq.${contact.id},receiver_id.eq.${session.userId})`)
       .order("created_at", { ascending: true });
 
-    const filtered = (data || []).filter(m => !m.deleted_for?.includes(session.userId));
-    setMsgs(filtered);
+    const visible = (data || []).filter(m => {
+      if (m.deleted) return true; // show "deleted" placeholder
+      return !(m.deleted_for || []).includes(session.userId);
+    });
+    setMsgs(visible);
 
-    // Mark as delivered + read
-    await supabase.from("messages")
-      .update({ read: true, delivered: true })
-      .eq("sender_id", contact.id)
-      .eq("receiver_id", session.userId)
-      .eq("read", false);
+    // Mark received as delivered + read
+    const unread = (data || []).filter(m => m.sender_id === contact.id && m.receiver_id === session.userId && !m.read);
+    if (unread.length > 0) {
+      await supabase.from("messages")
+        .update({ read: true, delivered: true })
+        .in("id", unread.map(m => m.id));
+    }
+  }, [session.userId, contact.id]);
+
+  /* ── Contact presence ── */
+  const watchContactPresence = useCallback(() => {
+    const ch = supabase.channel(`presence_room_${[session.userId, contact.id].sort().join("_")}`, {
+      config: { presence: { key: session.userId } },
+    });
+    ch.on("presence", { event: "sync" }, () => {
+        const state = ch.presenceState();
+        const contactPresent = !!state[contact.id];
+        setContact(prev => ({ ...prev, is_online: contactPresent }));
+      })
+      .on("presence", { event: "join" }, ({ key }) => {
+        if (key === contact.id) setContact(prev => ({ ...prev, is_online: true }));
+      })
+      .on("presence", { event: "leave" }, ({ key }) => {
+        if (key === contact.id) {
+          setContact(prev => ({ ...prev, is_online: false, last_seen: new Date().toISOString() }));
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await ch.track({ user_id: session.userId, online_at: new Date().toISOString() });
+          // Update db
+          await supabase.from("profiles").update({ is_online: true }).eq("id", session.userId);
+        }
+      });
+    presenceChanRef.current = ch;
   }, [session.userId, contact.id]);
 
   useEffect(() => {
     loadMsgs();
-    // Check if blocked
-    supabase.from("blocked_users")
-      .select("id").eq("blocker_id", session.userId).eq("blocked_id", contact.id)
+    watchContactPresence();
+
+    // Check blocked
+    supabase.from("blocked_users").select("id")
+      .eq("blocker_id", session.userId).eq("blocked_id", contact.id)
       .then(({ data }) => setIsBlocked((data || []).length > 0));
 
-    const ch = `chat_${[session.userId, contact.id].sort().join("_")}_${Math.random().toString(36).slice(2, 7)}`;
+    // Message realtime
+    const ch = `msgs_${[session.userId, contact.id].sort().join("_")}_${Math.random().toString(36).slice(2, 6)}`;
     chanRef.current = supabase.channel(ch)
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, ({ new: m, eventType }) => {
-        if (eventType === "DELETE") { loadMsgs(); return; }
-        const ok = (m.sender_id === session.userId && m.receiver_id === contact.id) ||
-                   (m.sender_id === contact.id && m.receiver_id === session.userId);
-        if (ok) loadMsgs();
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => loadMsgs())
+      .subscribe();
+
+    // WebRTC signals
+    signalChanRef.current = supabase.channel(`signals_${session.userId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "webrtc_signals", filter: `to_user=eq.${session.userId}` }, ({ new: sig }) => {
+        if (sig.from_user !== contact.id) return;
+        if (sig.type === "call-request") {
+          setIncomingCall({ callType: sig.data.callType, offer: sig.data.offer, from: contact });
+        }
       })
       .subscribe();
-    return () => { if (chanRef.current) supabase.removeChannel(chanRef.current); };
-  }, [contact.id, session.userId, loadMsgs]);
+
+    return () => {
+      // Mark offline
+      supabase.from("profiles").update({ is_online: false, last_seen: new Date().toISOString() }).eq("id", session.userId);
+      if (presenceChanRef.current) {
+        presenceChanRef.current.untrack();
+        supabase.removeChannel(presenceChanRef.current);
+      }
+      if (chanRef.current) supabase.removeChannel(chanRef.current);
+      if (signalChanRef.current) supabase.removeChannel(signalChanRef.current);
+    };
+  }, [contact.id, session.userId, loadMsgs, watchContactPresence]);
 
   useEffect(() => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
   }, [msgs]);
 
-  // Update last_seen on unmount
-  useEffect(() => {
-    return () => {
-      supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("id", session.userId);
-    };
-  }, [session.userId]);
-
+  /* ── Send message ── */
   const send = async () => {
-    const content = text2.trim();
+    const content = text.trim();
     if (!content || sending || isBlocked) return;
-    setText2("");
+    setText("");
     setSending(true);
     await supabase.from("messages").insert({
       sender_id: session.userId, receiver_id: contact.id,
-      content, read: false, delivered: false,
-      created_at: new Date().toISOString(),
+      content, read: false, delivered: false, created_at: new Date().toISOString(),
     });
     setSending(false);
     inputRef.current?.focus();
   };
 
+  /* ── Delete for me ── */
   const deleteForMe = async (msgId) => {
     const msg = msgs.find(m => m.id === msgId);
     if (!msg) return;
-    const deletedFor = msg.deleted_for || [];
-    if (!deletedFor.includes(session.userId)) {
-      await supabase.from("messages").update({ deleted_for: [...deletedFor, session.userId] }).eq("id", msgId);
-    }
+    const arr = [...(msg.deleted_for || [])];
+    if (!arr.includes(session.userId)) arr.push(session.userId);
+    await supabase.from("messages").update({ deleted_for: arr }).eq("id", msgId);
     loadMsgs();
   };
 
+  /* ── Delete for everyone ── */
   const deleteForEveryone = async (msgId) => {
     await supabase.from("messages").update({
-      content: null, deleted: true,
+      content: null, deleted: true, delivered: false, read: false,
       deleted_at: new Date().toISOString(),
     }).eq("id", msgId).eq("sender_id", session.userId);
     loadMsgs();
   };
 
+  /* ── Block/Unblock ── */
   const blockUser = async () => {
     await supabase.from("blocked_users").insert({ blocker_id: session.userId, blocked_id: contact.id });
     setIsBlocked(true);
-    onBlockUser && onBlockUser(contact.id);
   };
-
   const unblockUser = async () => {
-    await supabase.from("blocked_users").delete().eq("blocker_id", session.userId).eq("blocked_id", contact.id);
+    await supabase.from("blocked_users").delete()
+      .eq("blocker_id", session.userId).eq("blocked_id", contact.id);
     setIsBlocked(false);
   };
 
+  /* ── Clear chat ── */
   const clearChat = async () => {
-    const ids = msgs.map(m => m.id);
-    for (const id of ids) { await deleteForMe(id); }
+    for (const m of msgs) await deleteForMe(m.id);
     loadMsgs();
+  };
+
+  /* ── Upload & send ── */
+  const uploadAndSend = async (file, prefix) => {
+    const path = `msg/${session.userId}/${Date.now()}_${file.name}`;
+    const { error } = await supabase.storage.from("avatars").upload(path, file, { contentType: file.type });
+    if (!error) {
+      const { data: d } = supabase.storage.from("avatars").getPublicUrl(path);
+      await supabase.from("messages").insert({
+        sender_id: session.userId, receiver_id: contact.id,
+        content: `${prefix} ${d.publicUrl}`,
+        read: false, delivered: false, created_at: new Date().toISOString(),
+      });
+    }
   };
 
   const viewProfile = () => {
@@ -266,280 +427,275 @@ function ChatView({ contact, session, onBack, onBlockUser }) {
     setTimeout(() => window.dispatchEvent(new CustomEvent("tez-view-profile", { detail: { userId: contact.id } })), 100);
   };
 
-  const uploadAndSend = async (file, label) => {
-    const path = `msg/${session.userId}/${Date.now()}_${file.name}`;
-    const { error } = await supabase.storage.from("avatars").upload(path, file, { contentType: file.type });
-    if (!error) {
-      const { data: d } = supabase.storage.from("avatars").getPublicUrl(path);
-      await supabase.from("messages").insert({
-        sender_id: session.userId, receiver_id: contact.id,
-        content: `${label} ${d.publicUrl}`,
-        read: false, delivered: false, created_at: new Date().toISOString(),
-      });
-    }
-  };
-
-  const attachOpts = [
-    { icon: "🖼️", label: "Gallery", color: "#7c3aed", action: () => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.onchange = e => { if (e.target.files[0]) uploadAndSend(e.target.files[0], "📷"); }; inp.click(); setShowAttach(false); } },
-    { icon: "📷", label: "Camera", color: "#ea580c", action: () => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.capture = "environment"; inp.onchange = e => { if (e.target.files[0]) uploadAndSend(e.target.files[0], "📷"); }; inp.click(); setShowAttach(false); } },
-    { icon: "📄", label: "Document", color: "#0369a1", action: () => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".pdf,.doc,.docx,.xls,.xlsx,.txt"; inp.onchange = e => { if (e.target.files[0]) uploadAndSend(e.target.files[0], `📄 ${e.target.files[0].name}`); }; inp.click(); setShowAttach(false); } },
-    { icon: "📍", label: "Location", color: "#15803d", action: () => { setShowAttach(false); if (!navigator.geolocation) return; navigator.geolocation.getCurrentPosition(async pos => { const url = `https://maps.google.com/?q=${pos.coords.latitude},${pos.coords.longitude}`; await supabase.from("messages").insert({ sender_id: session.userId, receiver_id: contact.id, content: `📍 My Location: ${url}`, read: false, delivered: false, created_at: new Date().toISOString() }); }, () => alert("Location access denied")); } },
-  ];
-
+  /* ── Menu options ── */
   const chatMenuOptions = [
-    { icon: "👤", label: "View Profile", action: viewProfile },
-    { icon: "📞", label: "Audio Call", action: () => { if (contact.mobile || contact.whatsapp) window.location.href = `tel:${contact.mobile || contact.whatsapp}`; else alert("No phone number available"); } },
-    { icon: "🗑️", label: "Clear Chat", action: clearChat },
-    { icon: isBlocked ? "✅" : "🚫", label: isBlocked ? "Unblock User" : "Block User", action: isBlocked ? unblockUser : blockUser, danger: !isBlocked },
+    { label: "View Profile", icon: "👤", action: viewProfile },
+    { label: "Clear Chat", icon: "🗑️", action: clearChat },
+    { label: isBlocked ? "Unblock User" : "Block User", icon: isBlocked ? "✅" : "🚫", action: isBlocked ? unblockUser : blockUser, danger: !isBlocked },
   ];
 
-  const getMsgMenuOptions = (msg) => {
-    const isMine = msg.sender_id === session.userId;
-    const opts = [{ icon: "🗑️", label: "Delete for Me", action: () => deleteForMe(msg.id), danger: false }];
-    if (isMine && !msg.deleted) {
-      opts.push({ icon: "🗑️", label: "Delete for Everyone", action: () => deleteForEveryone(msg.id), danger: true });
+  const callMenuOptions = [
+    { label: "Voice call", icon: "📞", action: () => setCallScreen({ callType: "audio", isIncoming: false }) },
+    { label: "Video call", icon: "📹", action: () => setCallScreen({ callType: "video", isIncoming: false }) },
+    { label: "Send call link", icon: "🔗", action: () => { const url = `https://tezconnect.in/?call=${contact.id}`; navigator.clipboard?.writeText(url); alert("Call link copied!"); } },
+  ];
+
+  const getMsgOptions = (msg) => {
+    const mine = msg.sender_id === session.userId;
+    const opts = [
+      { label: "Delete for Me", icon: "🗑️", action: () => deleteForMe(msg.id) },
+    ];
+    if (mine && !msg.deleted) {
+      opts.push({ label: "Delete for Everyone", icon: "🗑️", action: () => deleteForEveryone(msg.id), danger: true });
     }
     return opts;
   };
 
+  const attachOpts = [
+    { icon: "🖼️", label: "Gallery",  color: "#7c3aed", action: () => { const i = document.createElement("input"); i.type = "file"; i.accept = "image/*"; i.onchange = e => { if (e.target.files[0]) uploadAndSend(e.target.files[0], "📷"); }; i.click(); setShowAttach(false); } },
+    { icon: "📷", label: "Camera",   color: "#ea580c", action: () => { const i = document.createElement("input"); i.type = "file"; i.accept = "image/*"; i.capture = "environment"; i.onchange = e => { if (e.target.files[0]) uploadAndSend(e.target.files[0], "📷"); }; i.click(); setShowAttach(false); } },
+    { icon: "📄", label: "Document", color: "#0369a1", action: () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".pdf,.doc,.docx,.xls,.xlsx,.txt"; i.onchange = e => { if (e.target.files[0]) uploadAndSend(e.target.files[0], `📄 ${e.target.files[0].name}`); }; i.click(); setShowAttach(false); } },
+    { icon: "📍", label: "Location", color: "#15803d", action: () => { setShowAttach(false); if (!navigator.geolocation) return; navigator.geolocation.getCurrentPosition(async p => { const url = `https://maps.google.com/?q=${p.coords.latitude},${p.coords.longitude}`; await supabase.from("messages").insert({ sender_id: session.userId, receiver_id: contact.id, content: `📍 My Location: ${url}`, read: false, delivered: false, created_at: new Date().toISOString() }); }); } },
+  ];
+
+  const statusText = contact.is_online ? "● Online" : lastSeenText(contact);
+
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999, background: T.bg, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <>
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999, background: T.bg, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-      {/* TOP BAR */}
-      <div style={{ flexShrink: 0, background: T.bgCard, borderBottom: `1px solid ${T.border}`, paddingTop: "env(safe-area-inset-top, 0px)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px" }}>
-          <button onClick={onBack} style={{ width: 36, height: 36, borderRadius: "50%", background: T.bgInput, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontSize: 18, cursor: "pointer", flexShrink: 0 }}>←</button>
+        {/* TOP BAR */}
+        <div style={{ flexShrink: 0, background: T.bgCard, borderBottom: `1px solid ${T.border}`, paddingTop: "env(safe-area-inset-top, 0px)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px" }}>
+            <button onClick={onBack} style={{ width: 34, height: 34, borderRadius: "50%", background: T.bgInput, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontSize: 16, cursor: "pointer", flexShrink: 0 }}>←</button>
 
-          <div onClick={viewProfile} style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, cursor: "pointer" }}>
-            <div style={{ position: "relative", flexShrink: 0 }}>
-              <Avatar name={contact.name} photo={contact.photo} size={40} />
-              {contactOnline && (
-                <div style={{ position: "absolute", bottom: 1, right: 1, width: 10, height: 10, borderRadius: "50%", background: T.success, border: `2px solid ${T.bgCard}`, boxShadow: `0 0 6px ${T.success}` }} />
-              )}
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 800, fontSize: 15, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{contact.name}</div>
-              <div style={{ fontSize: 11, color: contactOnline ? T.success : T.textMid }}>
-                {contactOnline ? "● Online" : lastSeenText(contact.last_seen || contactLastSeen)}
+            <div onClick={viewProfile} style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, cursor: "pointer" }}>
+              <div style={{ position: "relative", flexShrink: 0 }}>
+                <Avatar name={contact.name} photo={contact.photo} size={40} />
+                {contact.is_online && (
+                  <div style={{ position: "absolute", bottom: 1, right: 1, width: 10, height: 10, borderRadius: "50%", background: T.success, border: `2px solid ${T.bgCard}`, boxShadow: `0 0 6px ${T.success}` }} />
+                )}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{contact.name}</div>
+                <div style={{ fontSize: 11, color: contact.is_online ? T.success : T.textMid, marginTop: 1 }}>{statusText}</div>
               </div>
             </div>
+
+            {/* Call button with dropdown */}
+            <button onClick={() => setShowCallMenu(true)}
+              style={{ width: 36, height: 36, borderRadius: "50%", background: T.bgInput, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, cursor: "pointer", flexShrink: 0 }}>
+              📞
+            </button>
+
+            {/* More menu */}
+            <button onClick={() => setShowChatMenu(true)}
+              style={{ width: 36, height: 36, borderRadius: "50%", background: "none", border: "none", color: T.textMid, fontSize: 22, cursor: "pointer", flexShrink: 0 }}>⋯</button>
           </div>
 
-          {/* Audio call */}
-          <button
-            onClick={() => { if (contact.mobile || contact.whatsapp) window.location.href = `tel:${contact.mobile || contact.whatsapp}`; else alert("No phone number available"); }}
-            style={{ width: 36, height: 36, borderRadius: "50%", background: T.bgInput, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, cursor: "pointer", flexShrink: 0 }}>
-            📞
-          </button>
-
-          {/* Video call */}
-          <button
-            onClick={() => { if (contact.whatsapp) window.open(`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, "")}`, "_blank"); else alert("No video call available — WhatsApp number not set"); }}
-            style={{ width: 36, height: 36, borderRadius: "50%", background: T.bgInput, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, cursor: "pointer", flexShrink: 0 }}>
-            🎥
-          </button>
-
-          {/* More menu */}
-          <button onClick={() => setShowMenu(true)} style={{ width: 36, height: 36, borderRadius: "50%", background: "none", border: "none", color: T.textMid, fontSize: 22, cursor: "pointer", flexShrink: 0 }}>⋯</button>
+          {/* Contact info strip */}
+          {(contact.location || contact.industry) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, margin: "0 14px 10px", padding: "8px 14px" }}>
+              {contact.location && <div style={{ flex: 1 }}><div style={{ fontSize: 9, color: T.textLow, textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 1 }}>📍 Location</div><div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{contact.location}</div></div>}
+              {contact.industry && <div style={{ flex: 1 }}><div style={{ fontSize: 9, color: T.textLow, textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 1 }}>🏭 Industry</div><div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{contact.industry}</div></div>}
+              <button onClick={viewProfile} style={{ background: "none", border: "none", color: T.orange, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>View profile</button>
+            </div>
+          )}
         </div>
 
-        {/* Info strip */}
-        {(contact.location || contact.industry) && (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, margin: "0 14px 12px", padding: "8px 14px" }}>
-            {contact.location && <div style={{ flex: 1 }}><div style={{ fontSize: 9, color: T.textLow, textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 2 }}>📍 Location</div><div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{contact.location}</div></div>}
-            {contact.industry && <div style={{ flex: 1 }}><div style={{ fontSize: 9, color: T.textLow, textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 2 }}>🏭 Industry</div><div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{contact.industry}</div></div>}
-            <button onClick={viewProfile} style={{ background: "none", border: "none", color: T.orange, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>View profile</button>
+        {/* MESSAGES */}
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "12px 14px", minHeight: 0 }}>
+          {isBlocked && (
+            <div style={{ textAlign: "center", padding: "16px", background: "#1a0a0a", border: "1px solid #f8717133", borderRadius: 12, margin: "8px 0" }}>
+              <div style={{ fontSize: 13, color: "#f87171" }}>🚫 You have blocked this user</div>
+              <button onClick={unblockUser} style={{ marginTop: 8, background: "none", border: "1px solid #f87171", borderRadius: 8, padding: "5px 14px", color: "#f87171", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Unblock</button>
+            </div>
+          )}
+
+          {msgs.length === 0 && !isBlocked && (
+            <div style={{ textAlign: "center", paddingTop: 60 }}>
+              <div style={{ fontSize: 52, marginBottom: 14 }}>👋</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: T.text, marginBottom: 6 }}>Start the conversation</div>
+              <div style={{ fontSize: 13, color: T.textLow }}>Say hello to {contact.name?.split(" ")[0]}</div>
+            </div>
+          )}
+
+          {msgs.map((msg, i) => {
+            const mine = msg.sender_id === session.userId;
+            const linkUrl = msg.content?.split(" ").find(w => w.startsWith("http"));
+            const isImg = msg.content?.startsWith("📷") && linkUrl;
+            const isDoc = msg.content?.startsWith("📄") && linkUrl;
+            const isLoc = msg.content?.startsWith("📍") && linkUrl;
+
+            return (
+              <div key={msg.id || i}>
+                {needsSep(msgs, i) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0" }}>
+                    <div style={{ flex: 1, height: 1, background: T.border }} />
+                    <span style={{ fontSize: 11, color: T.textLow, fontWeight: 600, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 20, padding: "3px 12px" }}>{fmtSep(msg.created_at)}</span>
+                    <div style={{ flex: 1, height: 1, background: T.border }} />
+                  </div>
+                )}
+
+                <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", marginBottom: 4 }}>
+                  <div
+                    style={{ maxWidth: "75%", position: "relative", cursor: "default" }}
+                    onTouchStart={e => { e.currentTarget._t = setTimeout(() => setSelectedMsg(msg), 500); }}
+                    onTouchEnd={e => clearTimeout(e.currentTarget._t)}
+                    onContextMenu={e => { e.preventDefault(); setSelectedMsg(msg); }}
+                  >
+                    <div style={{
+                      background: msg.deleted ? T.bgInput : mine ? "linear-gradient(135deg,#f97316,#ea6008)" : T.bgCard,
+                      border: (msg.deleted || !mine) ? `1px solid ${T.border}` : "none",
+                      borderRadius: mine ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                      padding: isImg ? "4px" : "10px 14px",
+                      boxShadow: mine && !msg.deleted ? "0 2px 12px #f9731430" : "none",
+                      overflow: "hidden",
+                    }}>
+                      {msg.deleted ? (
+                        <div style={{ fontSize: 13, color: T.textLow, fontStyle: "italic", display: "flex", alignItems: "center", gap: 6, padding: "0 2px" }}>
+                          <span>🚫</span> This message was deleted
+                        </div>
+                      ) : isImg ? (
+                        <>
+                          <a href={linkUrl} target="_blank" rel="noopener noreferrer">
+                            <img src={linkUrl} alt="" style={{ width: "100%", maxWidth: 220, height: 160, objectFit: "cover", borderRadius: 12, display: "block" }} />
+                          </a>
+                          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 3, padding: "4px 6px 2px", fontSize: 10, color: mine ? "rgba(255,255,255,0.6)" : T.textLow }}>
+                            {fmtTime(msg.created_at)} <Tick msg={msg} mine={mine} />
+                          </div>
+                        </>
+                      ) : isDoc ? (
+                        <>
+                          <a href={linkUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10, background: mine ? "rgba(0,0,0,0.15)" : T.bgInput, borderRadius: 10, padding: "10px 12px" }}>
+                            <span style={{ fontSize: 26 }}>📄</span>
+                            <div><div style={{ fontSize: 12, fontWeight: 700, color: mine ? "#fff" : T.text }}>{msg.content.split(" ").slice(1, -1).join(" ") || "Document"}</div><div style={{ fontSize: 10, color: mine ? "rgba(255,255,255,0.6)" : T.textLow }}>Tap to open</div></div>
+                          </a>
+                          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 3, padding: "4px 2px 0", fontSize: 10, color: mine ? "rgba(255,255,255,0.6)" : T.textLow }}>
+                            {fmtTime(msg.created_at)} <Tick msg={msg} mine={mine} />
+                          </div>
+                        </>
+                      ) : isLoc ? (
+                        <>
+                          <a href={linkUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10, background: mine ? "rgba(0,0,0,0.15)" : T.bgInput, borderRadius: 10, padding: "10px 12px" }}>
+                            <span style={{ fontSize: 26 }}>📍</span>
+                            <div><div style={{ fontSize: 12, fontWeight: 700, color: mine ? "#fff" : T.text }}>Shared Location</div><div style={{ fontSize: 10, color: mine ? "rgba(255,255,255,0.6)" : T.textLow }}>Tap to open Maps</div></div>
+                          </a>
+                          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 3, padding: "4px 2px 0", fontSize: 10, color: mine ? "rgba(255,255,255,0.6)" : T.textLow }}>
+                            {fmtTime(msg.created_at)} <Tick msg={msg} mine={mine} />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: 14, color: mine ? "#fff" : T.text, lineHeight: 1.5, wordBreak: "break-word" }}>{msg.content}</div>
+                          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 3, marginTop: 3, fontSize: 10, color: mine ? "rgba(255,255,255,0.6)" : T.textLow }}>
+                            {fmtTime(msg.created_at)} <Tick msg={msg} mine={mine} />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <div ref={bottomRef} style={{ height: 4 }} />
+        </div>
+
+        {/* ATTACHMENT PANEL */}
+        {showAttach && (
+          <div style={{ flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}`, padding: "12px 20px 16px" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+              <button onClick={() => setShowAttach(false)} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 20, padding: "4px 28px", color: T.textMid, fontSize: 14, cursor: "pointer" }}>▾</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+              {attachOpts.map(o => (
+                <div key={o.label} onClick={o.action} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7, cursor: "pointer" }}>
+                  <div style={{ width: 54, height: 54, borderRadius: 16, background: o.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{o.icon}</div>
+                  <span style={{ fontSize: 11, color: T.textMid, fontWeight: 600 }}>{o.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
-      </div>
 
-      {/* MESSAGES */}
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "14px", minHeight: 0 }}>
+        {/* Blocked banner */}
         {isBlocked && (
-          <div style={{ textAlign: "center", padding: "20px", background: T.bgCard, border: `1px solid #f8717133`, borderRadius: 12, margin: "10px 0" }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>🚫</div>
-            <div style={{ fontSize: 13, color: "#f87171", fontWeight: 600 }}>You have blocked this user</div>
-            <button onClick={unblockUser} style={{ marginTop: 10, background: "none", border: `1px solid #f87171`, borderRadius: 8, padding: "6px 16px", color: "#f87171", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Unblock</button>
+          <div style={{ flexShrink: 0, background: "#1a0a0a", borderTop: "1px solid #f8717133", padding: "10px 20px", textAlign: "center", fontSize: 12, color: "#f87171" }}>
+            You blocked this user.&nbsp;
+            <button onClick={unblockUser} style={{ background: "none", border: "none", color: T.orange, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Unblock</button>
           </div>
         )}
 
-        {msgs.length === 0 && (
-          <div style={{ textAlign: "center", paddingTop: 60 }}>
-            <div style={{ fontSize: 52, marginBottom: 14 }}>👋</div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: T.text, marginBottom: 6 }}>Start the conversation</div>
-            <div style={{ fontSize: 13, color: T.textLow }}>Say hello to {contact.name?.split(" ")[0]}</div>
-          </div>
-        )}
+        {/* INPUT BAR */}
+        {!isBlocked && (
+          <div style={{ flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}`, padding: "10px 14px", paddingBottom: "max(10px, env(safe-area-inset-bottom, 10px))", display: "flex", alignItems: "center", gap: 10 }}>
+            <button style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", flexShrink: 0 }}>😊</button>
 
-        {msgs.map((msg, i) => {
-          const mine = msg.sender_id === session.userId;
-          const hasLink = msg.content?.includes("http");
-          const linkUrl = hasLink ? msg.content?.split(" ").find(w => w.startsWith("http")) : null;
-          const isImg = msg.content?.startsWith("📷") && linkUrl;
-          const isDoc = msg.content?.startsWith("📄") && linkUrl;
-          const isLoc = msg.content?.startsWith("📍") && linkUrl;
-
-          return (
-            <div key={msg.id || i}>
-              {needsSep(msgs, i) && (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0" }}>
-                  <div style={{ flex: 1, height: 1, background: T.border }} />
-                  <span style={{ fontSize: 11, color: T.textLow, fontWeight: 600, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 20, padding: "3px 12px" }}>{fmtSep(msg.created_at)}</span>
-                  <div style={{ flex: 1, height: 1, background: T.border }} />
-                </div>
-              )}
-
-              <div
-                style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", marginBottom: 6 }}
-                onLongPress={() => { setSelectedMsg(msg); setShowMsgMenu(true); }}
-              >
-                <div
-                  onContextMenu={e => { e.preventDefault(); setSelectedMsg(msg); setShowMsgMenu(true); }}
-                  onClick={() => { /* single tap does nothing */ }}
-                  onTouchStart={(e) => {
-                    const timer = setTimeout(() => { setSelectedMsg(msg); setShowMsgMenu(true); }, 500);
-                    e.currentTarget._pressTimer = timer;
-                  }}
-                  onTouchEnd={(e) => { clearTimeout(e.currentTarget._pressTimer); }}
-                  style={{
-                    maxWidth: "72%",
-                    background: msg.deleted ? T.bgInput : mine ? "linear-gradient(135deg,#f97316,#ea6008)" : T.bgCard,
-                    border: msg.deleted ? `1px solid ${T.border}` : mine ? "none" : `1px solid ${T.border}`,
-                    borderRadius: mine ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                    padding: isImg ? "4px" : "10px 14px",
-                    boxShadow: mine && !msg.deleted ? "0 4px 16px #f9731430" : "none",
-                    cursor: "default",
-                    userSelect: "none",
-                  }}
-                >
-                  {/* Deleted message */}
-                  {msg.deleted ? (
-                    <div style={{ fontSize: 13, color: T.textLow, fontStyle: "italic", display: "flex", alignItems: "center", gap: 6 }}>
-                      <span>🚫</span> This message was deleted
-                    </div>
-                  ) : isImg ? (
-                    <div>
-                      <a href={linkUrl} target="_blank" rel="noopener noreferrer">
-                        <img src={linkUrl} alt="" style={{ width: "100%", maxWidth: 240, height: 180, objectFit: "cover", borderRadius: 14, display: "block" }} />
-                      </a>
-                      <div style={{ fontSize: 10, padding: "4px 8px 4px", color: mine ? "rgba(255,255,255,0.65)" : T.textLow, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                        {fmtTime(msg.created_at)} <MsgTick msg={msg} mine={mine} />
-                      </div>
-                    </div>
-                  ) : isDoc ? (
-                    <div>
-                      <a href={linkUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, background: mine ? "rgba(0,0,0,0.15)" : T.bgInput, borderRadius: 10, padding: "10px 12px", marginBottom: 4 }}>
-                          <span style={{ fontSize: 28 }}>📄</span>
-                          <div><div style={{ fontSize: 12, fontWeight: 700, color: mine ? "#fff" : T.text }}>{msg.content.split(" ")[1] || "Document"}</div><div style={{ fontSize: 10, color: mine ? "rgba(255,255,255,0.6)" : T.textLow }}>Tap to open</div></div>
-                        </div>
-                      </a>
-                      <div style={{ fontSize: 10, color: mine ? "rgba(255,255,255,0.65)" : T.textLow, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                        {fmtTime(msg.created_at)} <MsgTick msg={msg} mine={mine} />
-                      </div>
-                    </div>
-                  ) : isLoc ? (
-                    <div>
-                      <a href={linkUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, background: mine ? "rgba(0,0,0,0.15)" : T.bgInput, borderRadius: 10, padding: "10px 12px", marginBottom: 4 }}>
-                          <span style={{ fontSize: 28 }}>📍</span>
-                          <div><div style={{ fontSize: 12, fontWeight: 700, color: mine ? "#fff" : T.text }}>Shared Location</div><div style={{ fontSize: 10, color: mine ? "rgba(255,255,255,0.6)" : T.textLow }}>Tap to open in Maps</div></div>
-                        </div>
-                      </a>
-                      <div style={{ fontSize: 10, color: mine ? "rgba(255,255,255,0.65)" : T.textLow, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                        {fmtTime(msg.created_at)} <MsgTick msg={msg} mine={mine} />
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div style={{ fontSize: 14, color: mine ? "#fff" : T.text, lineHeight: 1.5, wordBreak: "break-word" }}>{msg.content}</div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 4, fontSize: 10, color: mine ? "rgba(255,255,255,0.65)" : T.textLow }}>
-                        {fmtTime(msg.created_at)}
-                        <MsgTick msg={msg} mine={mine} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div style={{ flex: 1, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 24, display: "flex", alignItems: "center", paddingLeft: 14 }}>
+              <input
+                ref={inputRef}
+                value={text}
+                onChange={e => setText(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                placeholder="Type a message..."
+                style={{ flex: 1, background: "none", border: "none", color: T.text, fontSize: 14, outline: "none", padding: "11px 8px 11px 0", fontFamily: "'Plus Jakarta Sans',sans-serif", minWidth: 0 }}
+              />
             </div>
-          );
-        })}
-        <div ref={bottomRef} style={{ height: 4 }} />
+
+            <button onClick={() => setShowAttach(a => !a)} style={{ width: 38, height: 38, borderRadius: "50%", flexShrink: 0, background: showAttach ? T.orangeMd : "none", border: showAttach ? `1px solid ${T.orange}44` : "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, cursor: "pointer", transition: "all .2s" }}>📎</button>
+
+            <button onClick={send} disabled={sending}
+              style={{ width: 44, height: 44, borderRadius: "50%", flexShrink: 0, background: text.trim() ? "linear-gradient(135deg,#f97316,#ea6008)" : T.bgInput, border: text.trim() ? "none" : `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: text.trim() ? "pointer" : "default", boxShadow: text.trim() ? "0 4px 16px #f9731444" : "none", transition: "all .2s" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M22 2L11 13" stroke={text.trim() ? "#fff" : T.textLow} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke={text.trim() ? "#fff" : T.textLow} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* Menus */}
+        {showChatMenu && <BottomMenu options={chatMenuOptions} onClose={() => setShowChatMenu(false)} />}
+        {showCallMenu && <BottomMenu options={callMenuOptions} onClose={() => setShowCallMenu(false)} />}
+        {selectedMsg && (
+          <BottomMenu options={getMsgOptions(selectedMsg)} onClose={() => setSelectedMsg(null)} />
+        )}
       </div>
 
-      {/* ATTACHMENT PANEL */}
-      {showAttach && (
-        <div style={{ flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}`, padding: "12px 20px 16px" }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-            <button onClick={() => setShowAttach(false)} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 20, padding: "4px 28px", color: T.textMid, fontSize: 14, cursor: "pointer" }}>▾</button>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
-            {attachOpts.map(opt => (
-              <div key={opt.label} onClick={opt.action} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <div style={{ width: 54, height: 54, borderRadius: 16, background: opt.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>{opt.icon}</div>
-                <span style={{ fontSize: 11, color: T.textMid, fontWeight: 600 }}>{opt.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Blocked banner */}
-      {isBlocked && (
-        <div style={{ flexShrink: 0, background: "#1a0a0a", borderTop: `1px solid #f8717133`, padding: "12px 20px", textAlign: "center", fontSize: 12, color: "#f87171" }}>
-          You blocked this user. <button onClick={unblockUser} style={{ background: "none", border: "none", color: T.orange, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Unblock</button>
-        </div>
-      )}
-
-      {/* INPUT BAR */}
-      {!isBlocked && (
-        <div style={{ flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}`, padding: "10px 14px", paddingBottom: "max(10px, env(safe-area-inset-bottom, 10px))", display: "flex", alignItems: "center", gap: 10 }}>
-          <button style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", flexShrink: 0 }}>😊</button>
-
-          <div style={{ flex: 1, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 24, display: "flex", alignItems: "center", paddingLeft: 14 }}>
-            <input
-              ref={inputRef}
-              value={text2}
-              onChange={e => setText2(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Type a message..."
-              style={{ flex: 1, background: "none", border: "none", color: T.text, fontSize: 14, outline: "none", padding: "11px 8px 11px 0", fontFamily: "'Plus Jakarta Sans',sans-serif", minWidth: 0 }}
-            />
-          </div>
-
-          <button onClick={() => setShowAttach(a => !a)} style={{ width: 38, height: 38, borderRadius: "50%", flexShrink: 0, background: showAttach ? T.orangeMd : "none", border: showAttach ? `1px solid ${T.orange}44` : "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, cursor: "pointer", transition: "all .2s" }}>📎</button>
-
-          <button onClick={send} disabled={sending} style={{ width: 44, height: 44, borderRadius: "50%", flexShrink: 0, background: text2.trim() ? "linear-gradient(135deg,#f97316,#ea6008)" : T.bgInput, border: text2.trim() ? "none" : `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: text2.trim() ? "pointer" : "default", boxShadow: text2.trim() ? "0 4px 16px #f9731444" : "none", transition: "all .2s" }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M22 2L11 13" stroke={text2.trim() ? "#fff" : T.textLow} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke={text2.trim() ? "#fff" : T.textLow} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        </div>
-      )}
-
-      {/* Chat menu */}
-      {showMenu && <MenuModal onClose={() => setShowMenu(false)} options={chatMenuOptions} />}
-
-      {/* Message long-press menu */}
-      {showMsgMenu && selectedMsg && (
-        <MenuModal
-          onClose={() => { setShowMsgMenu(false); setSelectedMsg(null); }}
-          options={getMsgMenuOptions(selectedMsg)}
+      {/* Call screen */}
+      {callScreen && (
+        <CallScreen
+          contact={contact}
+          session={session}
+          callType={callScreen.callType}
+          isIncoming={false}
+          onEnd={() => setCallScreen(null)}
         />
       )}
-    </div>
+
+      {/* Incoming call */}
+      {incomingCall && !callScreen && (
+        <CallScreen
+          contact={contact}
+          session={session}
+          callType={incomingCall.callType}
+          isIncoming={true}
+          incomingOffer={incomingCall.offer}
+          onEnd={() => setIncomingCall(null)}
+        />
+      )}
+    </>
   );
 }
 
 /* ─── CONTACT ROW ─── */
-function ContactRow({ conv, isActive, onClick, onlineUsers }) {
-  const isOnline = onlineUsers && !!onlineUsers[conv.id];
+function ContactRow({ conv, isActive, onClick }) {
   return (
     <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: "pointer", background: isActive ? "#f9731610" : "transparent", borderLeft: `3px solid ${isActive ? T.orange : "transparent"}`, borderBottom: `1px solid ${T.border}`, transition: "background .15s" }}>
       <div style={{ position: "relative", flexShrink: 0 }}>
         <Avatar name={conv.name} photo={conv.photo} size={50} />
-        {isOnline && (
+        {conv.is_online && (
           <div style={{ position: "absolute", bottom: 1, right: 1, width: 12, height: 12, borderRadius: "50%", background: T.success, border: `2px solid ${T.bg}`, boxShadow: `0 0 6px ${T.success}` }} />
         )}
       </div>
@@ -549,7 +705,7 @@ function ContactRow({ conv, isActive, onClick, onlineUsers }) {
           <span style={{ fontSize: 11, color: T.textLow, flexShrink: 0 }}>{fmtTime(conv.last_at)}</span>
         </div>
         <div style={{ fontSize: 11, color: T.textLow, marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {conv.designation || conv.company || "TezConnect Member"}
+          {conv.is_online ? <span style={{ color: T.success }}>● Online</span> : (conv.designation || conv.company || "TezConnect Member")}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 12, color: conv.unread > 0 ? T.textMid : T.textLow, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "80%" }}>
@@ -571,7 +727,6 @@ export default function MessagesPage({ session }) {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("all");
   const [active, setActive] = useState(null);
-  const [globalOnline, setGlobalOnline] = useState({});
 
   const loadContacts = useCallback(async () => {
     const { data: msgs } = await supabase
@@ -600,56 +755,25 @@ export default function MessagesPage({ session }) {
     setLoading(false);
   }, [session.userId]);
 
-  // Global presence for contacts list
   useEffect(() => {
     loadContacts();
-
     const sub = supabase.channel("msgs_list_" + session.userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, ({ new: m }) => {
         if (m.sender_id === session.userId || m.receiver_id === session.userId) loadContacts();
       })
       .subscribe();
-
-    // Track own presence
-    const presenceChannel = supabase.channel("global_presence", { config: { presence: { key: session.userId } } });
-    presenceChannel
-      .on("presence", { event: "sync" }, () => {
-        const state = presenceChannel.presenceState();
-        const online = {};
-        Object.keys(state).forEach(key => { online[key] = true; });
-        setGlobalOnline(online);
-      })
-      .subscribe(async status => {
-        if (status === "SUBSCRIBED") {
-          await presenceChannel.track({ online_at: new Date().toISOString() });
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(sub);
-      presenceChannel.untrack();
-      supabase.removeChannel(presenceChannel);
-    };
+    return () => supabase.removeChannel(sub);
   }, [session.userId, loadContacts]);
 
-  // Update last_seen when leaving
   useEffect(() => {
-    const handleUnload = () => {
-      supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("id", session.userId);
-    };
-    window.addEventListener("beforeunload", handleUnload);
-    return () => window.removeEventListener("beforeunload", handleUnload);
-  }, [session.userId]);
-
-  useEffect(() => {
-    const handler = async (e) => {
+    const h = async (e) => {
       const { userId } = e.detail || {};
       if (!userId) return;
       const { data: p } = await supabase.from("profiles").select("*").eq("id", userId).single();
       if (p) setActive(p);
     };
-    window.addEventListener("tez-open-chat", handler);
-    return () => window.removeEventListener("tez-open-chat", handler);
+    window.addEventListener("tez-open-chat", h);
+    return () => window.removeEventListener("tez-open-chat", h);
   }, []);
 
   const filtered = contacts.filter(c => {
@@ -668,11 +792,11 @@ export default function MessagesPage({ session }) {
   return (
     <>
       {active && createPortal(
-        <ChatView contact={active} session={session} onBack={() => setActive(null)} onBlockUser={() => {}} />,
+        <ChatView contact={active} session={session} onBack={() => setActive(null)} />,
         document.body
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text, margin: 0 }}>Messages</h2>
@@ -691,7 +815,8 @@ export default function MessagesPage({ session }) {
 
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ display: "flex", alignItems: "center", gap: 5, background: tab === t.id ? T.orangeMd : T.bgCard, border: `1px solid ${tab === t.id ? T.orange + "55" : T.border}`, borderRadius: 20, padding: "7px 16px", color: tab === t.id ? T.orange : T.textMid, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{ display: "flex", alignItems: "center", gap: 5, background: tab === t.id ? T.orangeMd : T.bgCard, border: `1px solid ${tab === t.id ? T.orange + "55" : T.border}`, borderRadius: 20, padding: "7px 16px", color: tab === t.id ? T.orange : T.textMid, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
               {t.label}
               {t.badge > 0 && <span style={{ background: T.orange, color: "#fff", borderRadius: "50%", minWidth: 17, height: 17, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, padding: "0 3px" }}>{t.badge}</span>}
             </button>
@@ -699,7 +824,7 @@ export default function MessagesPage({ session }) {
         </div>
 
         <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-          {loading && [1, 2, 3, 4].map(i => (
+          {loading && [1, 2, 3].map(i => (
             <div key={i} style={{ display: "flex", gap: 12, padding: "14px 16px", borderBottom: `1px solid ${T.border}` }}>
               <div style={{ width: 50, height: 50, borderRadius: "50%", background: T.bgInput, flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
@@ -712,19 +837,13 @@ export default function MessagesPage({ session }) {
           {!loading && filtered.length === 0 && (
             <div style={{ textAlign: "center", padding: "50px 20px" }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 6 }}>{search ? "No results found" : "No conversations yet"}</div>
-              <div style={{ fontSize: 13, color: T.textLow }}>{search ? "Try a different name" : "Connect with members to start chatting"}</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 6 }}>{search ? "No results" : "No conversations yet"}</div>
+              <div style={{ fontSize: 13, color: T.textLow }}>Connect with members to start chatting</div>
             </div>
           )}
 
-          {!loading && filtered.map(contact => (
-            <ContactRow
-              key={contact.id}
-              conv={contact}
-              isActive={active?.id === contact.id}
-              onClick={() => setActive(contact)}
-              onlineUsers={globalOnline}
-            />
+          {!loading && filtered.map(c => (
+            <ContactRow key={c.id} conv={c} isActive={active?.id === c.id} onClick={() => setActive(c)} />
           ))}
         </div>
 
