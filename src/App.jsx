@@ -4291,11 +4291,7 @@ export default function App() {
         <Spinner size={28} />
       </div>
     );
-   return (
-    <PresenceProvider session={session}>
-      {session ? <YourAuthenticatedApp /> : <LoginScreen />}
-    </PresenceProvider>
-  );
+   
 
   return (
     <>
