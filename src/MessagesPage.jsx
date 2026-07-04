@@ -331,7 +331,7 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
 }
 
 /* ─── CHAT VIEW ─── */
-function ChatView({ contact, session, onBack, isOnline, lastSeenTs, onStartCall, onViewProfile }) {
+function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfile }) {
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -340,11 +340,32 @@ function ChatView({ contact, session, onBack, isOnline, lastSeenTs, onStartCall,
   const [showCallMenu, setShowCallMenu] = useState(false);
   const [selectedMsg, setSelectedMsg] = useState(null);
   const [isBlocked, setIsBlocked] = useState(false);
+  const [liveLastSeen, setLiveLastSeen] = useState(contact.last_seen || null);
   const bottomRef = useRef();
   const inputRef = useRef();
   const chanRef = useRef();
 
   const online = isOnline(contact.id);
+
+  /* ── Live last_seen: fetch fresh on open + subscribe to profile updates.
+     This is why "last seen" wasn't showing before — it was only ever a
+     snapshot taken when the contacts list first loaded, and never refreshed
+     while the chat was open or when the other person went offline. ── */
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from("profiles").select("last_seen").eq("id", contact.id).single()
+      .then(({ data, error }) => {
+        if (!cancelled && !error && data) setLiveLastSeen(data.last_seen);
+      });
+
+    const ch = supabase.channel(`profile_watch_${contact.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${contact.id}` }, ({ new: p }) => {
+        setLiveLastSeen(p.last_seen);
+      })
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(ch); };
+  }, [contact.id]);
 
   /* ── Load messages ── */
   const loadMsgs = useCallback(async () => {
@@ -424,11 +445,26 @@ function ChatView({ contact, session, onBack, isOnline, lastSeenTs, onStartCall,
 
   /* ── Delete for everyone ── */
   const deleteForEveryone = async (msgId) => {
+    // optimistic: show the "deleted" placeholder immediately
+    setMsgs(prev => prev.map(m => m.id === msgId ? { ...m, deleted: true, content: null } : m));
+
     const { error } = await supabase.from("messages").update({
       content: null, deleted: true, delivered: false, read: false,
       deleted_at: new Date().toISOString(),
     }).eq("id", msgId).eq("sender_id", session.userId);
-    if (error) console.error("deleteForEveryone failed:", error);
+
+    if (error) {
+      console.error("deleteForEveryone failed:", error);
+      alert(
+        "Couldn't delete for everyone: " + error.message +
+        "\n\nThis is almost always a Supabase permissions issue: your UPDATE policy/grant on " +
+        '"messages" only allows writing the deleted_for column (which is why Delete-for-Me works), ' +
+        'but Delete-for-Everyone also needs to write "content", "deleted", "delivered", "read", and "deleted_at". ' +
+        "Update the RLS policy/GRANT to allow sender_id = auth.uid() to update all of those columns."
+      );
+      loadMsgs(); // revert optimistic change to the real server state
+      return;
+    }
     loadMsgs();
   };
 
@@ -447,12 +483,27 @@ function ChatView({ contact, session, onBack, isOnline, lastSeenTs, onStartCall,
   const clearChat = async () => {
     const ids = msgs.map(m => m.id);
     if (!ids.length) return;
+    const prevMsgs = msgs;
     setMsgs([]);
-    const { data: rows } = await supabase.from("messages").select("id,deleted_for").in("id", ids);
+
+    const { data: rows, error: readErr } = await supabase.from("messages").select("id,deleted_for").in("id", ids);
+    if (readErr) {
+      console.error("clearChat read failed:", readErr);
+      alert("Couldn't clear chat: " + readErr.message);
+      setMsgs(prevMsgs);
+      return;
+    }
+
+    let anyFailed = false;
     for (const row of rows || []) {
       const arr = Array.isArray(row.deleted_for) ? [...row.deleted_for] : [];
       if (!arr.includes(session.userId)) arr.push(session.userId);
-      await supabase.from("messages").update({ deleted_for: arr }).eq("id", row.id);
+      const { error } = await supabase.from("messages").update({ deleted_for: arr }).eq("id", row.id);
+      if (error) { console.error("clearChat row failed:", row.id, error); anyFailed = true; }
+    }
+
+    if (anyFailed) {
+      alert("Some messages couldn't be cleared. Check the console for the exact Supabase error — likely an RLS UPDATE policy blocking one of these messages (e.g. it only allows the sender, not the receiver, to update deleted_for).");
     }
     loadMsgs();
   };
@@ -473,14 +524,22 @@ function ChatView({ contact, session, onBack, isOnline, lastSeenTs, onStartCall,
     }
   };
 
-  /* ── View profile: call the prop directly (reliable) + dispatch event as a fallback ── */
+  /* ── View profile.
+     Blank page fix: previously only a bare userId was handed off, so
+     if your Profile screen expects the profile fields directly (or its
+     own re-fetch is blocked by RLS on other users' rows), it rendered
+     nothing. Now the FULL profile object is passed both to the prop
+     callback and the fallback event, and navigation is deferred slightly
+     so it doesn't race with this chat's portal unmounting. ── */
   const viewProfile = () => {
-    if (typeof onViewProfile === "function") {
-      onViewProfile(contact.id);
-    } else {
-      window.dispatchEvent(new CustomEvent("tez-view-profile", { detail: { userId: contact.id } }));
-    }
     onBack();
+    setTimeout(() => {
+      if (typeof onViewProfile === "function") {
+        onViewProfile(contact);
+      } else {
+        window.dispatchEvent(new CustomEvent("tez-view-profile", { detail: { userId: contact.id, profile: contact } }));
+      }
+    }, 120);
   };
 
   const chatMenuOptions = [
@@ -513,7 +572,7 @@ function ChatView({ contact, session, onBack, isOnline, lastSeenTs, onStartCall,
     { icon: "📍", label: "Location", color: "#15803d", action: () => { setShowAttach(false); if (!navigator.geolocation) return; navigator.geolocation.getCurrentPosition(async p => { const url = `https://maps.google.com/?q=${p.coords.latitude},${p.coords.longitude}`; await supabase.from("messages").insert({ sender_id: session.userId, receiver_id: contact.id, content: `📍 My Location: ${url}`, read: false, delivered: false, created_at: new Date().toISOString() }); }); } },
   ];
 
-  const statusText = online ? "● Online" : lastSeenText(lastSeenTs);
+  const statusText = online ? "● Online" : lastSeenText(liveLastSeen);
 
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999, background: T.bg, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -905,7 +964,6 @@ export default function MessagesPage({ session, onViewProfile }) {
           session={session}
           onBack={() => setActive(null)}
           isOnline={isOnline}
-          lastSeenTs={active.last_seen}
           onStartCall={startCall}
           onViewProfile={onViewProfile}
         />,
