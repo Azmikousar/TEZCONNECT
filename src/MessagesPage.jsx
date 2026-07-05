@@ -895,8 +895,7 @@ export default function MessagesPage({ session, onViewProfile ,openChatWith}) {
     }
   }, [onlineIds, loadContacts]);
 
-  const contactsRef = useRef(contacts);
-  useEffect(() => { contactsRef.current = contacts; }, [contacts]);
+
 useEffect(() => {
   if (openChatWith?.id) setActive(openChatWith);
 }, [openChatWith]);
