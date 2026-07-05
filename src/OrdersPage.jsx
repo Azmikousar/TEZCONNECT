@@ -290,8 +290,8 @@ function OrderDetailModal({ order, onClose, isAdmin, onUpdated }) {
           {isAdmin && (
             <div style={{ background: T.bgInput, borderRadius: 12, padding: "12px 14px", marginBottom: 16 }}>
               <div style={{ fontSize: 11, color: T.textLow, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 4 }}>Buyer</div>
-              <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{order.profiles?.name || "Unknown"}</div>
-              <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>{order.profiles?.email || order.profiles?.mobile || ""}</div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{order.profiles?.name || order.shipping_name || "Unknown"}</div>
+              <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>{order.profiles?.mobile || order.profiles?.whatsapp || order.shipping_phone || ""}</div>
             </div>
           )}
 
@@ -408,20 +408,15 @@ export default function OrdersPage({ session }) {
 
   const fetchOrders = async () => {
     setLoading(true);
-    console.log("[OrdersPage debug] session.userId:", session.userId, "| isAdmin:", isAdmin, "| ADMIN_USER_ID:", ADMIN_USER_ID);
-
     let query = supabase.from("tez_print_orders").select("*");
     if (!isAdmin) query = query.eq("user_id", session.userId);
     const { data, error } = await query.order("created_at", { ascending: false });
-
-    console.log("[OrdersPage debug] query result:", { data, error, count: data?.length });
-
     if (error) { console.error("fetchOrders failed:", error); setOrders([]); setLoading(false); return; }
 
     let rows = data || [];
     if (isAdmin && rows.length) {
       const ids = [...new Set(rows.map(o => o.user_id))];
-      const { data: profiles, error: pErr } = await supabase.from("profiles").select("id, name, email, mobile").in("id", ids);
+      const { data: profiles, error: pErr } = await supabase.from("profiles").select("id, name, mobile, whatsapp").in("id", ids);
       if (pErr) console.error("fetchOrders profiles lookup failed:", pErr);
       const pm = {};
       (profiles || []).forEach(p => { pm[p.id] = p; });
