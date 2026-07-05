@@ -915,10 +915,7 @@ useEffect(() => {
     return () => window.removeEventListener("tez-open-chat", h);
   }, []);
 
-  const startCall = (contact, callType) => {
-    if (activeCall && activeCall !== "pending") return; // already in a call
-    setActiveCall({ contact, callType, isIncoming: false });
-  };
+  
 
   const filtered = contacts.filter(c => {
     const q = search.toLowerCase();
