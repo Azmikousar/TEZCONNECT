@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 import { usePresence } from "./PresenceProvider";
+import { useCall } from "./CallProvider";
 
 /*
   FIXES IN THIS VERSION
@@ -839,9 +840,9 @@ export default function MessagesPage({ session, onViewProfile ,openChatWith}) {
   const [tab, setTab] = useState("all");
   const [active, setActive] = useState(null);
   const { isOnline, onlineIds } = usePresence(); // now sourced from login-scoped PresenceProvider — see PresenceProvider.jsx
-  const [activeCall, setActiveCall] = useState(null); // { contact, callType, isIncoming, incomingOffer }
+  
 
-  const signalChanRef = useRef();
+
 
   /* ── Load conversation list ── */
   const loadContacts = useCallback(async () => {
@@ -900,37 +901,8 @@ useEffect(() => {
   if (openChatWith?.id) setActive(openChatWith);
 }, [openChatWith]);
 
-  /* ── GLOBAL INCOMING CALL LISTENER (works no matter which screen is open) ──
-     IMPORTANT: this subscription must stay open continuously. Previously it
-     depended on `contacts`, which changes almost constantly (any message
-     insert anywhere reloads the contacts list), so the channel was being
-     torn down and recreated over and over. Any call-request that arrived
-     during one of those teardown windows was silently lost — which is why
-     calls sometimes never reached the other side. It now depends only on
-     session.userId and reads contacts via a ref instead. */
-  useEffect(() => {
-    signalChanRef.current = supabase.channel(`signals_${session.userId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "webrtc_signals", filter: `to_user=eq.${session.userId}` }, async ({ new: sig }) => {
-        if (sig.type !== "call-request") return;
-        setActiveCall(prevCall => {
-          if (prevCall) return prevCall; // already on a call — ignore new ones for now
-          return "pending"; // placeholder while we fetch the caller's profile
-        });
+  const { startCall } = useCall();
 
-        let caller = contactsRef.current.find(c => c.id === sig.from_user);
-        if (!caller) {
-          const { data: p } = await supabase.from("profiles").select("*").eq("id", sig.from_user).single();
-          caller = p || { id: sig.from_user, name: "Unknown" };
-        }
-        setActiveCall(prevCall => {
-          if (prevCall && prevCall !== "pending") return prevCall;
-          return { contact: caller, callType: sig.data.callType, isIncoming: true, incomingOffer: sig.data.offer };
-        });
-      })
-      .subscribe();
-
-    return () => { if (signalChanRef.current) supabase.removeChannel(signalChanRef.current); };
-  }, [session.userId]);
 
   /* ── Open chat from elsewhere in the app ── */
   useEffect(() => {
@@ -976,17 +948,7 @@ useEffect(() => {
         document.body
       )}
 
-      {activeCall && activeCall !== "pending" && createPortal(
-        <CallScreen
-          contact={activeCall.contact}
-          session={session}
-          callType={activeCall.callType}
-          isIncoming={activeCall.isIncoming}
-          incomingOffer={activeCall.incomingOffer}
-          onEnd={() => setActiveCall(null)}
-        />,
-        document.body
-      )}
+      
 
       <div style={{ display: "flex", flexDirection: "column" }}>
         <div style={{ marginBottom: 16 }}>
