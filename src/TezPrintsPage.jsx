@@ -498,7 +498,9 @@ export default function TezPrintsPage({ session ,onNav}) {
             shipping_address: shipping.address + (shipping.pincode ? ", " + shipping.pincode : ""),
           });
           setCart([]); setChecking(false);
-          alert("🎉 Order placed! We'll deliver within 5-7 business days.");
+alert("🎉 Order placed! We'll deliver within 5-7 business days.");
+onNav && onNav("orders");
+
         },
         modal: { ondismiss: () => setChecking(false) },
       };
