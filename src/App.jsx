@@ -4026,6 +4026,7 @@ if (page==="wallet")    return <WalletPage session={session}/>;
               
   */return (
      <PresenceProvider session={session}>
+       <CallProvider session={session}>  
   <div style={{ display: "flex", minHeight: "100vh", background: T.bg, position: "relative" }}>
     <Background />
 
@@ -4154,7 +4155,8 @@ if (page==="wallet")    return <WalletPage session={session}/>;
 )}
 
   </div>
-        
+     
+  </CallProvider>   
   </PresenceProvider>
 );
 
