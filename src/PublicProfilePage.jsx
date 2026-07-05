@@ -321,23 +321,29 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile, o
   const [likeCount, setLikeCount] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
 
-  const fetchPosts = async () => {
-    setPostsLoading(true);
+ const fetchPosts = async () => {
+  setPostsLoading(true);
   const { data } = await supabase.from("posts").select("*, profiles(name, photo)")
-  .eq("user_id", targetUserId).order("created_at", { ascending: false });
+    .eq("user_id", targetUserId).order("created_at", { ascending: false });
 
+  setPosts(data || []);
+  setPostsLoading(false);
 
-    // Get total likes and comments
-    if (data?.length) {
-      const ids = data.map(p => p.id);
-      const [{ count: lc }, { count: cc }] = await Promise.all([
-        supabase.from("post_likes").select("*",{count:"exact",head:true}).in("post_id", ids),
-        supabase.from("post_comments").select("*",{count:"exact",head:true}).in("post_id", ids),
-      ]);
-      setLikeCount(lc || 0);
-      setCommentCount(cc || 0);
-    }
-  };
+  // Get total likes and comments
+  if (data?.length) {
+    const ids = data.map(p => p.id);
+    const [{ count: lc }, { count: cc }] = await Promise.all([
+      supabase.from("post_likes").select("*",{count:"exact",head:true}).in("post_id", ids),
+      supabase.from("post_comments").select("*",{count:"exact",head:true}).in("post_id", ids),
+    ]);
+    setLikeCount(lc || 0);
+    setCommentCount(cc || 0);
+  } else {
+    setLikeCount(0);
+    setCommentCount(0);
+  }
+};
+
 
   useEffect(() => { fetchPosts(); }, [targetUserId]);
 
