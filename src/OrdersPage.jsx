@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
-
+import jsPDF from "jspdf";
 
 const T = {
   bg: "#06070d", bgCard: "#0b0d17", bgInput: "#0f1120", border: "#1a1f35",
@@ -408,11 +408,26 @@ export default function OrdersPage({ session }) {
 
   const fetchOrders = async () => {
     setLoading(true);
-    let query = supabase.from("tez_print_orders").select(isAdmin ? "*, profiles(name, email, mobile)" : "*");
+    console.log("[OrdersPage debug] session.userId:", session.userId, "| isAdmin:", isAdmin, "| ADMIN_USER_ID:", ADMIN_USER_ID);
+
+    let query = supabase.from("tez_print_orders").select("*");
     if (!isAdmin) query = query.eq("user_id", session.userId);
     const { data, error } = await query.order("created_at", { ascending: false });
-    if (error) console.error("fetchOrders failed:", error);
-    setOrders(data || []);
+
+    console.log("[OrdersPage debug] query result:", { data, error, count: data?.length });
+
+    if (error) { console.error("fetchOrders failed:", error); setOrders([]); setLoading(false); return; }
+
+    let rows = data || [];
+    if (isAdmin && rows.length) {
+      const ids = [...new Set(rows.map(o => o.user_id))];
+      const { data: profiles, error: pErr } = await supabase.from("profiles").select("id, name, email, mobile").in("id", ids);
+      if (pErr) console.error("fetchOrders profiles lookup failed:", pErr);
+      const pm = {};
+      (profiles || []).forEach(p => { pm[p.id] = p; });
+      rows = rows.map(o => ({ ...o, profiles: pm[o.user_id] || null }));
+    }
+    setOrders(rows);
     setLoading(false);
   };
 
