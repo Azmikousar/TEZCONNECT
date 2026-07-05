@@ -25,7 +25,7 @@ import MyProductsPage from "./MyProductsPage";
 import MarketplacePage from "./MarketplacePage";
 import TezPrintsPage from "./TezPrintsPage";
 import TezAppStorePage from "./TezAppStorePage";
-
+import OrdersPage from "./OrdersPage";
 import { CallProvider } from "./CallProvider";
 
 
@@ -2045,6 +2045,7 @@ const NAV = [
   { id: "myproducts",  icon: "📦", label: "My Listings" },
    { id: "tezprints", icon: "🖨️", label: "Tez Prints" },
    { id: "appstore", icon: "📱", label: "Tez App Store" },
+   { id: "orders", icon: "📦", label: "My Orders" },
 
 
 
@@ -3782,7 +3783,7 @@ useEffect(() => {
 
 if (page === "publicprofile") return <PublicProfilePage profile={viewedProfile} session={session} onMessage={handleMessageUser}/>;
 
-
+if (page === "orders") return <OrdersPage session={session}/>;
   
 
     if (page === "services") {
