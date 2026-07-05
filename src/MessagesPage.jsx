@@ -832,7 +832,7 @@ function ContactRow({ conv, isActive, onClick, isOnline }) {
    onViewProfile: optional (userId) => void — if you pass this, it's used
    directly to navigate to the profile screen. Otherwise a "tez-view-profile"
    CustomEvent is dispatched on window as a fallback. */
-export default function MessagesPage({ session, onViewProfile }) {
+export default function MessagesPage({ session, onViewProfile ,openChatWith}) {
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -896,6 +896,9 @@ export default function MessagesPage({ session, onViewProfile }) {
 
   const contactsRef = useRef(contacts);
   useEffect(() => { contactsRef.current = contacts; }, [contacts]);
+useEffect(() => {
+  if (openChatWith?.id) setActive(openChatWith);
+}, [openChatWith]);
 
   /* ── GLOBAL INCOMING CALL LISTENER (works no matter which screen is open) ──
      IMPORTANT: this subscription must stay open continuously. Previously it
