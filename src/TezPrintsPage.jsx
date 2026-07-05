@@ -435,7 +435,7 @@ function ProductCard({ product, isAdmin, onView, onEdit, onAddCart }) {
 }
 
 /* ── Main Page ── */
-export default function TezPrintsPage({ session }) {
+export default function TezPrintsPage({ session ,onNav}) {
   const isAdmin = session?.userId === ADMIN_USER_ID;
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -546,6 +546,10 @@ export default function TezPrintsPage({ session }) {
                 <button onClick={() => setShowCart(true)} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 20px", color: T.text, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                   🛒 Cart {cartCount > 0 && <span style={{ background: T.orange, color: "#fff", borderRadius: 20, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>{cartCount}</span>}
                 </button>
+                <button onClick={() => onNav && onNav("orders")} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 20px", color: T.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+  📦 My Orders
+</button>
+
               </>
             )}
           </div>
