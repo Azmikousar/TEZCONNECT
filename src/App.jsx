@@ -3814,7 +3814,8 @@ if (page === "appstore") return <TezAppStorePage session={session}/>;
 
      if (page==="marketplace") return <MarketplacePage session={session}/>;
 if (page==="myproducts")  return <MyProductsPage session={session}/>;
-if (page === "tezprints") return <TezPrintsPage session={session}/>;
+if (page === "tezprints") return <TezPrintsPage session={session} onNav={setPage}/>;
+/>;
 
     
      if (page==="analytics") return <LeadAnalyticsPage session={session}/>;
