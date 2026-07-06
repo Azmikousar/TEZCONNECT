@@ -18,6 +18,34 @@ import { supabase } from "./supabase";
   full-screen CallScreen overlay — exist for the entire life of the logged-in
   session, no matter what page is open.
 
+  FIXES IN THIS VERSION
+  ----------------------
+  1) AUDIO CALLS HAD NO SOUND AFTER ACCEPTING
+     - The remote <video> element (which is what receives BOTH the video
+       track AND the audio track from the other side — a plain <video>
+       plays audio fine even with no visible picture) was only ever mounted
+       in the DOM when `isVideo && callState === "connected"`. For a voice
+       call, `isVideo` is false, so that element never existed. When
+       pc.ontrack fired, `remoteVideoRef.current` was null, so the incoming
+       audio stream had nowhere to attach — call connected, but silent.
+     - Fix: the remote <video> is now ALWAYS mounted (so the ref is always
+       valid), and only its visual display is toggled between "block" and
+       "none". Audio plays either way; video is just hidden for voice calls.
+
+  2) NO AUDIBLE RINGTONE ON INCOMING CALLS
+     - Previously "ringing" only meant a silent on-screen "Incoming call…"
+       label — nothing actually played, so if the callee wasn't looking at
+       the screen they'd never know.
+     - Fix: a looping ringtone now plays for the whole time callState is
+       "incoming", and stops the instant the call is accepted or declined.
+     - You need to add an actual ringtone audio file to your project, e.g.
+       /public/ringtone.mp3, and update RINGTONE_URL below if the path
+       differs.
+     - Note: browsers block autoplaying audio-with-sound until the user has
+       interacted with the page at least once during that tab session. If
+       the callee's tab has had zero interaction yet, play() may reject —
+       this is a browser policy, not something fixable in code.
+
   Usage:
     // App.jsx
     <PresenceProvider session={session}>
@@ -40,6 +68,8 @@ const T = {
   bg: "#06070d", success: "#22c55e", error: "#f87171",
 };
 
+const RINGTONE_URL = "/ringtone.mp3"; // place a ringtone file at public/ringtone.mp3 (or update this path)
+
 const AVATAR_COLORS = [
   "linear-gradient(135deg,#f97316,#ea6008)",
   "linear-gradient(135deg,#7c3aed,#a78bfa)",
@@ -54,7 +84,7 @@ export function useCall() {
   return useContext(CallContext);
 }
 
-/* ─── CALL SCREEN (unchanged logic, moved here from messages.jsx) ─── */
+/* ─── CALL SCREEN ─── */
 function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onEnd }) {
   const localVideoRef = useRef();
   const remoteVideoRef = useRef();
@@ -67,6 +97,7 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
   const timerRef = useRef();
   const chanRef = useRef();
   const pendingCandidates = useRef([]);
+  const ringtoneRef = useRef();
 
   const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] };
 
@@ -103,6 +134,11 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
     pendingCandidates.current = [];
   };
 
+  const stopRingtone = () => {
+    ringtoneRef.current?.pause();
+    ringtoneRef.current = null;
+  };
+
   const startCallFlow = async () => {
     const stream = await getMedia();
     if (!stream) { alert("Could not access camera/microphone. Check browser permissions."); onEnd(); return; }
@@ -114,6 +150,7 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
   };
 
   const acceptCall = async () => {
+    stopRingtone();
     setCallState("connected");
     timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
     const stream = await getMedia();
@@ -127,23 +164,40 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
   };
 
   const hangUp = async () => {
+    stopRingtone();
     await sendSignal("hang-up", {});
     cleanup();
     onEnd();
   };
 
   const declineCall = async () => {
+    stopRingtone();
     await sendSignal("hang-up", {});
     cleanup();
     onEnd();
   };
 
   const cleanup = () => {
+    stopRingtone();
     clearInterval(timerRef.current);
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     pcRef.current?.close();
     if (chanRef.current) supabase.removeChannel(chanRef.current);
   };
+
+  /* Play a looping ringtone for the whole time this call is "incoming".
+     Stops automatically the moment callState changes (accept/decline/hangup),
+     and is also stopped explicitly inside acceptCall/declineCall/cleanup for
+     instant silence rather than waiting on this effect's cleanup to run. */
+  useEffect(() => {
+    if (callState === "incoming") {
+      const audio = new Audio(RINGTONE_URL);
+      audio.loop = true;
+      audio.play().catch(e => console.warn("Ringtone autoplay blocked by browser:", e));
+      ringtoneRef.current = audio;
+    }
+    return () => { ringtoneRef.current?.pause(); ringtoneRef.current = null; };
+  }, [callState]);
 
   useEffect(() => {
     if (!isIncoming) startCallFlow();
@@ -176,12 +230,26 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
 
   const fmtDur = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
   const isVideo = callType === "video";
+  const showRemoteVideo = isVideo && callState === "connected";
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999999, background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-      {isVideo && callState === "connected" ? (
-        <video ref={remoteVideoRef} autoPlay playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-      ) : (
+
+      {/* Remote stream — ALWAYS mounted (fixes audio calls having no sound).
+          A <video> element plays whatever audio track arrives on it even
+          when there's no picture, so we keep it in the DOM for every call
+          type and just hide it visually when there's no video to show. */}
+      <video
+        ref={remoteVideoRef}
+        autoPlay
+        playsInline
+        style={{
+          position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover",
+          display: showRemoteVideo ? "block" : "none",
+        }}
+      />
+
+      {!showRemoteVideo && (
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,#0d1545,#06070d)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ textAlign: "center" }}>
             <div style={{ width: 100, height: 100, borderRadius: "50%", background: getColor(contact.name), overflow: "hidden", margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, fontWeight: 800, color: "#fff", border: "3px solid rgba(255,255,255,0.2)" }}>
