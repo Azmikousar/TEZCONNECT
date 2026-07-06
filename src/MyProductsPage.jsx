@@ -140,6 +140,7 @@ function ProductModal({ product, session, onClose, onSaved }) {
     position: "sticky",
     bottom: 0,
     zIndex: 9999,
+    paddingBottom:"90px",
   }}
 >
           <button onClick={save} disabled={saving}
