@@ -414,15 +414,6 @@ export default function UserProfileModal({ userId, session, onClose, connectionP
                         {copied ? "✓ Copied" : "📤 Share Profile"}
                       </button>
                     </div>
-
-                    {/* WhatsApp, kept as a small secondary link under the main row */}
-                    {profile.whatsapp && (
-                      <a href={`https://wa.me/${profile.whatsapp.replace(/[^0-9]/g, "")}`}
-                        target="_blank" rel="noopener noreferrer"
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 10, background: "#25d36618", border: "1px solid #25d36633", borderRadius: 10, padding: "10px", color: "#25d366", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
-                        💬 WhatsApp
-                      </a>
-                    )}
                   </div>
                 )}
 
