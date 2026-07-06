@@ -96,7 +96,8 @@ function BuyModal({ product, session, onClose, onPaid }) {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10 ,marginTop: 10,
+    paddingBottom: "calc(20px + env(safe-area-inset-bottom))",}}>
                 <button onClick={onClose} style={{ flex: 1, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 12, padding: "13px", color: T.text, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
                 <button onClick={handlePay} disabled={step === "processing"}
                   style={{ flex: 2, background: step === "processing" ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "13px", color: step === "processing" ? T.textMid : "#fff", fontSize: 14, fontWeight: 700, cursor: step === "processing" ? "wait" : "pointer", boxShadow: step === "processing" ? "none" : "0 4px 16px #f9731444" }}>
