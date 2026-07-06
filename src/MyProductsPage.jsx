@@ -139,7 +139,7 @@ function ProductModal({ product, session, onClose, onSaved }) {
     background: T.bgCard,
     position: "sticky",
     bottom: 0,
-    zIndex: 10,
+    zIndex: 9999,
   }}
 >
           <button onClick={save} disabled={saving}
