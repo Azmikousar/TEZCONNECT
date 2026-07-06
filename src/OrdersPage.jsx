@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
-import { supabase } from "./supabase";
-
+import { supabase } from "./
 
 const T = {
   bg: "#06070d", bgCard: "#0b0d17", bgInput: "#0f1120", border: "#1a1f35",
   orange: "#f97316", orangeLo: "#f9731612", orangeMd: "#f9731625",
   text: "#eef0f8", textMid: "#6b7594", textLow: "#343c58",
   success: "#22c55e", successLo: "#22c55e12",
-  error: "#f87171", errorLo: "#f8717112", amber: "#fbbf24", info: "#38bdf8",
+  error: "#f87171", errorLo: "#f8717112", amber: "#fbbf24", info: "#38bdf8", purple: "#a78bfa",
 };
 
 const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
@@ -43,7 +42,7 @@ function StatusBadge({ status }) {
   );
 }
 
-/* ── Status timeline (for detail modal) ── */
+/* ── Status timeline (Tez Prints orders only) ── */
 function StatusTimeline({ status }) {
   if (status === "cancelled") {
     return (
@@ -93,117 +92,7 @@ function StatusTimeline({ status }) {
   );
 }
 
-/* ── Invoice generation ── */
-function generateInvoice(order) {
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 48;
-  let y = 56;
-
-  doc.setFillColor(249, 115, 22);
-  doc.rect(0, 0, pageWidth, 8, "F");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.setTextColor(20, 20, 20);
-  doc.text("TezConnect", margin, y);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(120, 120, 120);
-  doc.text("Tez Prints — Official Merchandise Store", margin, y + 14);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.setTextColor(20, 20, 20);
-  doc.text("TAX INVOICE", pageWidth - margin, y, { align: "right" });
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(120, 120, 120);
-  doc.text(`Invoice #: ${order.id.slice(0, 8).toUpperCase()}`, pageWidth - margin, y + 16, { align: "right" });
-  doc.text(`Date: ${fmtDate(order.created_at)}`, pageWidth - margin, y + 28, { align: "right" });
-
-  y += 56;
-  doc.setDrawColor(230, 230, 230);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 24;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(20, 20, 20);
-  doc.text("BILL / SHIP TO", margin, y);
-  y += 16;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(60, 60, 60);
-  doc.text(order.shipping_name || "-", margin, y); y += 14;
-  doc.text(order.shipping_phone || "-", margin, y); y += 14;
-  const addrLines = doc.splitTextToSize(order.shipping_address || "-", 260);
-  doc.text(addrLines, margin, y);
-  y += addrLines.length * 14 + 10;
-
-  doc.setDrawColor(230, 230, 230);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 20;
-
-  doc.setFillColor(245, 246, 250);
-  doc.rect(margin, y - 14, pageWidth - margin * 2, 24, "F");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(60, 60, 60);
-  doc.text("ITEM", margin + 8, y + 2);
-  doc.text("QTY", pageWidth - margin - 180, y + 2, { align: "right" });
-  doc.text("PRICE", pageWidth - margin - 100, y + 2, { align: "right" });
-  doc.text("TOTAL", pageWidth - margin - 8, y + 2, { align: "right" });
-  y += 22;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.5);
-  doc.setTextColor(30, 30, 30);
-  (order.items || []).forEach(item => {
-    const lineTotal = (item.price * item.qty).toFixed(2);
-    doc.text(item.title, margin + 8, y, { maxWidth: pageWidth - margin * 2 - 200 });
-    doc.text(String(item.qty), pageWidth - margin - 180, y, { align: "right" });
-    doc.text(`Rs.${item.price}`, pageWidth - margin - 100, y, { align: "right" });
-    doc.text(`Rs.${lineTotal}`, pageWidth - margin - 8, y, { align: "right" });
-    y += 20;
-  });
-
-  y += 8;
-  doc.setDrawColor(230, 230, 230);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 20;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(80, 80, 80);
-  doc.text("Delivery", pageWidth - margin - 100, y, { align: "right" });
-  doc.text("Free", pageWidth - margin - 8, y, { align: "right" });
-  y += 20;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(249, 115, 22);
-  doc.text("TOTAL", pageWidth - margin - 100, y, { align: "right" });
-  doc.text(`Rs.${Number(order.total_amount).toFixed(2)}`, pageWidth - margin - 8, y, { align: "right" });
-
-  y += 40;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(80, 80, 80);
-  doc.text(`Payment ID: ${order.payment_id || "-"}`, margin, y);
-  doc.text(`Payment Status: ${(order.status || "paid").toUpperCase()}`, margin, y + 14);
-
-  y += 40;
-  doc.setFontSize(8.5);
-  doc.setTextColor(150, 150, 150);
-  doc.text("This is a computer-generated invoice and does not require a signature.", margin, y);
-  doc.text("Thank you for shopping with Tez Prints — TezConnect.", margin, y + 12);
-
-  doc.save(`TezPrints-Invoice-${order.id.slice(0, 8).toUpperCase()}.pdf`);
-}
-
-/* ── Admin Fulfillment Editor ── */
+/* ── Admin Fulfillment Editor (Tez Prints orders only) ── */
 function AdminFulfillmentEditor({ order, onUpdated }) {
   const [status, setStatus] = useState(order.fulfillment_status || "placed");
   const [tracking, setTracking] = useState(order.tracking_number || "");
@@ -272,15 +161,150 @@ function AdminFulfillmentEditor({ order, onUpdated }) {
   );
 }
 
+/* ── Invoice generation — handles both order types ── */
+function generateInvoice(order) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 48;
+  let y = 56;
+  const isApp = order.kind === "app";
+  const accentColor = isApp ? [167, 139, 250] : [249, 115, 22];
+
+  doc.setFillColor(...accentColor);
+  doc.rect(0, 0, pageWidth, 8, "F");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.setTextColor(20, 20, 20);
+  doc.text("TezConnect", margin, y);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(120, 120, 120);
+  doc.text(isApp ? "Tez App Store — Digital Software Delivery" : "Tez Prints — Official Merchandise Store", margin, y + 14);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(20, 20, 20);
+  doc.text("TAX INVOICE", pageWidth - margin, y, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(120, 120, 120);
+  doc.text(`Invoice #: ${order.id.slice(0, 8).toUpperCase()}`, pageWidth - margin, y + 16, { align: "right" });
+  doc.text(`Date: ${fmtDate(order.created_at)}`, pageWidth - margin, y + 28, { align: "right" });
+
+  y += 56;
+  doc.setDrawColor(230, 230, 230);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 24;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(20, 20, 20);
+  doc.text(isApp ? "BILLED TO" : "BILL / SHIP TO", margin, y);
+  y += 16;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(60, 60, 60);
+
+  if (isApp) {
+    doc.text(order.buyer_name || "-", margin, y); y += 14;
+    doc.text(order.buyer_contact || "-", margin, y); y += 24;
+  } else {
+    doc.text(order.shipping_name || "-", margin, y); y += 14;
+    doc.text(order.shipping_phone || "-", margin, y); y += 14;
+    const addrLines = doc.splitTextToSize(order.shipping_address || "-", 260);
+    doc.text(addrLines, margin, y);
+    y += addrLines.length * 14 + 10;
+  }
+
+  doc.setDrawColor(230, 230, 230);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 20;
+
+  doc.setFillColor(245, 246, 250);
+  doc.rect(margin, y - 14, pageWidth - margin * 2, 24, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(60, 60, 60);
+  doc.text("ITEM", margin + 8, y + 2);
+  if (isApp) {
+    doc.text("TYPE", pageWidth - margin - 160, y + 2, { align: "right" });
+    doc.text("AMOUNT", pageWidth - margin - 8, y + 2, { align: "right" });
+  } else {
+    doc.text("QTY", pageWidth - margin - 180, y + 2, { align: "right" });
+    doc.text("PRICE", pageWidth - margin - 100, y + 2, { align: "right" });
+    doc.text("TOTAL", pageWidth - margin - 8, y + 2, { align: "right" });
+  }
+  y += 24;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(30, 30, 30);
+  (order.items || []).forEach(item => {
+    const lineTotal = (item.price * item.qty).toFixed(2);
+    doc.text(item.title, margin + 8, y, { maxWidth: pageWidth - margin * 2 - (isApp ? 180 : 200) });
+    if (isApp) {
+      doc.text("Digital License", pageWidth - margin - 160, y, { align: "right" });
+      doc.text(`Rs.${lineTotal}`, pageWidth - margin - 8, y, { align: "right" });
+    } else {
+      doc.text(String(item.qty), pageWidth - margin - 180, y, { align: "right" });
+      doc.text(`Rs.${item.price}`, pageWidth - margin - 100, y, { align: "right" });
+      doc.text(`Rs.${lineTotal}`, pageWidth - margin - 8, y, { align: "right" });
+    }
+    y += 20;
+  });
+
+  y += 8;
+  doc.setDrawColor(230, 230, 230);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 20;
+
+  if (!isApp) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.text("Delivery", pageWidth - margin - 100, y, { align: "right" });
+    doc.text("Free", pageWidth - margin - 8, y, { align: "right" });
+    y += 20;
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(...accentColor);
+  doc.text("TOTAL", pageWidth - margin - (isApp ? 160 : 100), y, { align: "right" });
+  doc.text(`Rs.${Number(order.total_amount).toFixed(2)}`, pageWidth - margin - 8, y, { align: "right" });
+
+  y += 40;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(80, 80, 80);
+  doc.text(`Payment ID: ${order.payment_id || "-"}`, margin, y);
+  doc.text(`Payment Status: ${(order.status || "paid").toUpperCase()}`, margin, y + 14);
+  if (isApp) doc.text("Delivery Method: Instant Google Drive Link", margin, y + 28);
+
+  y += isApp ? 56 : 40;
+  doc.setFontSize(8.5);
+  doc.setTextColor(150, 150, 150);
+  doc.text("This is a computer-generated invoice and does not require a signature.", margin, y);
+  doc.text(`Thank you for shopping with ${isApp ? "Tez App Store" : "Tez Prints"} — TezConnect.`, margin, y + 12);
+
+  doc.save(`Tez-Invoice-${order.id.slice(0, 8).toUpperCase()}.pdf`);
+}
+
 /* ── Order Detail Modal ── */
 function OrderDetailModal({ order, onClose, isAdmin, onUpdated }) {
+  const isApp = order.kind === "app";
+
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 800, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,700px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 0", flexShrink: 0 }}>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 17, color: T.text }}>Order #{order.id.slice(0, 8).toUpperCase()}</div>
+            <div style={{ fontWeight: 800, fontSize: 17, color: T.text }}>
+              {isApp ? "Purchase" : "Order"} #{order.id.slice(0, 8).toUpperCase()}
+            </div>
             <div style={{ fontSize: 11, color: T.textLow, marginTop: 2 }}>{fmtDateTime(order.created_at)}</div>
           </div>
           <button onClick={onClose} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer" }}>×</button>
@@ -290,26 +314,41 @@ function OrderDetailModal({ order, onClose, isAdmin, onUpdated }) {
           {isAdmin && (
             <div style={{ background: T.bgInput, borderRadius: 12, padding: "12px 14px", marginBottom: 16 }}>
               <div style={{ fontSize: 11, color: T.textLow, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 4 }}>Buyer</div>
-              <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{order.profiles?.name || order.shipping_name || "Unknown"}</div>
-              <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>{order.profiles?.mobile || order.profiles?.whatsapp || order.shipping_phone || ""}</div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{order.buyer_name || order.shipping_name || "Unknown"}</div>
+              <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>{order.buyer_contact || order.shipping_phone || ""}</div>
             </div>
           )}
 
-          {isAdmin ? (
+          {isApp ? (
+            <>
+              {order.drive_link && (
+                <a href={order.drive_link} target="_blank" rel="noopener noreferrer"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 12, padding: "14px", color: "#fff", fontSize: 14, fontWeight: 700, textDecoration: "none", boxShadow: "0 4px 16px #22c55e44", marginBottom: 20 }}>
+                  📥 Open Download Link
+                </a>
+              )}
+              <div style={{ background: T.successLo, border: `1px solid ${T.success}44`, borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+                <span style={{ fontSize: 18 }}>⚡</span>
+                <div style={{ fontSize: 12, color: T.success, fontWeight: 600 }}>Delivered instantly via Google Drive link — no shipping required.</div>
+              </div>
+            </>
+          ) : isAdmin ? (
             <AdminFulfillmentEditor order={order} onUpdated={onUpdated} />
-          ) : order.tracking_number && (
+          ) : order.tracking_number ? (
             <div style={{ background: T.orangeLo, border: `1px solid ${T.orange}33`, borderRadius: 12, padding: "12px 14px", marginBottom: 20 }}>
               <div style={{ fontSize: 11, color: T.textLow, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 4 }}>Tracking Number</div>
               <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{order.tracking_number}</div>
               {order.courier_name && <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>via {order.courier_name}</div>}
               {order.estimated_delivery && <div style={{ fontSize: 12, color: T.orange, marginTop: 6, fontWeight: 600 }}>Estimated delivery: {fmtDate(order.estimated_delivery)}</div>}
             </div>
-          )}
+          ) : null}
 
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 14 }}>Order Status</div>
-            <StatusTimeline status={order.fulfillment_status || "placed"} />
-          </div>
+          {!isApp && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 14 }}>Order Status</div>
+              <StatusTimeline status={order.fulfillment_status || "placed"} />
+            </div>
+          )}
 
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>Items ({(order.items || []).length})</div>
@@ -318,7 +357,7 @@ function OrderDetailModal({ order, onClose, isAdmin, onUpdated }) {
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: T.bgInput, borderRadius: 10, padding: "10px 14px" }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{item.title}</div>
-                    <div style={{ fontSize: 11, color: T.textLow, marginTop: 2 }}>Qty {item.qty} × ₹{item.price}</div>
+                    <div style={{ fontSize: 11, color: T.textLow, marginTop: 2 }}>{isApp ? "Digital License" : `Qty ${item.qty} × ₹${item.price}`}</div>
                   </div>
                   <div style={{ fontWeight: 800, fontSize: 14, color: T.orange }}>₹{(item.price * item.qty).toFixed(0)}</div>
                 </div>
@@ -326,14 +365,16 @@ function OrderDetailModal({ order, onClose, isAdmin, onUpdated }) {
             </div>
           </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>Shipping Address</div>
-            <div style={{ background: T.bgInput, borderRadius: 10, padding: "12px 14px" }}>
-              <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{order.shipping_name}</div>
-              <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>{order.shipping_phone}</div>
-              <div style={{ fontSize: 12, color: T.textMid, marginTop: 4, lineHeight: 1.5 }}>{order.shipping_address}</div>
+          {!isApp && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>Shipping Address</div>
+              <div style={{ background: T.bgInput, borderRadius: 10, padding: "12px 14px" }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{order.shipping_name}</div>
+                <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>{order.shipping_phone}</div>
+                <div style={{ fontSize: 12, color: T.textMid, marginTop: 4, lineHeight: 1.5 }}>{order.shipping_address}</div>
+              </div>
             </div>
-          </div>
+          )}
 
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 10 }}>Payment</div>
@@ -342,10 +383,12 @@ function OrderDetailModal({ order, onClose, isAdmin, onUpdated }) {
                 <span style={{ fontSize: 12, color: T.textMid }}>Payment ID</span>
                 <span style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{order.payment_id || "—"}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 12, color: T.textMid }}>Delivery</span>
-                <span style={{ fontSize: 12, color: T.success, fontWeight: 700 }}>Free</span>
-              </div>
+              {!isApp && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, color: T.textMid }}>Delivery</span>
+                  <span style={{ fontSize: 12, color: T.success, fontWeight: 700 }}>Free</span>
+                </div>
+              )}
               <div style={{ height: 1, background: T.border, margin: "2px 0" }} />
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Total Paid</span>
@@ -357,7 +400,7 @@ function OrderDetailModal({ order, onClose, isAdmin, onUpdated }) {
 
         <div style={{ padding: "14px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
           <button onClick={() => generateInvoice(order)}
-            style={{ width: "100%", background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "14px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 20px #f9731440", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            style={{ width: "100%", background: isApp ? "linear-gradient(135deg,#a78bfa,#7c3aed)" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "14px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: isApp ? "0 4px 20px #a78bfa40" : "0 4px 20px #f9731440", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
             📄 Download Invoice (PDF)
           </button>
         </div>
@@ -368,13 +411,15 @@ function OrderDetailModal({ order, onClose, isAdmin, onUpdated }) {
 
 /* ── Order Card (list item) ── */
 function OrderCard({ order, onClick, isAdmin }) {
+  const isApp = order.kind === "app";
   const itemCount = (order.items || []).reduce((s, i) => s + i.qty, 0);
   const firstItem = (order.items || [])[0];
-  const isNew = isAdmin && (order.fulfillment_status || "placed") === "placed";
+  const status = isApp ? "delivered" : (order.fulfillment_status || "placed");
+  const isNew = isAdmin && !isApp && status === "placed";
 
   return (
     <div onClick={onClick} style={{ background: T.bgCard, border: `1px solid ${isNew ? T.orange + "66" : T.border}`, borderRadius: 14, padding: "14px 16px", cursor: "pointer", transition: "border-color .15s", position: "relative" }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = T.orange + "55"}
+      onMouseEnter={e => e.currentTarget.style.borderColor = (isApp ? T.purple : T.orange) + "55"}
       onMouseLeave={e => e.currentTarget.style.borderColor = isNew ? T.orange + "66" : T.border}
     >
       {isNew && (
@@ -382,17 +427,19 @@ function OrderCard({ order, onClick, isAdmin }) {
       )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>Order #{order.id.slice(0, 8).toUpperCase()}</div>
-          <div style={{ fontSize: 11, color: T.textLow, marginTop: 2 }}>{fmtDate(order.created_at)}{isAdmin && order.profiles?.name ? ` · ${order.profiles.name}` : ""}</div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: T.text, display: "flex", alignItems: "center", gap: 6 }}>
+            <span>{isApp ? "📱" : "📦"}</span> {isApp ? "Purchase" : "Order"} #{order.id.slice(0, 8).toUpperCase()}
+          </div>
+          <div style={{ fontSize: 11, color: T.textLow, marginTop: 2 }}>{fmtDate(order.created_at)}{isAdmin && order.buyer_name ? ` · ${order.buyer_name}` : ""}</div>
         </div>
-        <StatusBadge status={order.fulfillment_status || "placed"} />
+        <StatusBadge status={status} />
       </div>
       <div style={{ fontSize: 12, color: T.textMid, marginBottom: 10 }}>
         {firstItem?.title}{itemCount > 1 ? ` + ${itemCount - 1} more item${itemCount - 1 > 1 ? "s" : ""}` : ""}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontWeight: 800, fontSize: 15, color: T.orange }}>₹{Number(order.total_amount).toFixed(2)}</span>
-        <span style={{ fontSize: 12, color: T.orange, fontWeight: 700 }}>View Details →</span>
+        <span style={{ fontSize: 12, color: isApp ? T.purple : T.orange, fontWeight: 700 }}>View Details →</span>
       </div>
     </div>
   );
@@ -408,31 +455,64 @@ export default function OrdersPage({ session }) {
 
   const fetchOrders = async () => {
     setLoading(true);
-    let query = supabase.from("tez_print_orders").select("*");
-    if (!isAdmin) query = query.eq("user_id", session.userId);
-    const { data, error } = await query.order("created_at", { ascending: false });
-    if (error) { console.error("fetchOrders failed:", error); setOrders([]); setLoading(false); return; }
 
-    let rows = data || [];
-    if (isAdmin && rows.length) {
-      const ids = [...new Set(rows.map(o => o.user_id))];
-      const { data: profiles, error: pErr } = await supabase.from("profiles").select("id, name, mobile, whatsapp").in("id", ids);
-      if (pErr) console.error("fetchOrders profiles lookup failed:", pErr);
+    let printQuery = supabase.from("tez_print_orders").select("*");
+    if (!isAdmin) printQuery = printQuery.eq("user_id", session.userId);
+    const { data: printData, error: printErr } = await printQuery.order("created_at", { ascending: false });
+    if (printErr) console.error("fetch print orders failed:", printErr);
+
+    let appQuery = supabase.from("appstore_purchases").select("*");
+    if (!isAdmin) appQuery = appQuery.eq("user_id", session.userId);
+    const { data: appData, error: appErr } = await appQuery.order("created_at", { ascending: false });
+    if (appErr) console.error("fetch app purchases failed:", appErr);
+
+    let printRows = (printData || []).map(o => ({ ...o, kind: "print" }));
+    let appRows = appData || [];
+
+    if (appRows.length) {
+      const appIds = [...new Set(appRows.map(p => p.app_id))];
+      const { data: appsInfo } = await supabase.from("tez_appstore").select("id, title, icon_url, drive_link").in("id", appIds);
+      const am = {};
+      (appsInfo || []).forEach(a => { am[a.id] = a; });
+      appRows = appRows.map(p => ({
+        id: p.id,
+        kind: "app",
+        created_at: p.created_at,
+        user_id: p.user_id,
+        total_amount: p.amount_paid,
+        payment_id: p.payment_id,
+        status: p.status,
+        drive_link: am[p.app_id]?.drive_link || null,
+        items: [{ title: am[p.app_id]?.title || "Unknown App", price: p.amount_paid, qty: 1 }],
+      }));
+    }
+
+    let combined = [...printRows, ...appRows];
+
+    if (isAdmin && combined.length) {
+      const userIds = [...new Set(combined.map(o => o.user_id))];
+      const { data: profiles } = await supabase.from("profiles").select("id, name, mobile, whatsapp").in("id", userIds);
       const pm = {};
       (profiles || []).forEach(p => { pm[p.id] = p; });
-      rows = rows.map(o => ({ ...o, profiles: pm[o.user_id] || null }));
+      combined = combined.map(o => ({
+        ...o,
+        buyer_name: pm[o.user_id]?.name || null,
+        buyer_contact: pm[o.user_id]?.mobile || pm[o.user_id]?.whatsapp || null,
+      }));
     }
-    setOrders(rows);
+
+    combined.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    setOrders(combined);
     setLoading(false);
   };
 
   useEffect(() => { fetchOrders(); }, [session.userId, isAdmin]);
 
-  /* ── Admin: live-refresh when a new order comes in ── */
   useEffect(() => {
     if (!isAdmin) return;
     const ch = supabase.channel("admin_orders_watch")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "tez_print_orders" }, () => fetchOrders())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "appstore_purchases" }, () => fetchOrders())
       .subscribe();
     return () => supabase.removeChannel(ch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -444,35 +524,55 @@ export default function OrdersPage({ session }) {
   };
 
   const filtered = orders.filter(o => {
+    const status = o.kind === "app" ? "delivered" : (o.fulfillment_status || "placed");
     if (filter === "all") return true;
-    if (filter === "new") return (o.fulfillment_status || "placed") === "placed";
-    if (filter === "active") return ["placed", "processing", "shipped"].includes(o.fulfillment_status || "placed");
-    if (filter === "delivered") return o.fulfillment_status === "delivered";
-    if (filter === "cancelled") return o.fulfillment_status === "cancelled";
+    if (filter === "prints") return o.kind === "print";
+    if (filter === "apps") return o.kind === "app";
+    if (filter === "new") return o.kind === "print" && status === "placed";
+    if (filter === "active") return o.kind === "print" && ["placed", "processing", "shipped"].includes(status);
+    if (filter === "delivered") return status === "delivered";
+    if (filter === "cancelled") return status === "cancelled";
     return true;
   });
 
-  const newCount = orders.filter(o => (o.fulfillment_status || "placed") === "placed").length;
+  const newCount = orders.filter(o => o.kind === "print" && (o.fulfillment_status || "placed") === "placed").length;
 
   const filters = isAdmin ? [
     { id: "all", label: "All Orders" },
     { id: "new", label: `New${newCount > 0 ? ` (${newCount})` : ""}` },
-    { id: "active", label: "Active" },
+    { id: "prints", label: "Tez Prints" },
+    { id: "apps", label: "App Store" },
     { id: "delivered", label: "Delivered" },
     { id: "cancelled", label: "Cancelled" },
   ] : [
     { id: "all", label: "All Orders" },
+    { id: "prints", label: "Tez Prints" },
+    { id: "apps", label: "App Store" },
     { id: "active", label: "Active" },
     { id: "delivered", label: "Delivered" },
-    { id: "cancelled", label: "Cancelled" },
   ];
+
+  const totalSpent = orders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text, margin: 0, marginBottom: 4 }}>{isAdmin ? "All Orders (Admin)" : "My Orders"}</h2>
-        <div style={{ fontSize: 12, color: T.textLow }}>{isAdmin ? "Manage every Tez Prints order, update status and tracking" : "Track and manage your Tez Prints orders"}</div>
+        <div style={{ fontSize: 12, color: T.textLow }}>{isAdmin ? "Tez Prints orders and App Store sales in one place" : "Your Tez Prints orders and App Store purchases"}</div>
       </div>
+
+      {isAdmin && !loading && orders.length > 0 && (
+        <div style={{ background: "linear-gradient(135deg,#1a0f00,#0f1120)", border: `1px solid ${T.orange}33`, borderRadius: 14, padding: "16px 18px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 11, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em" }}>Total Revenue</div>
+            <div style={{ fontWeight: 800, fontSize: 24, color: T.orange, marginTop: 4 }}>₹{totalSpent.toFixed(2)}</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 11, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em" }}>Total Orders</div>
+            <div style={{ fontWeight: 800, fontSize: 24, color: T.text, marginTop: 4 }}>{orders.length}</div>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 18, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 2 }}>
         {filters.map(f => (
@@ -497,7 +597,7 @@ export default function OrdersPage({ session }) {
             {orders.length === 0 ? "No orders yet" : "No orders in this filter"}
           </div>
           <div style={{ fontSize: 13, color: T.textLow }}>
-            {orders.length === 0 ? "Your Tez Prints orders will show up here" : "Try a different filter above"}
+            {orders.length === 0 ? "Your Tez Prints orders and App Store purchases will show up here" : "Try a different filter above"}
           </div>
         </div>
       )}
@@ -505,7 +605,7 @@ export default function OrdersPage({ session }) {
       {!loading && filtered.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {filtered.map(order => (
-            <OrderCard key={order.id} order={order} isAdmin={isAdmin} onClick={() => setSelected(order)} />
+            <OrderCard key={`${order.kind}-${order.id}`} order={order} isAdmin={isAdmin} onClick={() => setSelected(order)} />
           ))}
         </div>
       )}
