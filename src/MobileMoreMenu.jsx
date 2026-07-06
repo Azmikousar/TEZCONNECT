@@ -13,7 +13,7 @@ const MORE_NAV = [
   { id: "myproducts",   icon: "📦", label: "My Listings",     sub: "Sell your products" },
   { id: "tezprints",    icon: "🖨️", label: "Tez Prints",      sub: "Official merchandise" },
   { id: "appstore",     icon: "📱", label: "Tez App Store",   sub: "Premium software" },
-  { id: "orders", icon: "📦", label: "My Orders" },
+  { id: "orders", icon: "📦", label: "My Orders" ,sub:"Your complete shopping history."},
   { id: "services",     icon: "🚀", label: "Our Services",    sub: "TezConnect offerings" },
   { id: "leads",        icon: "🎯", label: "Leads",           sub: "Manage your leads" },
   { id: "analytics",    icon: "📊", label: "Lead Analytics",  sub: "Track performance" },
