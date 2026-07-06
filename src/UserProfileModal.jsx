@@ -200,13 +200,25 @@ function PostDetailModal({ post, session, onClose }) {
   );
 }
 
+/* ── Social link pill ── */
+function SocialPill({ icon, label, url }) {
+  if (!url) return null;
+  const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      style={{ display: "inline-flex", alignItems: "center", gap: 7, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", color: T.text, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+      <span>{icon}</span> {label}
+    </a>
+  );
+}
+
 /* ── Main User Profile Modal ── */
 export default function UserProfileModal({ userId, session, onClose, connectionProps }) {
   const [profile, setProfile]     = useState(null);
   const [posts, setPosts]         = useState([]);
   const [loading, setLoading]     = useState(true);
   const [postsLoading, setPostsLoading] = useState(true);
-  const [view, setView]           = useState("grid");
+  const [view, setView]           = useState("feed");
   const [likeCount, setLikeCount] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
   const [copied, setCopied]       = useState(false);
@@ -250,6 +262,15 @@ export default function UserProfileModal({ userId, session, onClose, connectionP
     }
   };
 
+  /* Open a chat with this user from wherever the profile is being viewed.
+     MessagesPage.jsx already listens for this exact event, so this works
+     without any extra wiring — the modal just closes and Messages opens
+     the chat. */
+  const messageUser = () => {
+    window.dispatchEvent(new CustomEvent("tez-open-chat", { detail: { userId } }));
+    onClose();
+  };
+
   const isMe = userId === session?.userId;
   const initials = (profile?.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
@@ -261,23 +282,23 @@ export default function UserProfileModal({ userId, session, onClose, connectionP
       {/* Backdrop */}
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 600 }} />
       {/* Full screen slide-up panel */}
-<div style={{
-  position: "fixed", 
-  top: 0,           // Change from bottom: 0 to top: 0
-  bottom: 0, 
-  left: 0, 
-  right: 0,
-  height: "100vh",  // Force full viewport height
-  background: T.bg,
-  borderRadius: "0px", // Remove rounded corners for full coverage
-  zIndex: 601, 
-  display: "flex", 
-  flexDirection: "column",
-  animation: "slideUp .3s ease",
-  maxWidth: 600, 
-  margin: "0 auto",
-  width: "100%"     // Ensure it spans full width
-}}>
+      <div style={{
+        position: "fixed",
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: "100vh",
+        background: T.bg,
+        borderRadius: "0px",
+        zIndex: 601,
+        display: "flex",
+        flexDirection: "column",
+        animation: "slideUp .3s ease",
+        maxWidth: 600,
+        margin: "0 auto",
+        width: "100%"
+      }}>
 
         {/* Handle */}
         <div style={{ padding: "10px 0 0", display: "flex", justifyContent: "center", flexShrink: 0 }}>
@@ -334,60 +355,80 @@ export default function UserProfileModal({ userId, session, onClose, connectionP
                   {profile.company && <div style={{ fontSize: 12, color: T.textMid, marginTop: 1 }}>{profile.company}{profile.industry ? " · " + profile.industry : ""}</div>}
                   {profile.location && <div style={{ fontSize: 12, color: T.textLow, marginTop: 3 }}>📍 {profile.location}</div>}
                   {profile.bio && <div style={{ fontSize: 13, color: T.textMid, lineHeight: 1.6, marginTop: 6 }}>{profile.bio}</div>}
+
+                  {/* Website link */}
+                  {profile.website && (
+                    <a href={/^https?:\/\//i.test(profile.website) ? profile.website : `https://${profile.website}`}
+                      target="_blank" rel="noopener noreferrer"
+                      style={{ display: "inline-block", marginTop: 8, fontSize: 13, color: T.orange, textDecoration: "underline", fontWeight: 600, wordBreak: "break-all" }}>
+                      {profile.website}
+                    </a>
+                  )}
+
+                  {/* Social links */}
+                  {(profile.instagram || profile.linkedin || profile.twitter || profile.youtube) && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                      <SocialPill icon="📸" label="Instagram" url={profile.instagram} />
+                      <SocialPill icon="🔗" label="LinkedIn" url={profile.linkedin} />
+                      <SocialPill icon="🐦" label="Twitter" url={profile.twitter} />
+                      <SocialPill icon="▶️" label="YouTube" url={profile.youtube} />
+                    </div>
+                  )}
                 </div>
 
                 {/* Action buttons */}
                 {!isMe && (
-                  <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-                    {/* Connect button */}
-                    {connectionProps && (() => {
-                      const { status, connection, isSender } = connectionProps.getStatus(userId);
+                  <div style={{ marginBottom: 14 }}>
+                    {/* Connection status — shown only while not yet connected, as its own row */}
+                    {connectionProps && connStatus && connStatus.status !== "accepted" && (() => {
+                      const { status, connection, isSender } = connStatus;
                       if (status === "none") return (
                         <button onClick={() => connectionProps.sendRequest(userId)}
-                          style={{ flex: 2, background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 10, padding: "10px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+                          style={{ width: "100%", background: T.bgInput, border: `1px solid ${T.orange}44`, borderRadius: 10, padding: "10px", color: T.orange, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 10 }}>
                           🤝 Connect
                         </button>
                       );
                       if (status === "pending" && isSender) return (
                         <button onClick={() => connectionProps.removeConnection(connection.id)}
-                          style={{ flex: 2, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px", color: T.textMid, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+                          style={{ width: "100%", background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px", color: T.textMid, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 10 }}>
                           ⏳ Requested
                         </button>
                       );
                       if (status === "pending" && !isSender) return (
                         <button onClick={() => connectionProps.acceptRequest(connection.id)}
-                          style={{ flex: 2, background: T.successLo, border: `1px solid ${T.success}44`, borderRadius: 10, padding: "10px", color: T.success, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+                          style={{ width: "100%", background: T.successLo, border: `1px solid ${T.success}44`, borderRadius: 10, padding: "10px", color: T.success, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 10 }}>
                           ✓ Accept Request
                         </button>
-                      );
-                      if (status === "accepted") return (
-                        <div style={{ flex: 2, background: T.successLo, border: `1px solid ${T.success}44`, borderRadius: 10, padding: "10px", color: T.success, fontSize: 13, fontWeight: 700, textAlign: "center" }}>
-                          ✓ Connected
-                        </div>
                       );
                       return null;
                     })()}
 
-                    {/* WhatsApp */}
+                    {/* Message + Share Profile — full-width row, primary action */}
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button onClick={messageUser}
+                        style={{ flex: 2, background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 10, padding: "12px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, boxShadow: "0 4px 14px #f9731444" }}>
+                        💬 Message
+                      </button>
+                      <button onClick={shareProfile}
+                        style={{ flex: 1, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px", color: copied ? T.success : T.text, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, whiteSpace: "nowrap" }}>
+                        {copied ? "✓ Copied" : "📤 Share Profile"}
+                      </button>
+                    </div>
+
+                    {/* WhatsApp, kept as a small secondary link under the main row */}
                     {profile.whatsapp && (
                       <a href={`https://wa.me/${profile.whatsapp.replace(/[^0-9]/g, "")}`}
                         target="_blank" rel="noopener noreferrer"
-                        style={{ flex: 1, background: "#25d36618", border: "1px solid #25d36633", borderRadius: 10, padding: "10px", color: "#25d366", fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center" }}>
-                        💬
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 10, background: "#25d36618", border: "1px solid #25d36633", borderRadius: 10, padding: "10px", color: "#25d366", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+                        💬 WhatsApp
                       </a>
                     )}
-
-                    {/* Share */}
-                    <button onClick={shareProfile}
-                      style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", color: copied ? T.success : T.textMid, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-                      {copied ? "✓" : "📤"}
-                    </button>
                   </div>
                 )}
 
-                {/* Feed / Grid toggle */}
+                {/* Feed / Grid toggle — Feed first + default, matching the fuller profile layout */}
                 <div style={{ display: "flex", borderTop: `1px solid ${T.border}` }}>
-                  {[["grid", "⊞ Grid"], ["feed", "☰ Feed"]].map(([id, label]) => (
+                  {[["feed", "☰ Feed"], ["grid", "⊞ Grid"]].map(([id, label]) => (
                     <button key={id} onClick={() => setView(id)}
                       style={{ flex: 1, background: "none", border: "none", borderBottom: `2px solid ${view === id ? T.orange : "transparent"}`, color: view === id ? T.orange : T.textLow, fontWeight: 700, fontSize: 13, padding: "10px 0", cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", transition: "all .2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                       {label}
