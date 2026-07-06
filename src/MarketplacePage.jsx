@@ -294,9 +294,10 @@ export default function MarketplacePage({ session }) {
     supabase.from("user_products")
       .select("*, profiles(name, photo, whatsapp)")
       .eq("is_active", true)
+      .neq("user_id", session.userId)
       .order("created_at", { ascending: false })
       .then(({ data }) => { setProducts(data || []); setLoading(false); });
-  }, []);
+  }, [session.userId]);
 
   const filtered = products
     .filter(p => {
