@@ -3590,6 +3590,7 @@ const isMobile = useIsMobile();
 const [showMoreMenu, setShowMoreMenu] = useState(false);
  const [showShare, setShowShare] = useState(false);
 const [viewedProfile, setViewedProfile] = useState(null);
+const [showPremiumModal, setShowPremiumModal] = useState(false);
 
 const mapProfileRow = (data) => ({
   id: data.id,
@@ -3777,6 +3778,7 @@ useEffect(() => {
         setEditingProfile(true);
       }}
       onNav={(p) => { setPage(p); if (p !== "profile") setEditingProfile(false); }}
+       onUpgradeClick={() => setShowPremiumModal(true)}
     />
   );
 }
@@ -4138,6 +4140,15 @@ if (page==="wallet")    return <WalletPage session={session}/>;
       />
     )}
      {showShare && <ShareApp onClose={() => setShowShare(false)} />}
+{showPremiumModal && (
+  <PremiumUpgradeModal
+    session={session}
+    onClose={() => setShowPremiumModal(false)}
+    onSuccess={() => {
+      // optional: refetch profile/premium status here, or just let useConnections re-check on next mount
+    }}
+  />
+)}
 
 
     {/* Logout modal */}
