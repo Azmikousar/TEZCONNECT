@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
+import PremiumUpgradeModal from "./PremiumUpgradeModal";
 
 const T = {
   bg: "#06070d", bgCard: "#0b0d17", bgInput: "#0f1120", border: "#1a1f35",
@@ -14,6 +15,8 @@ const CATEGORIES = [
   "Digital Product", "Service", "Course",
   "Consultation", "Physical Product", "Software", "Other",
 ];
+
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
 
 /* ── Product Form Modal ── */
 function ProductModal({ product, session, onClose, onSaved }) {
@@ -66,7 +69,14 @@ function ProductModal({ product, session, onClose, onSaved }) {
     }
 
     setSaving(false);
-    if (err) { setError(err.message); return; }
+    if (err) {
+      if (err.message?.toLowerCase().includes("row-level security") || err.code === "42501") {
+        setError("Premium membership required to publish new listings.");
+      } else {
+        setError(err.message);
+      }
+      return;
+    }
     onSaved(); onClose();
   };
 
@@ -132,17 +142,17 @@ function ProductModal({ product, session, onClose, onSaved }) {
         </div>
 
         <div
-  style={{
-    padding: "14px 20px calc(14px + env(safe-area-inset-bottom))",
-    borderTop: `1px solid ${T.border}`,
-    flexShrink: 0,
-    background: T.bgCard,
-    position: "sticky",
-    bottom: 0,
-    zIndex: 9999,
-    paddingBottom:"90px",
-  }}
->
+          style={{
+            padding: "14px 20px calc(14px + env(safe-area-inset-bottom))",
+            borderTop: `1px solid ${T.border}`,
+            flexShrink: 0,
+            background: T.bgCard,
+            position: "sticky",
+            bottom: 0,
+            zIndex: 9999,
+            paddingBottom: "90px",
+          }}
+        >
           <button onClick={save} disabled={saving}
             style={{ width: "100%", background: saving ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "14px", color: saving ? T.textMid : "#fff", fontSize: 15, fontWeight: 700, cursor: saving ? "wait" : "pointer" }}>
             {saving ? "Saving…" : isEdit ? "Update Listing" : "Publish Listing 🚀"}
@@ -287,6 +297,25 @@ export default function MyProductsPage({ session }) {
   const [editProduct, setEditProduct] = useState(null);
   const [filter, setFilter] = useState("All");
 
+  const [isPremium, setIsPremium] = useState(false);
+  const [checkingPremium, setCheckingPremium] = useState(true);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  const isAdmin = session?.userId === ADMIN_USER_ID;
+
+  const checkPremium = async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("is_premium, premium_expires_at")
+      .eq("id", session.userId)
+      .single();
+    if (data) {
+      const active = data.is_premium && (!data.premium_expires_at || new Date(data.premium_expires_at) > new Date());
+      setIsPremium(!!active);
+    }
+    setCheckingPremium(false);
+  };
+
   const fetchProducts = async () => {
     const { data } = await supabase
       .from("user_products").select("*")
@@ -296,7 +325,10 @@ export default function MyProductsPage({ session }) {
     setLoading(false);
   };
 
-  useEffect(() => { fetchProducts(); }, [session.userId]);
+  useEffect(() => {
+    fetchProducts();
+    checkPremium();
+  }, [session.userId]);
 
   const handleDelete = async (id) => {
     await supabase.from("user_products").delete().eq("id", id);
@@ -306,6 +338,16 @@ export default function MyProductsPage({ session }) {
   const handleToggle = async (id, current) => {
     await supabase.from("user_products").update({ is_active: !current }).eq("id", id);
     fetchProducts();
+  };
+
+  // Gatekeeper — opens the Add Listing modal only if premium (or admin), else shows upgrade modal
+  const handleAddClick = () => {
+    if (checkingPremium) return;
+    if (!isAdmin && !isPremium) {
+      setShowUpgrade(true);
+      return;
+    }
+    setShowAdd(true);
   };
 
   const liveCount = products.filter(p => p.is_active).length;
@@ -331,11 +373,17 @@ export default function MyProductsPage({ session }) {
             Products & <span style={{ color: T.orange }}>Services</span>
           </h2>
           <div style={{ fontSize: 12, color: T.textMid }}>Manage, update and grow your business</div>
+          {!checkingPremium && !isPremium && !isAdmin && (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, background: T.orangeLo, border: `1px solid ${T.orange}33`, borderRadius: 20, padding: "4px 10px" }}>
+              <span style={{ fontSize: 12 }}>👑</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: T.orange }}>Premium required to list</span>
+            </div>
+          )}
         </div>
 
-        <button onClick={() => setShowAdd(true)}
+        <button onClick={handleAddClick}
           style={{ flexShrink: 0, background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 14, padding: "12px 20px", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px #f9731444", whiteSpace: "nowrap" }}>
-          + Add Listing
+          {isPremium || isAdmin ? "+ Add Listing" : "👑 Add Listing"}
         </button>
       </div>
 
@@ -376,7 +424,7 @@ export default function MyProductsPage({ session }) {
       )}
 
       {/* Empty */}
-      {!loading && products.length === 0 && <EmptyState onAdd={() => setShowAdd(true)} />}
+      {!loading && products.length === 0 && <EmptyState onAdd={handleAddClick} />}
 
       {/* No results for filter */}
       {!loading && products.length > 0 && filtered.length === 0 && (
@@ -400,7 +448,7 @@ export default function MyProductsPage({ session }) {
 
       {/* Bottom CTA if has products */}
       {!loading && products.length > 0 && (
-        <button onClick={() => setShowAdd(true)}
+        <button onClick={handleAddClick}
           style={{ width: "100%", background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 14, padding: "14px", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px #f9731444" }}>
           + Add Another Listing
         </button>
@@ -412,6 +460,13 @@ export default function MyProductsPage({ session }) {
       )}
       {editProduct && (
         <ProductModal product={editProduct} session={session} onClose={() => setEditProduct(null)} onSaved={fetchProducts} />
+      )}
+      {showUpgrade && (
+        <PremiumUpgradeModal
+          session={session}
+          onClose={() => setShowUpgrade(false)}
+          onSuccess={() => { setShowUpgrade(false); checkPremium(); }}
+        />
       )}
     </div>
   );
