@@ -296,7 +296,8 @@ function CartDrawer({ cart, onClose, onUpdateQty, onRemove, onCheckout, checking
         </div>
 
         {cart.length > 0 && (
-          <div style={{ padding: "16px 20px calc(16px + env(safe-area-inset-bottom))" , borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard ,postion:"sticky",bottom:0,zIndex:10,}}>
+          <div style={{ padding: "16px 20px calc(28px + env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard, position: "sticky", bottom: 0, zIndex: 10 }}>
+
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <span style={{ fontSize: 13, color: T.textMid }}>Subtotal</span>
               <span style={{ fontSize: 16, fontWeight: 700, color: T.text }}>₹{total.toFixed(2)}</span>
