@@ -20,16 +20,22 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
   const [loading, setLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const initials = (member.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+const handle = async (action) => {
+  setLoading(true);
+  try {
+    let result;
+    if (action === "send")   result = await connectionProps.sendRequest(member.id);
+    if (action === "accept") result = await connectionProps.acceptRequest(connection.id);
+    if (action === "reject") result = await connectionProps.rejectRequest(connection.id);
+    if (action === "remove") result = await connectionProps.removeConnection(connection.id);
 
-  const handle = async (action) => {
-    setLoading(true);
-    try {
-      if (action === "send")   await connectionProps.sendRequest(member.id);
-      if (action === "accept") await connectionProps.acceptRequest(connection.id);
-      if (action === "reject") await connectionProps.rejectRequest(connection.id);
-      if (action === "remove") await connectionProps.removeConnection(connection.id);
-    } finally { setLoading(false); }
-  };
+    if (result?.error === "LIMIT_REACHED" && connectionProps.onLimitReached) {
+      connectionProps.onLimitReached();
+    }
+  } finally { setLoading(false); }
+};
+
+  
 
   const renderButton = () => {
     if (isMe) return <span style={{ fontSize: 11, color: T.textLow, fontWeight: 600, background: T.bgInput, borderRadius: 8, padding: "7px 14px" }}>You</span>;
