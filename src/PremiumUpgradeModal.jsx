@@ -86,7 +86,7 @@ export default function PremiumUpgradeModal({ session, onClose, onSuccess }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000c", zIndex: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000c", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.orange}44`, borderRadius: 20, padding: "28px 24px", maxWidth: 400, width: "100%", textAlign: "center" }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>👑</div>
         <div style={{ fontWeight: 800, fontSize: 20, color: T.text, marginBottom: 8 }}>Upgrade to Premium</div>
