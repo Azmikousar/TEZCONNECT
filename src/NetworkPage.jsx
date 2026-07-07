@@ -158,6 +158,33 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
     </div>
   );
 }
+function UpgradeModal({ onClose }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000c", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.orange}44`, borderRadius: 20, padding: "28px 24px", maxWidth: 380, width: "100%", textAlign: "center" }}>
+        <div style={{ fontSize: 44, marginBottom: 12 }}>👑</div>
+        <div style={{ fontWeight: 800, fontSize: 18, color: T.text, marginBottom: 8 }}>Free Limit Reached</div>
+        <div style={{ fontSize: 13, color: T.textMid, lineHeight: 1.7, marginBottom: 20 }}>
+          You've used your 2 free connections. Upgrade to Premium for unlimited connections and marketplace listing access.
+        </div>
+        <div style={{ background: T.orangeLo, border: `1px solid ${T.orange}33`, borderRadius: 12, padding: "12px 16px", marginBottom: 20 }}>
+          <div style={{ fontWeight: 800, fontSize: 22, color: T.orange }}>₹4,999<span style={{ fontSize: 12, color: T.textMid }}>/year</span></div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button
+            onClick={() => { onClose(); window.location.hash = "#upgrade"; /* or setPage("services") via prop */ }}
+            style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 10, padding: "12px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+            Upgrade Now →
+          </button>
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px", color: T.textMid, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+            Maybe Later
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 /* ── Requests Panel ── */
 function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewProfile }) {
@@ -212,7 +239,7 @@ export default function NetworkPage({ session }) {
   const [tab, setTab]                 = useState("discover");
   const [viewingUser, setViewingUser] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
-
+const [showUpgrade, setShowUpgrade] = useState(false);
   const {
     getStatus, sendRequest, acceptRequest,
     rejectRequest, removeConnection, pendingReceived, accepted,
@@ -430,9 +457,10 @@ export default function NetworkPage({ session }) {
           userId={viewingUser}
           session={session}
           onClose={() => setViewingUser(null)}
-          connectionProps={{ getStatus, sendRequest, acceptRequest, rejectRequest, removeConnection }}
+          connectionProps={{ getStatus, sendRequest, acceptRequest, rejectRequest, removeConnection ,onLimitReached: () => setShowUpgrade(true) }}
         />
       )}
+      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
     </div>
   );
 }
