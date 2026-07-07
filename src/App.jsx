@@ -2461,7 +2461,7 @@ function AimCard({ aim, i }) {
     </div>
   );
 }
-function DashboardScreen({ session, profile, onGoProfile, onNav }) {
+function DashboardScreen({ session, profile, onGoProfile, onNav ,onUpgradeClick}) {
   const stats = useDashboardStats(session.userId);
   const pct = ProfilePct(profile);
   const firstName = session.name?.split(" ")[0] || "there";
@@ -2615,7 +2615,7 @@ function DashboardScreen({ session, profile, onGoProfile, onNav }) {
           <div style={{ fontSize: 12, color: "#94a3b8" }}>Get more visibility, leads & growth</div>
         </div>
         <button
-          onClick={() => onNav("services")}
+          onClick={onUpgradeClick}
           style={{ flexShrink: 0, background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "10px 16px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 4px 16px #f9731444" }}>
           Upgrade Now →
         </button>
