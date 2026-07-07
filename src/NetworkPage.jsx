@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 import { useConnections } from "./useConnections";
 import UserProfileModal from "./UserProfileModal";
+import PremiumUpgradeModal from "./PremiumUpgradeModal";
 
 const T = {
   bg: "#06070d", bgCard: "#0b0d17", bgInput: "#0f1120", bgHover: "#141726",
@@ -20,22 +21,21 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
   const [loading, setLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const initials = (member.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
-const handle = async (action) => {
-  setLoading(true);
-  try {
-    let result;
-    if (action === "send")   result = await connectionProps.sendRequest(member.id);
-    if (action === "accept") result = await connectionProps.acceptRequest(connection.id);
-    if (action === "reject") result = await connectionProps.rejectRequest(connection.id);
-    if (action === "remove") result = await connectionProps.removeConnection(connection.id);
 
-    if (result?.error === "LIMIT_REACHED" && connectionProps.onLimitReached) {
-      connectionProps.onLimitReached();
-    }
-  } finally { setLoading(false); }
-};
+  const handle = async (action) => {
+    setLoading(true);
+    try {
+      let result;
+      if (action === "send")   result = await connectionProps.sendRequest(member.id);
+      if (action === "accept") result = await connectionProps.acceptRequest(connection.id);
+      if (action === "reject") result = await connectionProps.rejectRequest(connection.id);
+      if (action === "remove") result = await connectionProps.removeConnection(connection.id);
 
-  
+      if (result?.error === "LIMIT_REACHED" && connectionProps.onLimitReached) {
+        connectionProps.onLimitReached();
+      }
+    } finally { setLoading(false); }
+  };
 
   const renderButton = () => {
     if (isMe) return <span style={{ fontSize: 11, color: T.textLow, fontWeight: 600, background: T.bgInput, borderRadius: 8, padding: "7px 14px" }}>You</span>;
@@ -164,36 +164,9 @@ const handle = async (action) => {
     </div>
   );
 }
-function UpgradeModal({ onClose }) {
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000c", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.orange}44`, borderRadius: 20, padding: "28px 24px", maxWidth: 380, width: "100%", textAlign: "center" }}>
-        <div style={{ fontSize: 44, marginBottom: 12 }}>👑</div>
-        <div style={{ fontWeight: 800, fontSize: 18, color: T.text, marginBottom: 8 }}>Free Limit Reached</div>
-        <div style={{ fontSize: 13, color: T.textMid, lineHeight: 1.7, marginBottom: 20 }}>
-          You've used your 2 free connections. Upgrade to Premium for unlimited connections and marketplace listing access.
-        </div>
-        <div style={{ background: T.orangeLo, border: `1px solid ${T.orange}33`, borderRadius: 12, padding: "12px 16px", marginBottom: 20 }}>
-          <div style={{ fontWeight: 800, fontSize: 22, color: T.orange }}>₹4,999<span style={{ fontSize: 12, color: T.textMid }}>/year</span></div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <button
-            onClick={() => { onClose(); window.location.hash = "#upgrade"; /* or setPage("services") via prop */ }}
-            style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 10, padding: "12px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-            Upgrade Now →
-          </button>
-          <button onClick={onClose} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px", color: T.textMid, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
-            Maybe Later
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 
 /* ── Requests Panel ── */
-function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewProfile }) {
+function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewProfile, onLimitReached }) {
   if (pendingReceived.length === 0) return (
     <div style={{ textAlign: "center", padding: "50px 20px" }}>
       <div style={{ fontSize: 48, marginBottom: 14 }}>🤝</div>
@@ -201,6 +174,11 @@ function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewPr
       <div style={{ fontSize: 13, color: T.textLow }}>Connection requests will appear here</div>
     </div>
   );
+
+  const handleAccept = async (id) => {
+    const result = await acceptRequest(id);
+    if (result?.error === "LIMIT_REACHED" && onLimitReached) onLimitReached();
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -218,7 +196,7 @@ function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewPr
               {actor.location && <div style={{ fontSize: 11, color: T.textLow, marginTop: 2 }}>📍 {actor.location}</div>}
             </div>
             <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-              <button onClick={() => acceptRequest(r.id)}
+              <button onClick={() => handleAccept(r.id)}
                 style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 9, padding: "8px 14px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                 Accept
               </button>
@@ -245,10 +223,11 @@ export default function NetworkPage({ session }) {
   const [tab, setTab]                 = useState("discover");
   const [viewingUser, setViewingUser] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
-const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
   const {
     getStatus, sendRequest, acceptRequest,
-    rejectRequest, removeConnection, pendingReceived, accepted,
+    rejectRequest, removeConnection, pendingReceived, accepted, isPremium, refresh,
   } = useConnections(session.userId);
 
   useEffect(() => {
@@ -274,6 +253,11 @@ const [showUpgrade, setShowUpgrade] = useState(false);
     });
 
   const totalConnected = accepted.length;
+
+  const connectionProps = {
+    getStatus, sendRequest, acceptRequest, rejectRequest, removeConnection,
+    onLimitReached: () => setShowUpgrade(true),
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -309,7 +293,7 @@ const [showUpgrade, setShowUpgrade] = useState(false);
               <span style={{ fontSize: 22 }}>✅</span>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 18, color: T.text, lineHeight: 1 }}>{totalConnected}</div>
-                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>Connected</div>
+                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>Connected{!isPremium ? " (2 free)" : ""}</div>
               </div>
             </div>
           </div>
@@ -318,7 +302,7 @@ const [showUpgrade, setShowUpgrade] = useState(false);
           <div style={{ display: "flex", gap: 10 }}>
             <button
               onClick={() => setTab("discover")}
-              style={{ display: "flex", alignItems: "center", gap: 8, background: tab === "discover" ? "transparent" : "transparent", border: `1.5px solid ${tab === "discover" ? T.orange : "#ffffff22"}`, borderRadius: 10, padding: "9px 18px", color: tab === "discover" ? T.orange : "#94a3b8", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: `1.5px solid ${tab === "discover" ? T.orange : "#ffffff22"}`, borderRadius: 10, padding: "9px 18px", color: tab === "discover" ? T.orange : "#94a3b8", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
               <span>🔭</span> Discover
             </button>
             <button
@@ -342,6 +326,7 @@ const [showUpgrade, setShowUpgrade] = useState(false);
           acceptRequest={acceptRequest}
           rejectRequest={rejectRequest}
           onViewProfile={setViewingUser}
+          onLimitReached={() => setShowUpgrade(true)}
         />
       )}
 
@@ -428,7 +413,7 @@ const [showUpgrade, setShowUpgrade] = useState(false);
                   key={member.id}
                   member={member}
                   currentUserId={session.userId}
-                  connectionProps={{ getStatus, sendRequest, acceptRequest, rejectRequest, removeConnection }}
+                  connectionProps={connectionProps}
                   onViewProfile={setViewingUser}
                 />
               ))}
@@ -440,17 +425,25 @@ const [showUpgrade, setShowUpgrade] = useState(false);
             <div style={{ display: "flex", alignItems: "center", gap: 14, background: "linear-gradient(135deg,#1a0a2e,#2d1854)", border: "1px solid #7c3aed44", borderRadius: 16, padding: "16px 18px", marginTop: 4 }}>
               <span style={{ fontSize: 32, flexShrink: 0 }}>👑</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>Grow your network</div>
-                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>Invite more professionals and expand opportunities.</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>
+                  {isPremium ? "Grow your network" : "Unlock unlimited connections"}
+                </div>
+                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>
+                  {isPremium ? "Invite more professionals and expand opportunities." : "Upgrade to Premium to connect with more members."}
+                </div>
               </div>
               <button
                 onClick={() => {
-                  const url = "https://tezconnect.in";
-                  if (navigator.share) { navigator.share({ title: "Join TezConnect", url }); }
-                  else { navigator.clipboard.writeText(url); }
+                  if (isPremium) {
+                    const url = "https://tezconnect.in";
+                    if (navigator.share) { navigator.share({ title: "Join TezConnect", url }); }
+                    else { navigator.clipboard.writeText(url); }
+                  } else {
+                    setShowUpgrade(true);
+                  }
                 }}
                 style={{ flexShrink: 0, background: "linear-gradient(135deg,#7c3aed,#a78bfa)", border: "none", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap" }}>
-                👥 Invite Members
+                {isPremium ? "👥 Invite Members" : "👑 Upgrade Now"}
               </button>
             </div>
           )}
@@ -463,10 +456,18 @@ const [showUpgrade, setShowUpgrade] = useState(false);
           userId={viewingUser}
           session={session}
           onClose={() => setViewingUser(null)}
-          connectionProps={{ getStatus, sendRequest, acceptRequest, rejectRequest, removeConnection ,onLimitReached: () => setShowUpgrade(true) }}
+          connectionProps={connectionProps}
         />
       )}
-      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
+
+      {/* Upgrade modal */}
+      {showUpgrade && (
+        <PremiumUpgradeModal
+          session={session}
+          onClose={() => setShowUpgrade(false)}
+          onSuccess={() => { setShowUpgrade(false); refresh(); }}
+        />
+      )}
     </div>
   );
 }
