@@ -27,6 +27,7 @@ import TezPrintsPage from "./TezPrintsPage";
 import TezAppStorePage from "./TezAppStorePage";
 import OrdersPage from "./OrdersPage";
 import { CallProvider } from "./CallProvider";
+import PremiumUpgradeModal from "./PremiumUpgradeModal";
 
 
 
