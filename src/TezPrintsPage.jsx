@@ -255,14 +255,14 @@ function CartDrawer({ cart, onClose, onUpdateQty, onRemove, onCheckout, checking
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 900, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(80vh,620px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height:"90vh", maxHeight:"90vh",display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
         <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ fontWeight: 800, fontSize: 18, color: T.text }}>🛒 Cart <span style={{ fontSize: 13, color: T.textMid, fontWeight: 500 }}>({count} item{count !== 1 ? "s" : ""})</span></div>
           <button onClick={onClose} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer" }}>×</button>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 20px", minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 20px 120px", minHeight: 0 }}>
           {cart.length === 0 ? (
             <div style={{ textAlign: "center", padding: "50px 0" }}>
               <div style={{ fontSize: 56, marginBottom: 14 }}>🛒</div>
@@ -296,7 +296,7 @@ function CartDrawer({ cart, onClose, onUpdateQty, onRemove, onCheckout, checking
         </div>
 
         {cart.length > 0 && (
-          <div style={{ padding: "16px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard }}>
+          <div style={{ padding: "16px 20px calc(16px + env(safe-area-inset-bottom))" , borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard ,postion:"sticky",bottom:0,zIndex:10,}}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <span style={{ fontSize: 13, color: T.textMid }}>Subtotal</span>
               <span style={{ fontSize: 16, fontWeight: 700, color: T.text }}>₹{total.toFixed(2)}</span>
