@@ -3,6 +3,9 @@ import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 import { usePresence } from "./PresenceProvider";
 import { useCall } from "./CallProvider";
+import PremiumUpgradeModal from "./PremiumUpgradeModal";
+
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
 
 /*
   FIXES IN THIS VERSION
@@ -841,7 +844,28 @@ export default function MessagesPage({ session, onViewProfile ,openChatWith}) {
   const [active, setActive] = useState(null);
   const { isOnline, onlineIds } = usePresence(); // now sourced from login-scoped PresenceProvider — see PresenceProvider.jsx
   
+const [isPremium, setIsPremium] = useState(false);
+  const [checkingPremium, setCheckingPremium] = useState(true);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const isAdmin = session?.userId === ADMIN_USER_ID;
+  const isUnlimited = isAdmin || isPremium;
 
+  useEffect(() => {
+    supabase.from("profiles").select("is_premium, premium_expires_at").eq("id", session.userId).single()
+      .then(({ data }) => {
+        if (data) {
+          const active = data.is_premium && (!data.premium_expires_at || new Date(data.premium_expires_at) > new Date());
+          setIsPremium(!!active);
+        }
+        setCheckingPremium(false);
+      });
+  }, [session.userId]);
+
+  const openChat = (contact) => {
+    if (checkingPremium) return;
+    if (!isUnlimited) { setShowUpgrade(true); return; }
+    setActive(contact);
+  };
 
 
   /* ── Load conversation list ── */
