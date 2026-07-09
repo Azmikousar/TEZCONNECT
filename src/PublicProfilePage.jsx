@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
+import PremiumUpgradeModal from "./PremiumUpgradeModal";
+
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
 
 const T = {
   bg: "#06070d", bgCard: "#0b0d17", bgInput: "#0f1120", bgHover: "#141726",
@@ -320,7 +323,27 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile, o
   const [selectedPost, setSelectedPost] = useState(null);
   const [likeCount, setLikeCount] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
+const [isPremium, setIsPremium] = useState(false);
+  const [checkingPremium, setCheckingPremium] = useState(true);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const isAdmin = session?.userId === ADMIN_USER_ID;
+  const isUnlimited = isAdmin || isPremium;
+  useEffect(() => {
+    supabase.from("profiles").select("is_premium, premium_expires_at").eq("id", session.userId).single()
+      .then(({ data }) => {
+        if (data) {
+          const active = data.is_premium && (!data.premium_expires_at || new Date(data.premium_expires_at) > new Date());
+          setIsPremium(!!active);
+        }
+        setCheckingPremium(false);
+      });
+  }, [session.userId]);
 
+  const handleNewPostClick = () => {
+    if (checkingPremium) return;
+    if (!isUnlimited) { setShowUpgrade(true); return; }
+    setShowCreate(true);
+  };
  const fetchPosts = async () => {
   setPostsLoading(true);
   const { data } = await supabase.from("posts").select("*, profiles(name, photo)")
