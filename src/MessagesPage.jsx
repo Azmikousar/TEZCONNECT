@@ -1034,6 +1034,13 @@ const guardedStartCall = (contact, callType) => {
           </button>
         </div>
       </div>
+        {showUpgrade && (
+        <PremiumUpgradeModal
+          session={session}
+          onClose={() => setShowUpgrade(false)}
+          onSuccess={() => { setShowUpgrade(false); setIsPremium(true); }}
+        />
+      )}
     </>
   );
 }
