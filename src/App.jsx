@@ -28,6 +28,13 @@ import TezAppStorePage from "./TezAppStorePage";
 import OrdersPage from "./OrdersPage";
 import { CallProvider } from "./CallProvider";
 import PremiumUpgradeModal from "./PremiumUpgradeModal";
+function PrimeBadge() {
+  return (
+    <span style={{ fontSize: 9, color: "#fbbf24", background: "#fbbf2418", border: "1px solid #fbbf2444", borderRadius: 20, padding: "1px 6px", fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 2, marginLeft: 4 }}>
+      👑 PRIME
+    </span>
+  );
+}
 
 
 
