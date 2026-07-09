@@ -384,7 +384,7 @@ const [isPremium, setIsPremium] = useState(false);
           {profile.username ? `@${profile.username}` : profile.name || "My Profile"}
         </div>
         {isOwnProfile && (
-        <button onClick={()=>setShowCreate(true)}
+        <button onClick={handleNewPostClick}
           style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"8px 16px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", display:"flex", alignItems:"center", gap:6, boxShadow:"0 4px 14px #f9731440" }}>
           <span style={{ fontSize:16 }}>+</span> New Post
         </button>
@@ -544,6 +544,13 @@ const [isPremium, setIsPremium] = useState(false);
       {/* Post detail modal (from grid tap) */}
       {selectedPost && (
         <PostDetailModal post={selectedPost} session={session} onClose={()=>setSelectedPost(null)} onDeleted={handleDeleted}/>
+      )}
+          {showUpgrade && (
+        <PremiumUpgradeModal
+          session={session}
+          onClose={() => setShowUpgrade(false)}
+          onSuccess={() => { setShowUpgrade(false); setIsPremium(true); }}
+        />
       )}
     </div>
   );
