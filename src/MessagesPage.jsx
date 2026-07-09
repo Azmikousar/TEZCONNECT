@@ -921,11 +921,15 @@ const [isPremium, setIsPremium] = useState(false);
 
 
 useEffect(() => {
-  if (openChatWith?.id) setActive(openChatWith);
-}, [openChatWith]);
+  if (openChatWith?.id) openChat(openChatWith);
+}, [openChatWith, checkingPremium, isUnlimited]);
+
 
   const { startCall } = useCall();
-
+const guardedStartCall = (contact, callType) => {
+  if (!isUnlimited) { setShowUpgrade(true); return; }
+  startCall(contact, callType);
+};
 
   /* ── Open chat from elsewhere in the app ── */
   useEffect(() => {
@@ -962,7 +966,7 @@ useEffect(() => {
           session={session}
           onBack={() => setActive(null)}
           isOnline={isOnline}
-          onStartCall={startCall}
+          onStartCall={guardedStartCall}
           onViewProfile={onViewProfile}
         />,
         document.body
@@ -1017,8 +1021,9 @@ useEffect(() => {
           )}
 
           {!loading && filtered.map(c => (
-            <ContactRow key={c.id} conv={c} isActive={active?.id === c.id} onClick={() => setActive(c)} isOnline={isOnline} />
-          ))}
+  <ContactRow key={c.id} conv={c} isActive={active?.id === c.id} onClick={() => openChat(c)} isOnline={isOnline} />
+))}
+
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
