@@ -13,6 +13,15 @@ const T = {
   purple: "#a78bfa", purpleLo: "#a78bfa12", purpleMd: "#a78bfa25",
   info: "#38bdf8",
 };
+.sort((a, b) => {
+  const aPrime = a.is_premium ? 1 : 0;
+  const bPrime = b.is_premium ? 1 : 0;
+  if (aPrime !== bPrime) return bPrime - aPrime; // premium first
+  if (sortBy === "newest") return new Date(b.created_at) - new Date(a.created_at);
+  if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
+  return 0;
+});
+
 
 /* ── Member Row Card ── */
 function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
