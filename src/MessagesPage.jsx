@@ -5,63 +5,17 @@ import { usePresence } from "./PresenceProvider";
 import { useCall } from "./CallProvider";
 import PremiumUpgradeModal from "./PremiumUpgradeModal";
 
-const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
-
 /*
-  FIXES IN THIS VERSION
-  ----------------------
-  1) CALLS NOT REACHING THE OTHER USER
-     - Previously the incoming-call listener only existed *inside* ChatView,
-       scoped to whichever contact's chat you had open. If the callee wasn't
-       looking at that exact chat, the call-request row was inserted but
-       nothing on screen ever showed it.
-     - Fix: the webrtc_signals listener is now created ONCE at the top level
-       (MessagesPage), independent of which chat is open, so an incoming call
-       rings no matter where the user is in the Messages tab.
-     - You must also confirm in Supabase:
-         a) Database > Replication: "webrtc_signals" table has Realtime
-            enabled (INSERT at least).
-         b) RLS policies on webrtc_signals allow:
-              INSERT: auth.uid() = from_user
-              SELECT: auth.uid() = to_user OR auth.uid() = from_user
+  PREMIUM GATING ADDED IN THIS VERSION
+  -------------------------------------
+  Free tier: can view the contacts list and profiles, but cannot OPEN a chat
+  (send/receive messages) or start a call. Attempting either shows the
+  PremiumUpgradeModal instead. Admin (ADMIN_USER_ID) bypasses all gating.
 
-  2) "DELETE FOR ME" NOT DELETING FOR THE OTHER PERSON
-     - This is expected/correct behavior for "Delete for Me" (WhatsApp-style):
-       it should ONLY remove the message from the screen of the person who
-       tapped delete, never from the other participant. If it wasn't
-       disappearing even for the person who tapped it, that was almost
-       certainly a silent failure of the Supabase UPDATE (RLS blocking it,
-       or a stale local message object being read before the DB replied).
-     - Fix: optimistic local removal (instant UI feedback) + real error
-       handling so failures are visible instead of silently swallowed, and
-       the update no longer relies on a possibly-stale local `msgs` object.
-     - You must also confirm in Supabase RLS:
-         UPDATE on "messages" allowed when:
-           auth.uid() = sender_id OR auth.uid() = receiver_id
-         (needed because BOTH sides must be able to write to `deleted_for`)
-
-  3) "VIEW PROFILE" NOT NAVIGATING
-     - The component only fired a `window` CustomEvent ("tez-view-profile").
-       If your top-level App/router never added a listener for that event,
-       nothing happened.
-     - Fix: MessagesPage now accepts an optional `onViewProfile(userId)` prop.
-       If provided, it's called directly (reliable, no event wiring needed).
-       The CustomEvent is still dispatched afterward as a fallback so you
-       don't have to change anything if you already wired the event
-       elsewhere — just make sure ONE of these two paths actually routes to
-       your profile screen.
-
-  4) ONLINE / LAST SEEN NOT MATCHING WHATSAPP BEHAVIOR
-     - Previously each ChatView spun up its own presence channel scoped to
-       just that 1:1 room, so the contacts LIST never reflected live status,
-       only whichever chat happened to be open.
-     - Fix: a single global presence channel is created once for the whole
-       Messages page. Every online user is tracked there, so both the
-       contacts list and the open chat read from the exact same live
-       presence state. "Online" is shown ONLY while truly connected;
-       the instant a user disconnects, presence "leave" fires, their
-       `profiles.last_seen` is stamped, and everyone viewing them flips to
-       an exact "last seen" timestamp — same as WhatsApp.
+  This only gates the ACT of opening a chat / starting a call from this file.
+  Server-side enforcement (RLS on `messages` insert, and `webrtc_signals`
+  insert) is a separate step — see the SQL notes at the bottom of this file's
+  companion migration.
 */
 
 const T = {
@@ -71,6 +25,8 @@ const T = {
   success: "#22c55e",
 };
 
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
+
 const AVATAR_COLORS = [
   "linear-gradient(135deg,#f97316,#ea6008)",
   "linear-gradient(135deg,#7c3aed,#a78bfa)",
@@ -79,6 +35,14 @@ const AVATAR_COLORS = [
   "linear-gradient(135deg,#be123c,#f43f5e)",
 ];
 const getColor = (name) => AVATAR_COLORS[(name || "A").charCodeAt(0) % AVATAR_COLORS.length];
+
+function PrimeBadge() {
+  return (
+    <span style={{ fontSize: 8, color: "#fbbf24", background: "#fbbf2418", border: "1px solid #fbbf2444", borderRadius: 20, padding: "1px 5px", fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 2, marginLeft: 5, whiteSpace: "nowrap" }}>
+      👑 PRIME
+    </span>
+  );
+}
 
 function Avatar({ name, photo, size = 44 }) {
   const initials = (name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
@@ -153,188 +117,6 @@ function BottomMenu({ options, onClose }) {
   );
 }
 
-/* ─── WEBRTC CALL SCREEN ───
-   Rendered from the TOP LEVEL (MessagesPage) now, not from inside ChatView,
-   so a call survives / is reachable regardless of which chat is open. */
-function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onEnd }) {
-  const localVideoRef = useRef();
-  const remoteVideoRef = useRef();
-  const pcRef = useRef();
-  const localStreamRef = useRef();
-  const [callState, setCallState] = useState(isIncoming ? "incoming" : "calling");
-  const [muted, setMuted] = useState(false);
-  const [camOff, setCamOff] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const timerRef = useRef();
-  const chanRef = useRef();
-  const pendingCandidates = useRef([]); // ICE candidates that arrive before remoteDescription is set
-
-  const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] };
-
-  const sendSignal = async (type, data) => {
-    const { error } = await supabase.from("webrtc_signals").insert({ from_user: session.userId, to_user: contact.id, type, data });
-    if (error) console.error("sendSignal failed:", type, error);
-  };
-
-  const getMedia = async () => {
-    const constraints = callType === "video" ? { video: true, audio: true } : { audio: true };
-    const stream = await navigator.mediaDevices.getUserMedia(constraints).catch((e) => { console.error("getUserMedia failed:", e); return null; });
-    if (!stream) return null;
-    localStreamRef.current = stream;
-    if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-    return stream;
-  };
-
-  const createPC = async (stream) => {
-    const pc = new RTCPeerConnection(ICE_SERVERS);
-    pcRef.current = pc;
-    stream?.getTracks().forEach(t => pc.addTrack(t, stream));
-    pc.ontrack = e => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0]; };
-    pc.onicecandidate = e => { if (e.candidate) sendSignal("ice-candidate", { candidate: e.candidate }); };
-    pc.onconnectionstatechange = () => {
-      if (["failed", "disconnected", "closed"].includes(pc.connectionState) && callState !== "ended") {
-        // Don't force-hangup on transient "disconnected", only on failed/closed
-        if (pc.connectionState === "failed") hangUp();
-      }
-    };
-    return pc;
-  };
-
-  const flushPendingCandidates = async (pc) => {
-    for (const c of pendingCandidates.current) {
-      await pc.addIceCandidate(new RTCIceCandidate(c)).catch(e => console.error("addIceCandidate failed:", e));
-    }
-    pendingCandidates.current = [];
-  };
-
-  const startCall = async () => {
-    const stream = await getMedia();
-    if (!stream) { alert("Could not access camera/microphone. Check browser permissions."); onEnd(); return; }
-    const pc = await createPC(stream);
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    await sendSignal("call-request", { callType, offer });
-    setCallState("calling");
-  };
-
-  const acceptCall = async () => {
-    setCallState("connected");
-    timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
-    const stream = await getMedia();
-    if (!stream) { alert("Could not access camera/microphone. Check browser permissions."); hangUp(); return; }
-    const pc = await createPC(stream);
-    await pc.setRemoteDescription(new RTCSessionDescription(incomingOffer));
-    await flushPendingCandidates(pc);
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    await sendSignal("answer", { answer });
-  };
-
-  const hangUp = async () => {
-    await sendSignal("hang-up", {});
-    cleanup();
-    onEnd();
-  };
-
-  const declineCall = async () => {
-    await sendSignal("hang-up", {});
-    cleanup();
-    onEnd();
-  };
-
-  const cleanup = () => {
-    clearInterval(timerRef.current);
-    localStreamRef.current?.getTracks().forEach(t => t.stop());
-    pcRef.current?.close();
-    if (chanRef.current) supabase.removeChannel(chanRef.current);
-  };
-
-  useEffect(() => {
-    if (!isIncoming) startCall();
-
-    const ch = `webrtc_${[session.userId, contact.id].sort().join("_")}`;
-    chanRef.current = supabase.channel(ch)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "webrtc_signals", filter: `to_user=eq.${session.userId}` }, async ({ new: sig }) => {
-        if (sig.from_user !== contact.id) return; // ignore signals from anyone else
-        const pc = pcRef.current;
-        if (sig.type === "answer" && pc) {
-          await pc.setRemoteDescription(new RTCSessionDescription(sig.data.answer));
-          await flushPendingCandidates(pc);
-          setCallState("connected");
-          timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
-        }
-        if (sig.type === "ice-candidate") {
-          if (pc && pc.remoteDescription) {
-            await pc.addIceCandidate(new RTCIceCandidate(sig.data.candidate)).catch(() => {});
-          } else {
-            pendingCandidates.current.push(sig.data.candidate);
-          }
-        }
-        if (sig.type === "hang-up") { cleanup(); onEnd(); }
-      })
-      .subscribe();
-
-    return cleanup;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const fmtDur = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-  const isVideo = callType === "video";
-
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999999, background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-      {isVideo && callState === "connected" ? (
-        <video ref={remoteVideoRef} autoPlay playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-      ) : (
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,#0d1545,#06070d)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ width: 100, height: 100, borderRadius: "50%", background: getColor(contact.name), overflow: "hidden", margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, fontWeight: 800, color: "#fff", border: "3px solid rgba(255,255,255,0.2)" }}>
-              {contact.photo ? <img src={contact.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (contact.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 24, color: "#fff", marginBottom: 8 }}>{contact.name}</div>
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>
-              {callState === "incoming" ? `Incoming ${isVideo ? "video" : "voice"} call…` :
-               callState === "calling" ? "Calling…" :
-               fmtDur(duration)}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isVideo && (
-        <video ref={localVideoRef} autoPlay playsInline muted style={{ position: "absolute", top: 20, right: 20, width: 100, height: 140, borderRadius: 16, objectFit: "cover", border: "2px solid rgba(255,255,255,0.3)", zIndex: 2 }} />
-      )}
-
-      <div style={{ position: "absolute", bottom: 60, left: 0, right: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 20, zIndex: 3 }}>
-        {callState === "incoming" ? (
-          <>
-            <button onClick={declineCall} style={{ width: 70, height: 70, borderRadius: "50%", background: "#f87171", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, boxShadow: "0 4px 20px #f8717166" }}>📵</button>
-            <button onClick={acceptCall} style={{ width: 70, height: 70, borderRadius: "50%", background: T.success, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, boxShadow: `0 4px 20px ${T.success}66` }}>📞</button>
-          </>
-        ) : (
-          <>
-            <button onClick={() => { setMuted(m => !m); localStreamRef.current?.getAudioTracks().forEach(t => t.enabled = !t.enabled); }}
-              style={{ width: 56, height: 56, borderRadius: "50%", background: muted ? "#f87171" : "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
-              {muted ? "🔇" : "🎤"}
-            </button>
-            {isVideo && (
-              <button onClick={() => { setCamOff(c => !c); localStreamRef.current?.getVideoTracks().forEach(t => t.enabled = !t.enabled); }}
-                style={{ width: 56, height: 56, borderRadius: "50%", background: camOff ? "#f87171" : "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
-                {camOff ? "📵" : "📹"}
-              </button>
-            )}
-            <button onClick={hangUp} style={{ width: 70, height: 70, borderRadius: "50%", background: "#f87171", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, boxShadow: "0 4px 20px #f8717166" }}>📵</button>
-            <button onClick={() => { /* speaker toggle placeholder */ }}
-              style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
-              🔊
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ─── CHAT VIEW ─── */
 function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfile }) {
   const [msgs, setMsgs] = useState([]);
@@ -349,15 +131,11 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
   const bottomRef = useRef();
   const inputRef = useRef();
   const chanRef = useRef();
-  const hiddenIdsRef = useRef(new Set());      // delete-for-me / clear-chat: hide even if a stale reload races ahead of the write
-  const forceDeletedRef = useRef(new Set());   // delete-for-everyone: show the "deleted" placeholder even if a stale reload races ahead
+  const hiddenIdsRef = useRef(new Set());
+  const forceDeletedRef = useRef(new Set());
 
   const online = isOnline(contact.id);
 
-  /* ── Live last_seen: fetch fresh on open + subscribe to profile updates.
-     This is why "last seen" wasn't showing before — it was only ever a
-     snapshot taken when the contacts list first loaded, and never refreshed
-     while the chat was open or when the other person went offline. ── */
   useEffect(() => {
     let cancelled = false;
     supabase.from("profiles").select("last_seen").eq("id", contact.id).single()
@@ -374,7 +152,6 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
     return () => { cancelled = true; supabase.removeChannel(ch); };
   }, [contact.id]);
 
-  /* ── Load messages ── */
   const loadMsgs = useCallback(async () => {
     const { data, error } = await supabase
       .from("messages").select("*")
@@ -385,8 +162,8 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
 
     const visible = (data || [])
       .filter(m => {
-        if (hiddenIdsRef.current.has(m.id)) return false; // being deleted-for-me right now / just cleared
-        if (m.deleted) return true; // show "deleted" placeholder to everyone
+        if (hiddenIdsRef.current.has(m.id)) return false;
+        if (m.deleted) return true;
         return !(m.deleted_for || []).includes(session.userId);
       })
       .map(m => forceDeletedRef.current.has(m.id) ? { ...m, deleted: true, content: null } : m);
@@ -417,7 +194,6 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
   }, [msgs]);
 
-  /* ── Send message ── */
   const send = async () => {
     const content = text.trim();
     if (!content || sending || isBlocked) return;
@@ -432,14 +208,10 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
     inputRef.current?.focus();
   };
 
-  /* ── Delete for me (optimistic + error-safe) ── */
   const deleteForMe = async (msgId) => {
-    // 1. Instant + durable local removal — stays hidden even if a stale
-    // realtime reload lands before our write below completes.
     hiddenIdsRef.current.add(msgId);
     setMsgs(prev => prev.filter(m => m.id !== msgId));
 
-    // 2. Read the current deleted_for straight from the server (avoids stale local copies)
     const { data: current, error: readErr } = await supabase
       .from("messages").select("deleted_for").eq("id", msgId).single();
     if (readErr) {
@@ -454,17 +226,14 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
 
     const { error: updateErr } = await supabase.from("messages").update({ deleted_for: arr }).eq("id", msgId);
     if (updateErr) {
-      console.error("deleteForMe update failed (check RLS: sender OR receiver must be allowed to UPDATE):", updateErr);
+      console.error("deleteForMe update failed:", updateErr);
       alert("Couldn't delete this message. Please try again.");
-      hiddenIdsRef.current.delete(msgId); // write failed, so stop force-hiding it
-      loadMsgs(); // restore true state
+      hiddenIdsRef.current.delete(msgId);
+      loadMsgs();
     }
   };
 
-  /* ── Delete for everyone ── */
   const deleteForEveryone = async (msgId) => {
-    // optimistic + durable: show the "deleted" placeholder immediately and
-    // keep it that way even if a stale realtime reload lands mid-write
     forceDeletedRef.current.add(msgId);
     setMsgs(prev => prev.map(m => m.id === msgId ? { ...m, deleted: true, content: null } : m));
 
@@ -475,21 +244,14 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
 
     if (error) {
       console.error("deleteForEveryone failed:", error);
-      alert(
-        "Couldn't delete for everyone: " + error.message +
-        "\n\nThis is almost always a Supabase permissions issue: your UPDATE policy/grant on " +
-        '"messages" only allows writing the deleted_for column (which is why Delete-for-Me works), ' +
-        'but Delete-for-Everyone also needs to write "content", "deleted", "delivered", "read", and "deleted_at". ' +
-        "Update the RLS policy/GRANT to allow sender_id = auth.uid() to update all of those columns."
-      );
-      forceDeletedRef.current.delete(msgId); // write failed, stop forcing the placeholder
-      loadMsgs(); // revert to the real server state
+      alert("Couldn't delete for everyone: " + error.message);
+      forceDeletedRef.current.delete(msgId);
+      loadMsgs();
       return;
     }
     loadMsgs();
   };
 
-  /* ── Block/Unblock ── */
   const blockUser = async () => {
     const { error } = await supabase.from("blocked_users").insert({ blocker_id: session.userId, blocked_id: contact.id });
     if (!error) setIsBlocked(true);
@@ -500,7 +262,6 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
     if (!error) setIsBlocked(false);
   };
 
-  /* ── Clear chat ── */
   const clearChat = async () => {
     const ids = msgs.map(m => m.id);
     if (!ids.length) return;
@@ -524,18 +285,17 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
       const { error } = await supabase.from("messages").update({ deleted_for: arr }).eq("id", row.id);
       if (error) {
         console.error("clearChat row failed:", row.id, error);
-        hiddenIdsRef.current.delete(row.id); // this one failed — stop force-hiding it
+        hiddenIdsRef.current.delete(row.id);
         anyFailed = true;
       }
     }
 
     if (anyFailed) {
-      alert("Some messages couldn't be cleared. Check the console for the exact Supabase error — likely an RLS UPDATE policy blocking one of these messages (e.g. it only allows the sender, not the receiver, to update deleted_for).");
+      alert("Some messages couldn't be cleared. Check the console for the exact Supabase error.");
     }
     loadMsgs();
   };
 
-  /* ── Upload & send ── */
   const uploadAndSend = async (file, prefix) => {
     const path = `msg/${session.userId}/${Date.now()}_${file.name}`;
     const { error } = await supabase.storage.from("avatars").upload(path, file, { contentType: file.type });
@@ -551,15 +311,6 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
     }
   };
 
-  /* ── View profile.
-     The "flash and bounce back to messages" symptom is a double-transition:
-     closing this chat (onBack) shows the contacts list for a moment, THEN
-     navigation to the profile screen kicks in — and if anything in your
-     parent app reacts to that intermediate state, it can snap back.
-     Fix: when a real onViewProfile handler is wired, call it directly and
-     let the PARENT be solely responsible for swapping the screen (which
-     naturally removes this chat too) — don't call onBack ourselves.
-     Only fall back to closing the chat manually if no handler is wired. ── */
   const viewProfile = () => {
     if (typeof onViewProfile === "function") {
       onViewProfile(contact);
@@ -604,7 +355,6 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999, background: T.bg, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-      {/* TOP BAR */}
       <div style={{ flexShrink: 0, background: T.bgCard, borderBottom: `1px solid ${T.border}`, paddingTop: "env(safe-area-inset-top, 0px)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px" }}>
           <button onClick={onBack} style={{ width: 34, height: 34, borderRadius: "50%", background: T.bgInput, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontSize: 16, cursor: "pointer", flexShrink: 0 }}>←</button>
@@ -617,7 +367,10 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
               )}
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 800, fontSize: 15, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{contact.name}</div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center" }}>
+                {contact.name}
+                {contact.is_premium && <PrimeBadge />}
+              </div>
               <div style={{ fontSize: 11, color: online ? T.success : T.textMid, marginTop: 1 }}>{statusText}</div>
             </div>
           </div>
@@ -640,7 +393,6 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
         )}
       </div>
 
-      {/* MESSAGES */}
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "12px 14px", minHeight: 0 }}>
         {isBlocked && (
           <div style={{ textAlign: "center", padding: "16px", background: "#1a0a0a", border: "1px solid #f8717133", borderRadius: 12, margin: "8px 0" }}>
@@ -739,7 +491,6 @@ function ChatView({ contact, session, onBack, isOnline, onStartCall, onViewProfi
         <div ref={bottomRef} style={{ height: 4 }} />
       </div>
 
-      {/* ATTACHMENT PANEL */}
       {showAttach && (
         <div style={{ flexShrink: 0, background: T.bgCard, borderTop: `1px solid ${T.border}`, padding: "12px 20px 16px" }}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
@@ -812,7 +563,10 @@ function ContactRow({ conv, isActive, onClick, isOnline }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
-          <span style={{ fontWeight: 700, fontSize: 14, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "66%" }}>{conv.name}</span>
+          <span style={{ fontWeight: 700, fontSize: 14, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "66%", display: "flex", alignItems: "center" }}>
+            {conv.name}
+            {conv.is_premium && <PrimeBadge />}
+          </span>
           <span style={{ fontSize: 11, color: T.textLow, flexShrink: 0 }}>{fmtTime(conv.last_at)}</span>
         </div>
         <div style={{ fontSize: 11, color: T.textLow, marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -831,20 +585,16 @@ function ContactRow({ conv, isActive, onClick, isOnline }) {
   );
 }
 
-/* ─── MAIN PAGE ───
-   session: { userId }
-   onViewProfile: optional (userId) => void — if you pass this, it's used
-   directly to navigate to the profile screen. Otherwise a "tez-view-profile"
-   CustomEvent is dispatched on window as a fallback. */
-export default function MessagesPage({ session, onViewProfile ,openChatWith}) {
+/* ─── MAIN PAGE ─── */
+export default function MessagesPage({ session, onViewProfile, openChatWith }) {
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("all");
   const [active, setActive] = useState(null);
-  const { isOnline, onlineIds } = usePresence(); // now sourced from login-scoped PresenceProvider — see PresenceProvider.jsx
-  
-const [isPremium, setIsPremium] = useState(false);
+  const { isOnline, onlineIds } = usePresence();
+
+  const [isPremium, setIsPremium] = useState(false);
   const [checkingPremium, setCheckingPremium] = useState(true);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const isAdmin = session?.userId === ADMIN_USER_ID;
@@ -861,14 +611,20 @@ const [isPremium, setIsPremium] = useState(false);
       });
   }, [session.userId]);
 
-  const openChat = (contact) => {
+  /* Gate for opening a chat — Free tier can browse contacts but not chat */
+  const openChat = useCallback((contact) => {
     if (checkingPremium) return;
     if (!isUnlimited) { setShowUpgrade(true); return; }
     setActive(contact);
-  };
+  }, [checkingPremium, isUnlimited]);
 
+  /* Gate for starting a call */
+  const { startCall } = useCall();
+  const guardedStartCall = useCallback((contact, callType) => {
+    if (!isUnlimited) { setShowUpgrade(true); return; }
+    startCall(contact, callType);
+  }, [isUnlimited, startCall]);
 
-  /* ── Load conversation list ── */
   const loadContacts = useCallback(async () => {
     const { data: msgs } = await supabase
       .from("messages").select("*")
@@ -906,11 +662,6 @@ const [isPremium, setIsPremium] = useState(false);
     return () => supabase.removeChannel(sub);
   }, [session.userId, loadContacts]);
 
-  /* ── Refresh contacts' last_seen whenever someone's global online state
-     changes (they just went offline and PresenceProvider stamped last_seen,
-     or they just came online). Actual online/offline tracking itself now
-     lives in PresenceProvider, tied to the login session — not to whether
-     this Messages page happens to be open. ── */
   const prevOnlineIdsRef = useRef(onlineIds);
   useEffect(() => {
     if (prevOnlineIdsRef.current !== onlineIds) {
@@ -919,31 +670,21 @@ const [isPremium, setIsPremium] = useState(false);
     }
   }, [onlineIds, loadContacts]);
 
+  useEffect(() => {
+    if (openChatWith?.id) openChat(openChatWith);
+  }, [openChatWith, openChat]);
 
-useEffect(() => {
-  if (openChatWith?.id) openChat(openChatWith);
-}, [openChatWith, checkingPremium, isUnlimited]);
-
-
-  const { startCall } = useCall();
-const guardedStartCall = (contact, callType) => {
-  if (!isUnlimited) { setShowUpgrade(true); return; }
-  startCall(contact, callType);
-};
-
-  /* ── Open chat from elsewhere in the app ── */
+  /* Open chat from elsewhere in the app — also gated */
   useEffect(() => {
     const h = async (e) => {
       const { userId } = e.detail || {};
       if (!userId) return;
       const { data: p } = await supabase.from("profiles").select("*").eq("id", userId).single();
-      if (p) setActive(p);
+      if (p) openChat(p);
     };
     window.addEventListener("tez-open-chat", h);
     return () => window.removeEventListener("tez-open-chat", h);
-  }, []);
-
-  
+  }, [openChat]);
 
   const filtered = contacts.filter(c => {
     const q = search.toLowerCase();
@@ -972,15 +713,15 @@ const guardedStartCall = (contact, callType) => {
         document.body
       )}
 
-      
-
       <div style={{ display: "flex", flexDirection: "column" }}>
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text, margin: 0 }}>Messages</h2>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.orange, boxShadow: `0 0 8px ${T.orange}` }} />
           </div>
-          <div style={{ fontSize: 12, color: T.textLow }}>Stay connected, grow together.</div>
+          <div style={{ fontSize: 12, color: T.textLow }}>
+            {isUnlimited ? "Stay connected, grow together." : "Upgrade to Prime to start chatting."}
+          </div>
         </div>
 
         <div style={{ position: "relative", marginBottom: 12 }}>
@@ -1000,6 +741,19 @@ const guardedStartCall = (contact, callType) => {
             </button>
           ))}
         </div>
+
+        {!checkingPremium && !isUnlimited && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, background: "linear-gradient(135deg,#1a0a2e,#2d1854)", border: "1px solid #7c3aed44", borderRadius: 14, padding: "12px 14px", marginBottom: 14 }}>
+            <span style={{ fontSize: 24, flexShrink: 0 }}>👑</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>Chat & calls need Prime</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>Free tier can browse but not message</div>
+            </div>
+            <button onClick={() => setShowUpgrade(true)} style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 8, padding: "7px 12px", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+              Upgrade
+            </button>
+          </div>
+        )}
 
         <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
           {loading && [1, 2, 3].map(i => (
@@ -1021,9 +775,8 @@ const guardedStartCall = (contact, callType) => {
           )}
 
           {!loading && filtered.map(c => (
-  <ContactRow key={c.id} conv={c} isActive={active?.id === c.id} onClick={() => openChat(c)} isOnline={isOnline} />
-))}
-
+            <ContactRow key={c.id} conv={c} isActive={active?.id === c.id} onClick={() => openChat(c)} isOnline={isOnline} />
+          ))}
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
@@ -1034,7 +787,8 @@ const guardedStartCall = (contact, callType) => {
           </button>
         </div>
       </div>
-        {showUpgrade && (
+
+      {showUpgrade && (
         <PremiumUpgradeModal
           session={session}
           onClose={() => setShowUpgrade(false)}
