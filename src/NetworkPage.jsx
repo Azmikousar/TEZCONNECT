@@ -11,17 +11,18 @@ const T = {
   success: "#22c55e", successLo: "#22c55e12",
   error: "#f87171", errorLo: "#f8717112",
   purple: "#a78bfa", purpleLo: "#a78bfa12", purpleMd: "#a78bfa25",
-  info: "#38bdf8",
+  info: "#38bdf8", amber: "#fbbf24",
 };
-.sort((a, b) => {
-  const aPrime = a.is_premium ? 1 : 0;
-  const bPrime = b.is_premium ? 1 : 0;
-  if (aPrime !== bPrime) return bPrime - aPrime; // premium first
-  if (sortBy === "newest") return new Date(b.created_at) - new Date(a.created_at);
-  if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
-  return 0;
-});
 
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
+
+function PrimeBadge() {
+  return (
+    <span style={{ fontSize: 9, color: T.amber, background: "#fbbf2418", border: "1px solid #fbbf2444", borderRadius: 20, padding: "1px 6px", fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 2 }}>
+      👑 PRIME
+    </span>
+  );
+}
 
 /* ── Member Row Card ── */
 function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
@@ -91,7 +92,6 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
     );
   };
 
-  // Random avatar color based on name
   const avatarColors = ["linear-gradient(135deg,#f97316,#ea6008)", "linear-gradient(135deg,#7c3aed,#a78bfa)", "linear-gradient(135deg,#0369a1,#38bdf8)", "linear-gradient(135deg,#15803d,#22c55e)", "linear-gradient(135deg,#be123c,#f43f5e)"];
   const avatarBg = avatarColors[(member.name || "").charCodeAt(0) % avatarColors.length];
 
@@ -106,7 +106,7 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
       display: "flex", alignItems: "center", gap: 12,
       padding: "14px 16px",
       background: status === "accepted" ? "linear-gradient(135deg,#052e1610,#0b0d17)" : T.bgCard,
-      border: `1px solid ${status === "accepted" ? T.success + "33" : status === "pending" && isSender ? T.orange + "44" : T.border}`,
+      border: `1px solid ${status === "accepted" ? T.success + "33" : status === "pending" && isSender ? T.orange + "44" : member.is_premium ? T.amber + "33" : T.border}`,
       borderRadius: 16,
       transition: "all .2s",
     }}>
@@ -115,7 +115,7 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
         onClick={() => onViewProfile(member.id)}
         style={{ position: "relative", flexShrink: 0, cursor: "pointer" }}
       >
-        <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800, color: "#fff", overflow: "hidden", border: `2px solid ${status === "accepted" ? T.success + "66" : "transparent"}` }}>
+        <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800, color: "#fff", overflow: "hidden", border: `2px solid ${status === "accepted" ? T.success + "66" : member.is_premium ? T.amber + "66" : "transparent"}` }}>
           {member.photo ? <img src={member.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
         </div>
         {/* Online dot */}
@@ -126,6 +126,7 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
       <div onClick={() => onViewProfile(member.id)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <span style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{member.name || "—"}</span>
+          {member.is_premium && <PrimeBadge />}
           {isMe && <span style={{ fontSize: 9, color: T.orange, background: T.orangeLo, border: `1px solid ${T.orange}33`, borderRadius: 20, padding: "1px 6px", fontWeight: 700 }}>You</span>}
           {isNew && !isMe && <span style={{ fontSize: 9, color: T.purple, background: T.purpleLo, border: `1px solid ${T.purple}33`, borderRadius: 20, padding: "1px 6px", fontWeight: 700 }}>New</span>}
         </div>
@@ -200,7 +201,10 @@ function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewPr
               {actor.photo ? <img src={actor.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
             </div>
             <div onClick={() => onViewProfile(actor.id)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{actor.name || "Member"}</div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: T.text, display: "flex", alignItems: "center", gap: 6 }}>
+                {actor.name || "Member"}
+                {actor.is_premium && <PrimeBadge />}
+              </div>
               <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>{actor.designation || actor.company || "TezConnect Member"}</div>
               {actor.location && <div style={{ fontSize: 11, color: T.textLow, marginTop: 2 }}>📍 {actor.location}</div>}
             </div>
@@ -221,8 +225,14 @@ function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewPr
   );
 }
 
-/* ── Main NetworkPage ── */
-export default function NetworkPage({ session }) {
+/* ── Main NetworkPage ──
+   session: { userId }
+   onMessage: optional (profile) => void — called when the person taps
+   "Message" inside UserProfileModal. Should open that specific person's
+   chat (e.g. AppShell's handleMessageUser, which sets chatTarget and
+   navigates to the Messages page). If not provided, UserProfileModal
+   falls back to whatever it already does internally. */
+export default function NetworkPage({ session, onMessage }) {
   const [members, setMembers]         = useState([]);
   const [loading, setLoading]         = useState(true);
   const [search, setSearch]           = useState("");
@@ -234,10 +244,13 @@ export default function NetworkPage({ session }) {
   const [showFilters, setShowFilters] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
 
+  const isAdmin = session?.userId === ADMIN_USER_ID;
+
   const {
     getStatus, sendRequest, acceptRequest,
     rejectRequest, removeConnection, pendingReceived, accepted, isPremium, refresh,
   } = useConnections(session.userId);
+  const isUnlimited = isAdmin || isPremium;
 
   useEffect(() => {
     supabase.from("profiles").select("*").not("name", "is", null).order("created_at", { ascending: false })
@@ -256,6 +269,10 @@ export default function NetworkPage({ session }) {
       return matchSearch && matchIndustry && matchCategory;
     })
     .sort((a, b) => {
+      // Priority search: Prime members surface first, always
+      const aPrime = a.is_premium ? 1 : 0;
+      const bPrime = b.is_premium ? 1 : 0;
+      if (aPrime !== bPrime) return bPrime - aPrime;
       if (sortBy === "newest") return new Date(b.created_at) - new Date(a.created_at);
       if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
       return 0;
@@ -268,12 +285,20 @@ export default function NetworkPage({ session }) {
     onLimitReached: () => setShowUpgrade(true),
   };
 
+  /* Message action from inside UserProfileModal.
+     Gated the same as MessagesPage: free tier sees the upgrade modal
+     instead of opening a chat. */
+  const handleMessageFromModal = (profileToMessage) => {
+    if (!isUnlimited) { setShowUpgrade(true); return; }
+    setViewingUser(null);
+    if (onMessage) onMessage(profileToMessage);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
       {/* ── Hero Banner ── */}
       <div style={{ borderRadius: 24, padding: "24px 22px", position: "relative", overflow: "hidden", background: "linear-gradient(135deg,#0a0f2e,#0d1545,#0a1628)", border: "1px solid #1e2d6b", minHeight: 200 }}>
-        {/* Globe illustration */}
         <div style={{ position: "absolute", top: -10, right: -20, fontSize: 130, opacity: 0.18, userSelect: "none", filter: "hue-rotate(40deg)" }}>🌐</div>
         <div style={{ position: "absolute", top: 20, right: 40, fontSize: 28, opacity: 0.7, animation: "pulse 2s ease infinite" }}>👤</div>
         <div style={{ position: "absolute", top: 60, right: 100, fontSize: 20, opacity: 0.5, animation: "pulse 2.5s ease infinite" }}>👤</div>
@@ -302,7 +327,7 @@ export default function NetworkPage({ session }) {
               <span style={{ fontSize: 22 }}>✅</span>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 18, color: T.text, lineHeight: 1 }}>{totalConnected}</div>
-                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>Connected{!isPremium ? " (2 free)" : ""}</div>
+                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>Connected{!isUnlimited ? " (3 free)" : ""}</div>
               </div>
             </div>
           </div>
@@ -429,21 +454,21 @@ export default function NetworkPage({ session }) {
             </div>
           )}
 
-          {/* Grow your network banner */}
+          {/* Grow your network / upgrade banner */}
           {!loading && (
             <div style={{ display: "flex", alignItems: "center", gap: 14, background: "linear-gradient(135deg,#1a0a2e,#2d1854)", border: "1px solid #7c3aed44", borderRadius: 16, padding: "16px 18px", marginTop: 4 }}>
               <span style={{ fontSize: 32, flexShrink: 0 }}>👑</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>
-                  {isPremium ? "Grow your network" : "Unlock unlimited connections"}
+                  {isUnlimited ? "Grow your network" : "Unlock unlimited connections"}
                 </div>
                 <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>
-                  {isPremium ? "Invite more professionals and expand opportunities." : "Upgrade to Premium to connect with more members."}
+                  {isUnlimited ? "Invite more professionals and expand opportunities." : "Upgrade to Prime to connect, chat, and post freely."}
                 </div>
               </div>
               <button
                 onClick={() => {
-                  if (isPremium) {
+                  if (isUnlimited) {
                     const url = "https://tezconnect.in";
                     if (navigator.share) { navigator.share({ title: "Join TezConnect", url }); }
                     else { navigator.clipboard.writeText(url); }
@@ -452,20 +477,21 @@ export default function NetworkPage({ session }) {
                   }
                 }}
                 style={{ flexShrink: 0, background: "linear-gradient(135deg,#7c3aed,#a78bfa)", border: "none", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap" }}>
-                {isPremium ? "👥 Invite Members" : "👑 Upgrade Now"}
+                {isUnlimited ? "👥 Invite Members" : "👑 Upgrade Now"}
               </button>
             </div>
           )}
         </>
       )}
 
-      {/* User profile modal */}
+      {/* User profile modal — onMessage routes straight to that person's chat */}
       {viewingUser && (
         <UserProfileModal
           userId={viewingUser}
           session={session}
           onClose={() => setViewingUser(null)}
           connectionProps={connectionProps}
+          onMessage={handleMessageFromModal}
         />
       )}
 
