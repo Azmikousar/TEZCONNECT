@@ -2,7 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 import PremiumUpgradeModal from "./PremiumUpgradeModal";
 
-const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
+/*
+  PREMIUM GATING ADDED IN THIS VERSION
+  -------------------------------------
+  Free tier: can view any profile, view posts & videos, browse everything.
+  Cannot CREATE a post or upload a video — both "New Post" entry points now
+  route through handleNewPostClick(), which shows PremiumUpgradeModal for
+  non-premium, non-admin users instead of opening CreatePostModal.
+  Admin (ADMIN_USER_ID) always bypasses this gate.
+*/
 
 const T = {
   bg: "#06070d", bgCard: "#0b0d17", bgInput: "#0f1120", bgHover: "#141726",
@@ -13,6 +21,8 @@ const T = {
   amber: "#fbbf24", info: "#38bdf8",
 };
 
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
+
 /* ── helpers ── */
 function timeAgo(ts) {
   const d = (Date.now() - new Date(ts)) / 1000;
@@ -20,6 +30,14 @@ function timeAgo(ts) {
   if (d < 3600) return `${Math.floor(d/60)}m`;
   if (d < 86400) return `${Math.floor(d/3600)}h`;
   return `${Math.floor(d/86400)}d`;
+}
+
+function PrimeBadge() {
+  return (
+    <span style={{ fontSize: 9, color: "#fbbf24", background: "#fbbf2418", border: "1px solid #fbbf2444", borderRadius: 20, padding: "1px 6px", fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 2, marginLeft: 6, verticalAlign: "middle" }}>
+      👑 PRIME
+    </span>
+  );
 }
 
 /* ── Create Post Modal ── */
@@ -59,14 +77,20 @@ function CreatePostModal({ session, onClose, onCreated }) {
       user_id: session.userId, media_url: mediaUrl, media_type: finalType, caption: caption.trim(),
     });
     setUploading(false);
-    if (insErr) { setError(insErr.message); return; }
+    if (insErr) {
+      if (insErr.message?.toLowerCase().includes("row-level security") || insErr.code === "42501") {
+        setError("Prime membership required to post.");
+      } else {
+        setError(insErr.message);
+      }
+      return;
+    }
     onCreated(); onClose();
   };
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000e", zIndex:500, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:520, maxHeight:"92vh", overflowY:"auto", animation:"slideUp .3s ease" }}>
-        {/* Handle */}
         <div style={{ padding:"12px 0 0", display:"flex", justifyContent:"center" }}>
           <div style={{ width:40, height:4, background:T.border, borderRadius:4 }}/>
         </div>
@@ -77,7 +101,6 @@ function CreatePostModal({ session, onClose, onCreated }) {
           </div>
           {error && <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"10px 14px", fontSize:12, color:T.error, marginBottom:14 }}>⚠ {error}</div>}
 
-          {/* Upload area */}
           <div onClick={()=>!preview&&fileRef.current.click()} style={{ width:"100%", minHeight:220, borderRadius:14, border:`2px dashed ${preview?T.border:T.orange+"55"}`, background:T.bgInput, display:"flex", alignItems:"center", justifyContent:"center", cursor:preview?"default":"pointer", overflow:"hidden", position:"relative", marginBottom:16 }}>
             {preview ? (
               mediaType==="video"
@@ -94,7 +117,6 @@ function CreatePostModal({ session, onClose, onCreated }) {
           </div>
           <input ref={fileRef} type="file" accept="image/*,video/*" onChange={handleFile} style={{ display:"none" }}/>
 
-          {/* Caption */}
           <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Write a caption…" rows={3}
             style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"12px 14px", color:T.text, fontSize:14, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif", marginBottom:16 }}
             onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}
@@ -164,7 +186,10 @@ function PostCard({ post, session, onDeleted }) {
           {author.photo?<img src={author.photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:initials}
         </div>
         <div style={{ flex:1 }}>
-          <div style={{ fontWeight:700, fontSize:13, color:T.text }}>{author.name||"Member"}</div>
+          <div style={{ fontWeight:700, fontSize:13, color:T.text, display:"flex", alignItems:"center" }}>
+            {author.name||"Member"}
+            {author.is_premium && <PrimeBadge />}
+          </div>
           <div style={{ fontSize:11, color:T.textLow }}>{timeAgo(post.created_at)} ago</div>
         </div>
         {isMine && (
@@ -203,21 +228,18 @@ function PostCard({ post, session, onDeleted }) {
           <button onClick={sharePost} style={{ background:"none", border:"none", cursor:"pointer", fontSize:22, padding:0, color:T.textMid }}>↗️</button>
         </div>
 
-        {/* Like count */}
         {likeCount>0 && (
           <div style={{ fontSize:13, fontWeight:700, color:T.text, marginBottom:6 }}>
             {likeCount} {likeCount===1?"like":"likes"}
           </div>
         )}
 
-        {/* Caption */}
         {post.caption && (
           <div style={{ fontSize:13, color:T.text, lineHeight:1.6, marginBottom:8 }}>
             <strong>{author.name?.split(" ")[0]}</strong> {post.caption}
           </div>
         )}
 
-        {/* Comments preview */}
         {comments.length>0 && !showComments && (
           <button onClick={()=>setShowComments(true)} style={{ background:"none", border:"none", color:T.textLow, fontSize:12, cursor:"pointer", padding:0, fontFamily:"'Plus Jakarta Sans',sans-serif", marginBottom:6 }}>
             View all {comments.length} comment{comments.length!==1?"s":""}
@@ -245,7 +267,6 @@ function PostCard({ post, session, onDeleted }) {
               );
             })}
           </div>
-          {/* Add comment */}
           <div style={{ display:"flex", gap:8, marginTop:10 }}>
             <input value={commentText} onChange={e=>setCommentText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addComment()}
               placeholder="Add a comment…"
@@ -323,11 +344,13 @@ export default function ProfilePage({ session, profile, onEdit, onSaveProfile, o
   const [selectedPost, setSelectedPost] = useState(null);
   const [likeCount, setLikeCount] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
-const [isPremium, setIsPremium] = useState(false);
+
+  const [isPremium, setIsPremium] = useState(false);
   const [checkingPremium, setCheckingPremium] = useState(true);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const isAdmin = session?.userId === ADMIN_USER_ID;
   const isUnlimited = isAdmin || isPremium;
+
   useEffect(() => {
     supabase.from("profiles").select("is_premium, premium_expires_at").eq("id", session.userId).single()
       .then(({ data }) => {
@@ -344,6 +367,7 @@ const [isPremium, setIsPremium] = useState(false);
     if (!isUnlimited) { setShowUpgrade(true); return; }
     setShowCreate(true);
   };
+
  const fetchPosts = async () => {
   setPostsLoading(true);
   const { data } = await supabase.from("posts").select("*, profiles(name, photo)")
@@ -352,7 +376,6 @@ const [isPremium, setIsPremium] = useState(false);
   setPosts(data || []);
   setPostsLoading(false);
 
-  // Get total likes and comments
   if (data?.length) {
     const ids = data.map(p => p.id);
     const [{ count: lc }, { count: cc }] = await Promise.all([
@@ -367,9 +390,7 @@ const [isPremium, setIsPremium] = useState(false);
   }
 };
 
-
   useEffect(() => { fetchPosts(); }, [targetUserId]);
-
 
   const handleDeleted = (id) => setPosts(prev => prev.filter(p => p.id !== id));
 
@@ -386,7 +407,7 @@ const [isPremium, setIsPremium] = useState(false);
         {isOwnProfile && (
         <button onClick={handleNewPostClick}
           style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"8px 16px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", display:"flex", alignItems:"center", gap:6, boxShadow:"0 4px 14px #f9731440" }}>
-          <span style={{ fontSize:16 }}>+</span> New Post
+          <span style={{ fontSize:16 }}>{isUnlimited ? "+" : "👑"}</span> New Post
         </button>
       )}
       </div>
@@ -395,14 +416,12 @@ const [isPremium, setIsPremium] = useState(false);
       <div style={{ padding:"20px 16px 0", background:T.bgCard, borderBottom:`1px solid ${T.border}` }}>
         {/* Avatar + stats row */}
         <div style={{ display:"flex", alignItems:"center", gap:24, marginBottom:16 }}>
-          {/* Avatar */}
           <div style={{ position:"relative", flexShrink:0 }}>
             <div style={{ width:80, height:80, borderRadius:"50%", background:"linear-gradient(135deg,#f97316,#ea6008)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, fontWeight:800, color:"#fff", overflow:"hidden", border:`3px solid ${T.bgCard}`, boxShadow:`0 0 0 2px ${T.orange}` }}>
               {profile.photo ? <img src={profile.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : initials}
             </div>
           </div>
 
-          {/* Stats */}
           <div style={{ flex:1, display:"flex", gap:0 }}>
             {[
               [posts.length,    "Posts"],
@@ -417,9 +436,11 @@ const [isPremium, setIsPremium] = useState(false);
           </div>
         </div>
 
-        {/* Name + bio */}
         <div style={{ marginBottom:14 }}>
-          <div style={{ fontWeight:800, fontSize:16, color:T.text }}>{profile.name || "Your Name"}</div>
+          <div style={{ fontWeight:800, fontSize:16, color:T.text, display:"flex", alignItems:"center" }}>
+            {profile.name || "Your Name"}
+            {profile.is_premium && <PrimeBadge />}
+          </div>
           {profile.designation && <div style={{ fontSize:13, color:T.orange, fontWeight:600, marginTop:2 }}>{profile.designation}</div>}
           {profile.company && <div style={{ fontSize:12, color:T.textMid, marginTop:1 }}>{profile.company}</div>}
           {profile.location && <div style={{ fontSize:12, color:T.textLow, marginTop:3 }}>📍 {profile.location}</div>}
@@ -430,7 +451,6 @@ const [isPremium, setIsPremium] = useState(false);
           )}
         </div>
 
-        {/* Social links */}
         {(profile.instagram||profile.linkedin||profile.twitter||profile.youtube) && (
           <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
             {[
@@ -447,7 +467,6 @@ const [isPremium, setIsPremium] = useState(false);
           </div>
         )}
 
-        
 {/* Action buttons */}
 <div style={{ display:"flex", gap:10, marginBottom:16 }}>
   {isOwnProfile ? (
@@ -509,12 +528,18 @@ const [isPremium, setIsPremium] = useState(false);
       {!postsLoading && posts.length===0 && (
         <div style={{ textAlign:"center", padding:"60px 20px" }}>
           <div style={{ fontSize:64, marginBottom:16 }}>📸</div>
-          <div style={{ fontWeight:800, fontSize:20, color:T.text, marginBottom:8 }}>Share your first post</div>
-          <div style={{ fontSize:13, color:T.textMid, marginBottom:24, lineHeight:1.7 }}>Share photos, videos, and updates with the TezConnect community</div>
-          <button onClick={()=>setShowCreate(true)}
-            style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"12px 28px", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 20px #f9731440" }}>
-            + Create First Post
-          </button>
+          <div style={{ fontWeight:800, fontSize:20, color:T.text, marginBottom:8 }}>
+            {isOwnProfile ? "Share your first post" : "No posts yet"}
+          </div>
+          <div style={{ fontSize:13, color:T.textMid, marginBottom:24, lineHeight:1.7 }}>
+            {isOwnProfile ? "Share photos, videos, and updates with the TezConnect community" : "This member hasn't posted yet"}
+          </div>
+          {isOwnProfile && (
+            <button onClick={handleNewPostClick}
+              style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"12px 28px", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 20px #f9731440" }}>
+              {isUnlimited ? "+ Create First Post" : "👑 Upgrade to Post"}
+            </button>
+          )}
         </div>
       )}
 
@@ -545,7 +570,9 @@ const [isPremium, setIsPremium] = useState(false);
       {selectedPost && (
         <PostDetailModal post={selectedPost} session={session} onClose={()=>setSelectedPost(null)} onDeleted={handleDeleted}/>
       )}
-          {showUpgrade && (
+
+      {/* Upgrade modal */}
+      {showUpgrade && (
         <PremiumUpgradeModal
           session={session}
           onClose={() => setShowUpgrade(false)}
