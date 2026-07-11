@@ -18,50 +18,11 @@ import { supabase } from "./supabase";
   full-screen CallScreen overlay — exist for the entire life of the logged-in
   session, no matter what page is open.
 
-  FIXES IN THIS VERSION
-  ----------------------
-  1) AUDIO CALLS HAD NO SOUND AFTER ACCEPTING
-     - The remote <video> element (which is what receives BOTH the video
-       track AND the audio track from the other side — a plain <video>
-       plays audio fine even with no visible picture) was only ever mounted
-       in the DOM when `isVideo && callState === "connected"`. For a voice
-       call, `isVideo` is false, so that element never existed. When
-       pc.ontrack fired, `remoteVideoRef.current` was null, so the incoming
-       audio stream had nowhere to attach — call connected, but silent.
-     - Fix: the remote <video> is now ALWAYS mounted (so the ref is always
-       valid), and only its visual display is toggled between "block" and
-       "none". Audio plays either way; video is just hidden for voice calls.
-
-  2) NO AUDIBLE RINGTONE ON INCOMING CALLS
-     - Previously "ringing" only meant a silent on-screen "Incoming call…"
-       label — nothing actually played, so if the callee wasn't looking at
-       the screen they'd never know.
-     - Fix: a looping ringtone now plays for the whole time callState is
-       "incoming", and stops the instant the call is accepted or declined.
-     - You need to add an actual ringtone audio file to your project, e.g.
-       /public/ringtone.mp3, and update RINGTONE_URL below if the path
-       differs.
-     - Note: browsers block autoplaying audio-with-sound until the user has
-       interacted with the page at least once during that tab session. If
-       the callee's tab has had zero interaction yet, play() may reject —
-       this is a browser policy, not something fixable in code.
-
-  Usage:
-    // App.jsx
-    <PresenceProvider session={session}>
-      <CallProvider session={session}>
-        <AppShell .../>
-      </CallProvider>
-    </PresenceProvider>
-
-    // Anywhere that needs to start a call (e.g. MessagesPage / ChatView)
-    const { startCall } = useCall();
-    startCall(contact, "video"); // or "audio"
-
-  Requires in Supabase:
-    - Realtime enabled (INSERT) on the "webrtc_signals" table
-    - RLS: INSERT allowed where auth.uid() = from_user
-    - RLS: SELECT allowed where auth.uid() = to_user OR auth.uid() = from_user
+  DEBUG LOGGING ADDED IN THIS VERSION
+  ------------------------------------
+  Every step of startCall() now logs to console with a "[TezConnect Call]"
+  prefix, so you can see exactly where the flow stops if calls "do nothing".
+  Remove these console.log lines once calls are confirmed working.
 */
 
 const T = {
@@ -102,14 +63,21 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
   const ICE_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] };
 
   const sendSignal = async (type, data) => {
+    console.log("[TezConnect Call] sendSignal:", type, { from: session.userId, to: contact.id });
     const { error } = await supabase.from("webrtc_signals").insert({ from_user: session.userId, to_user: contact.id, type, data });
-    if (error) console.error("sendSignal failed:", type, error);
+    if (error) console.error("[TezConnect Call] sendSignal FAILED:", type, error);
   };
 
   const getMedia = async () => {
+    console.log("[TezConnect Call] requesting media, callType =", callType);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.error("[TezConnect Call] navigator.mediaDevices.getUserMedia is unavailable — this usually means the page is not served over HTTPS (or localhost). Camera/mic access requires a secure origin.");
+      return null;
+    }
     const constraints = callType === "video" ? { video: true, audio: true } : { audio: true };
-    const stream = await navigator.mediaDevices.getUserMedia(constraints).catch((e) => { console.error("getUserMedia failed:", e); return null; });
+    const stream = await navigator.mediaDevices.getUserMedia(constraints).catch((e) => { console.error("[TezConnect Call] getUserMedia failed:", e); return null; });
     if (!stream) return null;
+    console.log("[TezConnect Call] got media stream successfully");
     localStreamRef.current = stream;
     if (localVideoRef.current) localVideoRef.current.srcObject = stream;
     return stream;
@@ -122,6 +90,7 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
     pc.ontrack = e => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0]; };
     pc.onicecandidate = e => { if (e.candidate) sendSignal("ice-candidate", { candidate: e.candidate }); };
     pc.onconnectionstatechange = () => {
+      console.log("[TezConnect Call] connection state:", pc.connectionState);
       if (pc.connectionState === "failed") hangUp();
     };
     return pc;
@@ -140,13 +109,20 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
   };
 
   const startCallFlow = async () => {
+    console.log("[TezConnect Call] startCallFlow() — outgoing call");
     const stream = await getMedia();
-    if (!stream) { alert("Could not access camera/microphone. Check browser permissions."); onEnd(); return; }
+    if (!stream) {
+      console.error("[TezConnect Call] no media stream — aborting call");
+      alert("Could not access camera/microphone. Check browser permissions and that the site is loaded over HTTPS.");
+      onEnd();
+      return;
+    }
     const pc = await createPC(stream);
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     await sendSignal("call-request", { callType, offer });
     setCallState("calling");
+    console.log("[TezConnect Call] call-request sent, waiting for answer…");
   };
 
   const acceptCall = async () => {
@@ -185,10 +161,6 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
     if (chanRef.current) supabase.removeChannel(chanRef.current);
   };
 
-  /* Play a looping ringtone for the whole time this call is "incoming".
-     Stops automatically the moment callState changes (accept/decline/hangup),
-     and is also stopped explicitly inside acceptCall/declineCall/cleanup for
-     instant silence rather than waiting on this effect's cleanup to run. */
   useEffect(() => {
     if (callState === "incoming") {
       const audio = new Audio(RINGTONE_URL);
@@ -200,6 +172,7 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
   }, [callState]);
 
   useEffect(() => {
+    console.log("[TezConnect Call] CallScreen mounted, isIncoming =", isIncoming);
     if (!isIncoming) startCallFlow();
 
     const ch = `webrtc_${[session.userId, contact.id].sort().join("_")}`;
@@ -222,7 +195,9 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
         }
         if (sig.type === "hang-up") { cleanup(); onEnd(); }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log("[TezConnect Call] webrtc channel status:", status);
+      });
 
     return cleanup;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -235,10 +210,6 @@ function CallScreen({ contact, session, callType, isIncoming, incomingOffer, onE
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999999, background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
 
-      {/* Remote stream — ALWAYS mounted (fixes audio calls having no sound).
-          A <video> element plays whatever audio track arrives on it even
-          when there's no picture, so we keep it in the DOM for every call
-          type and just hide it visually when there's no video to show. */}
       <video
         ref={remoteVideoRef}
         autoPlay
@@ -308,8 +279,12 @@ export function CallProvider({ session, children }) {
 
     signalChanRef.current = supabase.channel(`signals_${session.userId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "webrtc_signals", filter: `to_user=eq.${session.userId}` }, async ({ new: sig }) => {
+        console.log("[TezConnect Call] incoming signal received:", sig.type, "from", sig.from_user);
         if (sig.type !== "call-request") return;
-        if (activeCallRef.current) return; // already on a call — ignore new ones for now
+        if (activeCallRef.current) {
+          console.log("[TezConnect Call] already on a call — ignoring incoming call-request");
+          return;
+        }
 
         setActiveCall("pending");
         const { data: p } = await supabase.from("profiles").select("*").eq("id", sig.from_user).single();
@@ -318,17 +293,27 @@ export function CallProvider({ session, children }) {
           contact: caller, callType: sig.data.callType, isIncoming: true, incomingOffer: sig.data.offer,
         });
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log("[TezConnect Call] signals channel status:", status, "for user", session.userId);
+      });
 
     return () => { if (signalChanRef.current) supabase.removeChannel(signalChanRef.current); };
   }, [session?.userId]);
 
   const startCall = useCallback((contact, callType) => {
-    if (activeCallRef.current && activeCallRef.current !== "pending") return; // already in a call
+    console.log("[TezConnect Call] CallProvider.startCall() invoked", { contact, callType, currentActiveCall: activeCallRef.current });
+    if (activeCallRef.current && activeCallRef.current !== "pending") {
+      console.warn("[TezConnect Call] BLOCKED — activeCallRef is already set to a non-null, non-pending value. This means a previous call didn't clean up properly. Reloading the page will reset this.", activeCallRef.current);
+      return;
+    }
+    console.log("[TezConnect Call] setting activeCall — CallScreen should now render");
     setActiveCall({ contact, callType, isIncoming: false });
   }, []);
 
-  const endCall = useCallback(() => setActiveCall(null), []);
+  const endCall = useCallback(() => {
+    console.log("[TezConnect Call] endCall() — clearing activeCall");
+    setActiveCall(null);
+  }, []);
 
   return (
     <CallContext.Provider value={{ startCall }}>
