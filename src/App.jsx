@@ -3694,12 +3694,13 @@ useEffect(() => {
   const [collapsed, setCollapsed] = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
 const [chatTarget, setChatTarget] = useState(null);
+  
 
 const handleMessageUser = useCallback((profileToMessage) => {
   setChatTarget(profileToMessage);
   setPage("messages");
 }, []);
-
+const clearChatTarget = useCallback(() => setChatTarget(null), []);
   const handleSaveProfile = async (p) => {
   const merged = { ...profile, ...p };
   setProfile(merged);
@@ -3819,7 +3820,7 @@ if (page === "appstore") return <TezAppStorePage session={session}/>;
     }
 
     if (page === "messages") {
-  return <MessagesPage session={session} onViewProfile={handleViewProfile} openChatWith={chatTarget} />;
+  return <MessagesPage session={session} onViewProfile={handleViewProfile} openChatWith={chatTarget} onOpened={clearChatTarget}  />;
 }
 
      if (page==="marketplace") return <MarketplacePage session={session}/>;
