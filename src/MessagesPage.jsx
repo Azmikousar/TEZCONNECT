@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 import { usePresence } from "./PresenceProvider";
 import { useCall } from "./CallProvider";
+import { useConnections } from "./useConnections";
 import PremiumUpgradeModal from "./PremiumUpgradeModal";
 
 /*
@@ -600,6 +601,8 @@ export default function MessagesPage({ session, onViewProfile, openChatWith }) {
   const isAdmin = session?.userId === ADMIN_USER_ID;
   const isUnlimited = isAdmin || isPremium;
 
+  const { getStatus } = useConnections(session.userId);
+
   useEffect(() => {
     supabase.from("profiles").select("is_premium, premium_expires_at").eq("id", session.userId).single()
       .then(({ data }) => {
@@ -611,12 +614,17 @@ export default function MessagesPage({ session, onViewProfile, openChatWith }) {
       });
   }, [session.userId]);
 
-  /* Gate for opening a chat — Free tier can browse contacts but not chat */
+  /* Gate for opening a chat.
+     - Already connected (accepted) with this contact: messaging is FREE,
+       regardless of Prime status — matches NetworkPage's rule.
+     - Not connected, and not Prime/admin: show upgrade modal. */
   const openChat = useCallback((contact) => {
     if (checkingPremium) return;
-    if (!isUnlimited) { setShowUpgrade(true); return; }
+    const status = getStatus(contact.id)?.status;
+    const isConnectedWithThisPerson = status === "accepted";
+    if (!isUnlimited && !isConnectedWithThisPerson) { setShowUpgrade(true); return; }
     setActive(contact);
-  }, [checkingPremium, isUnlimited]);
+  }, [checkingPremium, isUnlimited, getStatus]);
 
   /* Gate for starting a call */
   const { startCall } = useCall();
