@@ -10,6 +10,14 @@ const T = {
   amber: "#fbbf24", info: "#38bdf8",
 };
 
+function PrimeBadge() {
+  return (
+    <span style={{ fontSize: 9, color: T.amber, background: "#fbbf2418", border: "1px solid #fbbf2444", borderRadius: 20, padding: "1px 6px", fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 2, marginLeft: 6, verticalAlign: "middle" }}>
+      👑 PRIME
+    </span>
+  );
+}
+
 function timeAgo(ts) {
   const d = (Date.now() - new Date(ts)) / 1000;
   if (d < 60) return "now";
@@ -212,8 +220,15 @@ function SocialPill({ icon, label, url }) {
   );
 }
 
-/* ── Main User Profile Modal ── */
-export default function UserProfileModal({ userId, session, onClose, connectionProps }) {
+/* ── Main User Profile Modal ──
+   onMessage: optional (profile) => void, passed down from the parent
+   (e.g. NetworkPage). If provided, the Message button calls this directly
+   so the PARENT decides whether to gate it (e.g. Prime check) before
+   opening a chat, and which chat-opening mechanism to use. Falls back to
+   the old "tez-open-chat" event if no onMessage is passed, so this still
+   works anywhere that hasn't wired it up yet — but that fallback path is
+   NOT gated, so prefer passing onMessage wherever premium gating matters. */
+export default function UserProfileModal({ userId, session, onClose, connectionProps, onMessage }) {
   const [profile, setProfile]     = useState(null);
   const [posts, setPosts]         = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -223,6 +238,7 @@ export default function UserProfileModal({ userId, session, onClose, connectionP
   const [commentCount, setCommentCount] = useState(0);
   const [copied, setCopied]       = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
+  const [connBusy, setConnBusy]   = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -262,13 +278,38 @@ export default function UserProfileModal({ userId, session, onClose, connectionP
     }
   };
 
-  /* Open a chat with this user from wherever the profile is being viewed.
-     MessagesPage.jsx already listens for this exact event, so this works
-     without any extra wiring — the modal just closes and Messages opens
-     the chat. */
+  /* Message button — routes through the parent's onMessage handler so the
+     parent can gate it (Prime check) and decide how to open the chat.
+     Only falls back to the raw event dispatch if no onMessage was passed,
+     which means that fallback path bypasses any gating — avoid relying on
+     it once a parent's onMessage is wired up. */
   const messageUser = () => {
-    window.dispatchEvent(new CustomEvent("tez-open-chat", { detail: { userId } }));
-    onClose();
+    if (typeof onMessage === "function") {
+      onMessage(profile || { id: userId });
+    } else {
+      window.dispatchEvent(new CustomEvent("tez-open-chat", { detail: { userId } }));
+      onClose();
+    }
+  };
+
+  /* Wrapped connection actions so a LIMIT_REACHED response (returned by
+     useConnections' sendRequest/acceptRequest) can trigger the parent's
+     upgrade modal via connectionProps.onLimitReached, same pattern as
+     NetworkPage's MemberRow. */
+  const handleConnAction = async (action) => {
+    if (!connectionProps) return;
+    setConnBusy(true);
+    try {
+      let result;
+      if (action === "send")   result = await connectionProps.sendRequest(userId);
+      if (action === "accept") result = await connectionProps.acceptRequest(connStatus.connection.id);
+      if (action === "remove") result = await connectionProps.removeConnection(connStatus.connection.id);
+      if (result?.error === "LIMIT_REACHED" && connectionProps.onLimitReached) {
+        connectionProps.onLimitReached();
+      }
+    } finally {
+      setConnBusy(false);
+    }
   };
 
   const isMe = userId === session?.userId;
@@ -350,7 +391,10 @@ export default function UserProfileModal({ userId, session, onClose, connectionP
 
                 {/* Name + bio */}
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: T.text }}>{profile.name}</div>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: T.text, display: "flex", alignItems: "center" }}>
+                    {profile.name}
+                    {profile.is_premium && <PrimeBadge />}
+                  </div>
                   {profile.designation && <div style={{ fontSize: 13, color: T.orange, fontWeight: 600, marginTop: 2 }}>{profile.designation}</div>}
                   {profile.company && <div style={{ fontSize: 12, color: T.textMid, marginTop: 1 }}>{profile.company}{profile.industry ? " · " + profile.industry : ""}</div>}
                   {profile.location && <div style={{ fontSize: 12, color: T.textLow, marginTop: 3 }}>📍 {profile.location}</div>}
@@ -381,29 +425,31 @@ export default function UserProfileModal({ userId, session, onClose, connectionP
                   <div style={{ marginBottom: 14 }}>
                     {/* Connection status — shown only while not yet connected, as its own row */}
                     {connectionProps && connStatus && connStatus.status !== "accepted" && (() => {
-                      const { status, connection, isSender } = connStatus;
+                      const { status, isSender } = connStatus;
                       if (status === "none") return (
-                        <button onClick={() => connectionProps.sendRequest(userId)}
-                          style={{ width: "100%", background: T.bgInput, border: `1px solid ${T.orange}44`, borderRadius: 10, padding: "10px", color: T.orange, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 10 }}>
-                          🤝 Connect
+                        <button onClick={() => handleConnAction("send")} disabled={connBusy}
+                          style={{ width: "100%", background: T.bgInput, border: `1px solid ${T.orange}44`, borderRadius: 10, padding: "10px", color: T.orange, fontSize: 13, fontWeight: 700, cursor: connBusy ? "wait" : "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 10 }}>
+                          {connBusy ? "…" : "🤝 Connect"}
                         </button>
                       );
                       if (status === "pending" && isSender) return (
-                        <button onClick={() => connectionProps.removeConnection(connection.id)}
-                          style={{ width: "100%", background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px", color: T.textMid, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 10 }}>
-                          ⏳ Requested
+                        <button onClick={() => handleConnAction("remove")} disabled={connBusy}
+                          style={{ width: "100%", background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px", color: T.textMid, fontSize: 13, fontWeight: 700, cursor: connBusy ? "wait" : "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 10 }}>
+                          {connBusy ? "…" : "⏳ Requested"}
                         </button>
                       );
                       if (status === "pending" && !isSender) return (
-                        <button onClick={() => connectionProps.acceptRequest(connection.id)}
-                          style={{ width: "100%", background: T.successLo, border: `1px solid ${T.success}44`, borderRadius: 10, padding: "10px", color: T.success, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 10 }}>
-                          ✓ Accept Request
+                        <button onClick={() => handleConnAction("accept")} disabled={connBusy}
+                          style={{ width: "100%", background: T.successLo, border: `1px solid ${T.success}44`, borderRadius: 10, padding: "10px", color: T.success, fontSize: 13, fontWeight: 700, cursor: connBusy ? "wait" : "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", marginBottom: 10 }}>
+                          {connBusy ? "…" : "✓ Accept Request"}
                         </button>
                       );
                       return null;
                     })()}
 
-                    {/* Message + Share Profile — full-width row, primary action */}
+                    {/* Message + Share Profile — full-width row, primary action.
+                        Viewing this profile is always free; Message is what's
+                        gated, handled by the parent via onMessage. */}
                     <div style={{ display: "flex", gap: 10 }}>
                       <button onClick={messageUser}
                         style={{ flex: 2, background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 10, padding: "12px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, boxShadow: "0 4px 14px #f9731444" }}>
@@ -417,7 +463,7 @@ export default function UserProfileModal({ userId, session, onClose, connectionP
                   </div>
                 )}
 
-                {/* Feed / Grid toggle — Feed first + default, matching the fuller profile layout */}
+                {/* Feed / Grid toggle */}
                 <div style={{ display: "flex", borderTop: `1px solid ${T.border}` }}>
                   {[["feed", "☰ Feed"], ["grid", "⊞ Grid"]].map(([id, label]) => (
                     <button key={id} onClick={() => setView(id)}
