@@ -287,11 +287,15 @@ export default function NetworkPage({ session, onMessage }) {
   };
 
   /* Message action fired from inside UserProfileModal.
-     - Free tier: show upgrade modal, do NOT close the profile view.
-     - Premium/admin: close the profile modal and hand off to onMessage,
-       which the parent (AppShell) uses to open that exact person's chat. */
+     - Already connected (accepted) with this person: messaging is FREE,
+       regardless of Prime status.
+     - Not connected yet, and not Prime/admin: show upgrade modal.
+     - Premium/admin: always allowed. */
   const handleMessageFromModal = (profileToMessage) => {
-    if (!isUnlimited) {
+    const status = getStatus(profileToMessage.id)?.status;
+    const isConnectedWithThisPerson = status === "accepted";
+
+    if (!isUnlimited && !isConnectedWithThisPerson) {
       setShowUpgrade(true);
       return;
     }
