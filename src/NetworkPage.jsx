@@ -227,11 +227,12 @@ function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewPr
 
 /* ── Main NetworkPage ──
    session: { userId }
-   onMessage: optional (profile) => void — called when the person taps
-   "Message" inside UserProfileModal. Should open that specific person's
-   chat (e.g. AppShell's handleMessageUser, which sets chatTarget and
-   navigates to the Messages page). If not provided, UserProfileModal
-   falls back to whatever it already does internally. */
+   onMessage: REQUIRED for the "message → open that person's chat" flow.
+   Pass your AppShell's handleMessageUser (or equivalent) here — it should
+   set chatTarget and navigate to the Messages page. Viewing a profile is
+   always free; the Message button inside UserProfileModal is what's gated:
+   free users tapping it see the upgrade modal instead of opening a chat,
+   premium/admin users go straight to that person's conversation. */
 export default function NetworkPage({ session, onMessage }) {
   const [members, setMembers]         = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -285,13 +286,21 @@ export default function NetworkPage({ session, onMessage }) {
     onLimitReached: () => setShowUpgrade(true),
   };
 
-  /* Message action from inside UserProfileModal.
-     Gated the same as MessagesPage: free tier sees the upgrade modal
-     instead of opening a chat. */
+  /* Message action fired from inside UserProfileModal.
+     - Free tier: show upgrade modal, do NOT close the profile view.
+     - Premium/admin: close the profile modal and hand off to onMessage,
+       which the parent (AppShell) uses to open that exact person's chat. */
   const handleMessageFromModal = (profileToMessage) => {
-    if (!isUnlimited) { setShowUpgrade(true); return; }
+    if (!isUnlimited) {
+      setShowUpgrade(true);
+      return;
+    }
     setViewingUser(null);
-    if (onMessage) onMessage(profileToMessage);
+    if (onMessage) {
+      onMessage(profileToMessage);
+    } else {
+      console.warn("NetworkPage: no onMessage prop provided — can't open chat. Pass onMessage={handleMessageUser} from AppShell.");
+    }
   };
 
   return (
@@ -484,7 +493,9 @@ export default function NetworkPage({ session, onMessage }) {
         </>
       )}
 
-      {/* User profile modal — onMessage routes straight to that person's chat */}
+      {/* User profile modal — viewing is always free.
+          onMessage inside is gated: free tier sees upgrade modal, premium
+          goes straight to that person's chat via the onMessage prop. */}
       {viewingUser && (
         <UserProfileModal
           userId={viewingUser}
