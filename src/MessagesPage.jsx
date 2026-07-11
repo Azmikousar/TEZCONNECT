@@ -601,7 +601,7 @@ export default function MessagesPage({ session, onViewProfile, openChatWith }) {
   const isAdmin = session?.userId === ADMIN_USER_ID;
   const isUnlimited = isAdmin || isPremium;
 
-  const { getStatus } = useConnections(session.userId);
+  const { getStatus, loading: connectionsLoading } = useConnections(session.userId);
 
   useEffect(() => {
     supabase.from("profiles").select("is_premium, premium_expires_at").eq("id", session.userId).single()
@@ -617,14 +617,20 @@ export default function MessagesPage({ session, onViewProfile, openChatWith }) {
   /* Gate for opening a chat.
      - Already connected (accepted) with this contact: messaging is FREE,
        regardless of Prime status — matches NetworkPage's rule.
-     - Not connected, and not Prime/admin: show upgrade modal. */
+     - Not connected, and not Prime/admin: show upgrade modal.
+     IMPORTANT: wait for BOTH the premium check AND the connections list to
+     finish loading before deciding. Without this, a fresh mount (e.g.
+     navigating away from Messages and back) briefly has an empty
+     connections list, so an already-connected contact would look
+     "not connected" for a moment and incorrectly trigger the upgrade
+     modal even though the person is genuinely connected. */
   const openChat = useCallback((contact) => {
-    if (checkingPremium) return;
+    if (checkingPremium || connectionsLoading) return;
     const status = getStatus(contact.id)?.status;
     const isConnectedWithThisPerson = status === "accepted";
     if (!isUnlimited && !isConnectedWithThisPerson) { setShowUpgrade(true); return; }
     setActive(contact);
-  }, [checkingPremium, isUnlimited, getStatus]);
+  }, [checkingPremium, connectionsLoading, isUnlimited, getStatus]);
 
   /* Gate for starting a call */
   const { startCall } = useCall();
