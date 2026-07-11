@@ -3807,7 +3807,7 @@ if (page === "appstore") return <TezAppStorePage session={session}/>;
     }
 
     if (page === "network") {
-      return <NetworkPage session={session} />;
+      return <NetworkPage session={session} onMessage={handleMessageUser} />;
     }
 
     if (page === "leads") {
