@@ -288,6 +288,128 @@ function EventModal({ event, session, onClose, onSaved }) {
   );
 }
 
+/* ── Attendees Modal (admin only) ── */
+function AttendeesModal({ event, session, onClose }) {
+  const [attendees, setAttendees] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: rsvpRows, error: rsvpErr } = await supabase
+        .from("event_rsvps")
+        .select("*")
+        .eq("event_id", event.id)
+        .order("created_at", { ascending: true });
+
+      if (rsvpErr) {
+        console.error("[TezConnect Events] fetch attendees failed:", rsvpErr);
+        if (!cancelled) setLoading(false);
+        return;
+      }
+
+      const userIds = (rsvpRows || []).map(r => r.user_id);
+      let profileMap = {};
+      if (userIds.length) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, name, photo, mobile, email, company, designation")
+          .in("id", userIds);
+        (profiles || []).forEach(p => { profileMap[p.id] = p; });
+      }
+
+      const merged = (rsvpRows || []).map(r => ({
+        ...r,
+        profile: profileMap[r.user_id] || null,
+      }));
+
+      if (!cancelled) { setAttendees(merged); setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [event.id]);
+
+  const exportCsv = () => {
+    const header = ["Name", "Mobile", "Email", "Company", "Payment Status", "Amount Paid", "Registered At"];
+    const rows = attendees.map(a => [
+      a.profile?.name || "Unknown",
+      a.profile?.mobile || "",
+      a.profile?.email || "",
+      a.profile?.company || "",
+      a.payment_status || "",
+      a.amount_paid ?? 0,
+      a.created_at ? new Date(a.created_at).toLocaleString("en-IN") : "",
+    ]);
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${event.title.replace(/[^a-z0-9]/gi, "_")}_attendees.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:600, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:520, maxHeight:"85vh", display:"flex", flexDirection:"column", animation:"slideUp .3s ease" }}>
+        <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0", flexShrink:0 }}/>
+
+        <div style={{ padding:"16px 20px 12px", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+            <div style={{ fontWeight:800, fontSize:17, color:T.text }}>👥 Attendees</div>
+            <button onClick={onClose} style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:"50%", width:30, height:30, color:T.textMid, fontSize:15, cursor:"pointer" }}>×</button>
+          </div>
+          <div style={{ fontSize:12, color:T.textMid }}>{event.title} · {attendees.length} registered</div>
+        </div>
+
+        <div style={{ flex:1, overflowY:"auto", padding:"12px 20px" }}>
+          {loading && (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 0", gap:12 }}>
+              <div style={{ width:20, height:20, border:"2px solid #f9731633", borderTopColor:"#f97316", borderRadius:"50%", animation:"spin .7s linear infinite" }}/>
+              <span style={{ color:T.textMid, fontSize:13 }}>Loading attendees…</span>
+            </div>
+          )}
+
+          {!loading && attendees.length === 0 && (
+            <div style={{ textAlign:"center", padding:"40px 20px", color:T.textLow, fontSize:13 }}>No one has registered yet.</div>
+          )}
+
+          {!loading && attendees.map(a => {
+            const p = a.profile || {};
+            const initials = (p.name || "?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase();
+            return (
+              <div key={a.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 0", borderBottom:`1px solid ${T.border}` }}>
+                <div style={{ width:42, height:42, borderRadius:"50%", background:"linear-gradient(135deg,#f97316,#ea6008)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800, color:"#fff", overflow:"hidden", flexShrink:0 }}>
+                  {p.photo ? <img src={p.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : initials}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:T.text }}>{p.name || "Unknown member"}</div>
+                  <div style={{ fontSize:11, color:T.textMid, marginTop:2 }}>{p.designation || p.company || "—"}</div>
+                  {p.mobile && <div style={{ fontSize:11, color:T.textLow, marginTop:1 }}>📱 {p.mobile}</div>}
+                </div>
+                <div style={{ textAlign:"right", flexShrink:0 }}>
+                  <span style={{ fontSize:10, fontWeight:700, color: a.payment_status === "paid" ? T.success : T.info, background: a.payment_status === "paid" ? T.successLo : T.infoLo, border:`1px solid ${a.payment_status === "paid" ? T.success : T.info}44`, borderRadius:20, padding:"3px 9px" }}>
+                    {a.payment_status === "paid" ? `Paid ₹${a.amount_paid}` : "Free"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {!loading && attendees.length > 0 && (
+          <div style={{ padding:"14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop:`1px solid ${T.border}`, flexShrink:0 }}>
+            <button onClick={exportCsv}
+              style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:12, padding:"12px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+              📥 Export as CSV
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Event Card ── */
 function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData, onRsvp, onCancelRsvp, onPay, onEdit, onDelete, onViewAttendees, rsvpingId, rsvpError }) {
   const [confirmDel, setConfirmDel] = useState(false);
@@ -428,6 +550,7 @@ export default function EventsPage({ session, profile}) {
   const [payEvent, setPayEvent]   = useState(null);
   const [rsvpingId, setRsvpingId] = useState(null);
   const [rsvpError, setRsvpError] = useState(null); // { eventId, message }
+  const [attendeesEvent, setAttendeesEvent] = useState(null);
 
   const fetchData = useCallback(async () => {
     const [{ data: evts }, { data: rsvpData }] = await Promise.all([
@@ -577,7 +700,7 @@ export default function EventsPage({ session, profile}) {
               onPay={setPayEvent}
               onEdit={setEditEvent}
               onDelete={handleDelete}
-              onViewAttendees={()=>{}}
+              onViewAttendees={setAttendeesEvent}
               rsvpingId={rsvpingId}
               rsvpError={rsvpError}
             />
@@ -589,6 +712,7 @@ export default function EventsPage({ session, profile}) {
       {isAdmin && showCreate && <EventModal session={session} onClose={()=>setShowCreate(false)} onSaved={fetchData}/>}
       {isAdmin && editEvent && <EventModal event={editEvent} session={session} onClose={()=>setEditEvent(null)} onSaved={fetchData}/>}
       {payEvent && <PaymentModal event={payEvent} session={session} profile={profile} onClose={()=>setPayEvent(null)} onPaid={fetchData}/>}
+      {isAdmin && attendeesEvent && <AttendeesModal event={attendeesEvent} session={session} onClose={()=>setAttendeesEvent(null)}/>}
 
     </div>
   );
