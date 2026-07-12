@@ -289,11 +289,12 @@ function EventModal({ event, session, onClose, onSaved }) {
 }
 
 /* ── Event Card ── */
-function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData, onRsvp, onCancelRsvp, onPay, onEdit, onDelete,onViewAttendees }) {
+function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData, onRsvp, onCancelRsvp, onPay, onEdit, onDelete, onViewAttendees, rsvpingId, rsvpError }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const isPast = new Date(event.event_date) < new Date();
   const isFull = event.max_attendees && attendeeCount >= event.max_attendees;
   const isPaid = event.registration_fee > 0;
+  const isRsvping = rsvpingId === event.id;
 
   return (
     <div style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:16, overflow:"hidden" }}>
@@ -345,7 +346,13 @@ function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData,
           </div>
         )}
 
-        
+        {/* RSVP error, shown right above the action button */}
+        {!isRsvping && rsvpError && rsvpError.eventId === event.id && (
+          <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"9px 12px", fontSize:12, color:T.error, marginBottom:10 }}>
+            ⚠ {rsvpError.message}
+          </div>
+        )}
+
        {/* Action button */}
 {isAdmin ? (
   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", background:T.orangeMd, border:`1px solid ${T.orange}33`, borderRadius:10 }}>
@@ -376,9 +383,9 @@ function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData,
     💳 Pay ₹{event.registration_fee} & Register
   </button>
 ) : (
-  <button onClick={()=>onRsvp(event.id)}
-    style={{ width:"100%", background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"12px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440" }}>
-    Register
+  <button onClick={()=>onRsvp(event.id)} disabled={isRsvping}
+    style={{ width:"100%", background:isRsvping?"#1a1f35":"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"12px", color:isRsvping?T.textMid:"#fff", fontSize:14, fontWeight:700, cursor:isRsvping?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:isRsvping?"none":"0 4px 16px #f9731440" }}>
+    {isRsvping ? "Registering…" : "Register"}
   </button>
 )}
 {isAdmin && attendeeCount > 0 && (
@@ -419,6 +426,8 @@ export default function EventsPage({ session, profile}) {
   const [showCreate, setShowCreate] = useState(false);
   const [editEvent, setEditEvent] = useState(null);
   const [payEvent, setPayEvent]   = useState(null);
+  const [rsvpingId, setRsvpingId] = useState(null);
+  const [rsvpError, setRsvpError] = useState(null); // { eventId, message }
 
   const fetchData = useCallback(async () => {
     const [{ data: evts }, { data: rsvpData }] = await Promise.all([
@@ -433,14 +442,39 @@ export default function EventsPage({ session, profile}) {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleRsvp = async (eventId) => {
-    await supabase.from("event_rsvps").insert({
+    setRsvpError(null);
+    setRsvpingId(eventId);
+    console.log("[TezConnect Events] RSVP attempt", { eventId, userId: session.userId });
+
+    const { error, data } = await supabase.from("event_rsvps").insert({
       event_id: eventId, user_id: session.userId, payment_status: "free", amount_paid: 0,
-    });
+    }).select();
+
+    setRsvpingId(null);
+
+    if (error) {
+      console.error("[TezConnect Events] RSVP FAILED:", error);
+      let message = error.message;
+      if (error.code === "42501" || error.message?.toLowerCase().includes("row-level security")) {
+        message = "You don't have permission to register (RLS policy blocking insert on event_rsvps).";
+      } else if (error.code === "23505") {
+        message = "You're already registered for this event.";
+      }
+      setRsvpError({ eventId, message });
+      return;
+    }
+
+    console.log("[TezConnect Events] RSVP success:", data);
     fetchData();
   };
 
   const handleCancelRsvp = async (eventId) => {
-    await supabase.from("event_rsvps").delete().eq("event_id", eventId).eq("user_id", session.userId);
+    const { error } = await supabase.from("event_rsvps").delete().eq("event_id", eventId).eq("user_id", session.userId);
+    if (error) {
+      console.error("[TezConnect Events] cancel RSVP failed:", error);
+      setRsvpError({ eventId, message: "Couldn't cancel registration: " + error.message });
+      return;
+    }
     fetchData();
   };
 
@@ -544,6 +578,8 @@ export default function EventsPage({ session, profile}) {
               onEdit={setEditEvent}
               onDelete={handleDelete}
               onViewAttendees={()=>{}}
+              rsvpingId={rsvpingId}
+              rsvpError={rsvpError}
             />
           ))}
         </div>
