@@ -587,7 +587,7 @@ function ContactRow({ conv, isActive, onClick, isOnline }) {
 }
 
 /* ─── MAIN PAGE ─── */
-export default function MessagesPage({ session, onViewProfile, openChatWith }) {
+export default function MessagesPage({ session, onViewProfile, openChatWith, onOpened }) {
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -630,12 +630,19 @@ export default function MessagesPage({ session, onViewProfile, openChatWith }) {
     const isConnectedWithThisPerson = status === "accepted";
     if (!isUnlimited && !isConnectedWithThisPerson) { setShowUpgrade(true); return; }
     setActive(contact);
-  }, [checkingPremium, connectionsLoading, isUnlimited, getStatus]);
+    if (onOpened) onOpened();
+  }, [checkingPremium, connectionsLoading, isUnlimited, getStatus, onOpened]);
 
   /* Gate for starting a call */
   const { startCall } = useCall();
   const guardedStartCall = useCallback((contact, callType) => {
-    if (!isUnlimited) { setShowUpgrade(true); return; }
+    console.log("[TezConnect] guardedStartCall fired", { contact, callType, isUnlimited, isAdmin, isPremium });
+    if (!isUnlimited) {
+      console.log("[TezConnect] blocked — showing upgrade modal");
+      setShowUpgrade(true);
+      return;
+    }
+    console.log("[TezConnect] calling startCall() from CallProvider");
     startCall(contact, callType);
   }, [isUnlimited, startCall]);
 
@@ -688,6 +695,11 @@ export default function MessagesPage({ session, onViewProfile, openChatWith }) {
     if (openChatWith?.id) openChat(openChatWith);
   }, [openChatWith, openChat]);
 
+  // True while we have a pending chatTarget (from Network/Profile "Message"
+  // button) but haven't yet decided whether to open it — avoids flashing
+  // the plain contacts list for a moment before the chat appears.
+  const isResolvingChatTarget = !!openChatWith?.id && (checkingPremium || connectionsLoading) && !active;
+
   /* Open chat from elsewhere in the app — also gated */
   useEffect(() => {
     const h = async (e) => {
@@ -727,6 +739,12 @@ export default function MessagesPage({ session, onViewProfile, openChatWith }) {
         document.body
       )}
 
+      {isResolvingChatTarget ? (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 14 }}>
+          <div style={{ width: 32, height: 32, border: "3px solid #f9731633", borderTopColor: "#f97316", borderRadius: "50%", animation: "spin .7s linear infinite" }} />
+          <span style={{ color: T.textMid, fontSize: 13 }}>Opening chat…</span>
+        </div>
+      ) : (
       <div style={{ display: "flex", flexDirection: "column" }}>
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -801,6 +819,7 @@ export default function MessagesPage({ session, onViewProfile, openChatWith }) {
           </button>
         </div>
       </div>
+      )}
 
       {showUpgrade && (
         <PremiumUpgradeModal
