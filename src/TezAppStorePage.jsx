@@ -250,19 +250,34 @@ function AppDetailModal({ app, session, owned, onClose, onPurchased, isAdmin, on
   const discount = app.compare_price && app.compare_price > app.price
     ? Math.round(((app.compare_price - app.price) / app.compare_price) * 100) : 0;
 
+  const showFooter = !owned && !isAdmin && step !== "success";
+
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000e", zIndex: 99999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,640px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden", border: `1px solid ${T.border}` }}>
-        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 16px 0", flexShrink: 0 }}>
-          <div style={{ width: 32 }} />
-          {isAdmin && (
-            <button onClick={() => { onClose(); onEdit(app); }} style={{ background: T.orangeMd, border: `1px solid ${T.orange}44`, borderRadius: 8, padding: "5px 12px", color: T.orange, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✏️ Edit</button>
-          )}
-          <button onClick={onClose} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer" }}>×</button>
+      {/*
+        Modal shell: fixed height, column flex.
+        Header (flexShrink:0) -> Scrollable body (flex:1, min-height:0) -> Footer (flexShrink:0).
+        The footer is a normal flex item now, NOT position:fixed, so it can never float over
+        content, never gets hidden behind a bottom nav bar, and always stays visible directly
+        under the scroll area — no magic "bottom: 70px" offsets needed.
+      */}
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,640px)", maxHeight: "calc(100vh - env(safe-area-inset-top) - 16px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden", border: `1px solid ${T.border}` }}>
+
+        {/* Drag handle + header row — flexShrink:0 keeps it pinned at top */}
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 16px 0" }}>
+            <div style={{ width: 32 }} />
+            {isAdmin && (
+              <button onClick={() => { onClose(); onEdit(app); }} style={{ background: T.orangeMd, border: `1px solid ${T.orange}44`, borderRadius: 8, padding: "5px 12px", color: T.orange, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✏️ Edit</button>
+            )}
+            <button onClick={onClose} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer" }}>×</button>
+          </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "10px 20px 0", minHeight: 0 }}>
+        {/* Scrollable body — flex:1 + minHeight:0 is what makes this scroll smoothly
+            inside a fixed-height flex column instead of pushing the footer off-screen */}
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "10px 20px", minHeight: 0 }}>
           <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
             <div style={{ width: 80, height: 80, borderRadius: 20, background: T.bgInput, overflow: "hidden", flexShrink: 0, border: `1px solid ${T.border}`, boxShadow: "0 4px 16px #00000044" }}>
               {app.icon_url ? <img src={app.icon_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>📱</div>}
@@ -342,27 +357,12 @@ function AppDetailModal({ app, session, owned, onClose, onPurchased, isAdmin, on
               <div style={{ fontWeight: 700, color: T.success, fontSize: 14 }}>Purchase successful! Unlocking…</div>
             </div>
           )}
-
-          {/* Spacer so the last content isn't hidden behind the sticky footer button */}
-          {!owned && !isAdmin && step !== "success" && <div style={{ height: 90 }} />}
         </div>
 
-        {!owned && !isAdmin && step !== "success" && (
-          <div
-  style={{
-    padding: "14px 20px calc(14px + env(safe-area-inset-bottom))",
-    borderTop: `1px solid ${T.border}`,
-    flexShrink: 0,
-    background: T.bgCard,
-    position: "fixed",
-    left: 0,
-    right: 0,
-    bottom: "70px",
-    maxWidth: 520,
-    margin: "0 auto",
-    zIndex: 999999,
-  }}
->
+        {/* Footer — normal flex item, flexShrink:0. Always visible right under the
+            scroll area, never overlapping text, never hidden behind a bottom tab bar. */}
+        {showFooter && (
+          <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard }}>
             <button onClick={handlePay} disabled={step === "processing"}
               style={{ width: "100%", background: step === "processing" ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "15px", color: step === "processing" ? T.textMid : "#fff", fontSize: 15, fontWeight: 700, cursor: step === "processing" ? "wait" : "pointer", boxShadow: step === "processing" ? "none" : "0 4px 20px #f9731440" }}>
               {step === "processing" ? "⏳ Opening Payment…" : `🛒 Buy Now — ₹${app.price}`}
