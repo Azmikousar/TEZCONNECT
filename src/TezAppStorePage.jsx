@@ -105,7 +105,7 @@ function AppFormModal({ app, onClose, onSaved }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 700, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 99999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,680px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
 
@@ -178,7 +178,7 @@ function AppFormModal({ app, onClose, onSaved }) {
           </div>
         </div>
 
-        <div style={{ padding: "14px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
           <button onClick={save} disabled={saving} style={{ width: "100%", background: saving ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "14px", color: saving ? T.textMid : "#fff", fontSize: 15, fontWeight: 700, cursor: saving ? "wait" : "pointer" }}>
             {saving ? "Saving…" : isEdit ? "Update App" : "Publish to Store 🚀"}
           </button>
@@ -251,7 +251,7 @@ function AppDetailModal({ app, session, owned, onClose, onPurchased, isAdmin, on
     ? Math.round(((app.compare_price - app.price) / app.compare_price) * 100) : 0;
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000e", zIndex: 650, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000e", zIndex: 99999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: T.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,640px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden", border: `1px solid ${T.border}` }}>
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
         <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 16px 0", flexShrink: 0 }}>
@@ -342,10 +342,13 @@ function AppDetailModal({ app, session, owned, onClose, onPurchased, isAdmin, on
               <div style={{ fontWeight: 700, color: T.success, fontSize: 14 }}>Purchase successful! Unlocking…</div>
             </div>
           )}
+
+          {/* Spacer so the last content isn't hidden behind the sticky footer button */}
+          {!owned && !isAdmin && step !== "success" && <div style={{ height: 90 }} />}
         </div>
 
         {!owned && !isAdmin && step !== "success" && (
-          <div style={{ padding: "14px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard }}>
+          <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard, position: "sticky", bottom: 0 }}>
             <button onClick={handlePay} disabled={step === "processing"}
               style={{ width: "100%", background: step === "processing" ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "15px", color: step === "processing" ? T.textMid : "#fff", fontSize: 15, fontWeight: 700, cursor: step === "processing" ? "wait" : "pointer", boxShadow: step === "processing" ? "none" : "0 4px 20px #f9731440" }}>
               {step === "processing" ? "⏳ Opening Payment…" : `🛒 Buy Now — ₹${app.price}`}
