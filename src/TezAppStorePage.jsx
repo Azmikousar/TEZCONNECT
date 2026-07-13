@@ -348,7 +348,21 @@ function AppDetailModal({ app, session, owned, onClose, onPurchased, isAdmin, on
         </div>
 
         {!owned && !isAdmin && step !== "success" && (
-          <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard, position: "sticky", bottom: 0 }}>
+          <div
+  style={{
+    padding: "14px 20px calc(14px + env(safe-area-inset-bottom))",
+    borderTop: `1px solid ${T.border}`,
+    flexShrink: 0,
+    background: T.bgCard,
+    position: "fixed",
+    left: 0,
+    right: 0,
+    bottom: "70px",
+    maxWidth: 520,
+    margin: "0 auto",
+    zIndex: 999999,
+  }}
+>
             <button onClick={handlePay} disabled={step === "processing"}
               style={{ width: "100%", background: step === "processing" ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "15px", color: step === "processing" ? T.textMid : "#fff", fontSize: 15, fontWeight: 700, cursor: step === "processing" ? "wait" : "pointer", boxShadow: step === "processing" ? "none" : "0 4px 20px #f9731440" }}>
               {step === "processing" ? "⏳ Opening Payment…" : `🛒 Buy Now — ₹${app.price}`}
