@@ -11,6 +11,14 @@ const T = {
 
 const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
 
+// The host app (outside this component) renders its own fixed bottom nav bar
+// (Home / Network / Messages / Profile / More) on top of this page's webview.
+// Every full-screen modal below must leave room for it, or their last bit of
+// content and their action button end up hidden behind it. If the host nav
+// bar's height ever changes, update this one number — every modal reads from
+// it, so there's nothing else to hunt down.
+const HOST_NAV_HEIGHT = 90;
+
 const CATEGORIES = [
   { id: "All",         icon: "⊞",  label: "All Products" },
   { id: "Apparel",     icon: "👕",  label: "Apparel" },
@@ -93,10 +101,10 @@ function ProductFormModal({ product, onClose, onSaved }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 700, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,680px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
+    <div onClick={onClose} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: HOST_NAV_HEIGHT, background: "#000d", zIndex: 700, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,680px)", maxHeight: "100%", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 20px 0", minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", touchAction: "pan-y", padding: "16px 20px 0", minHeight: 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <div style={{ fontWeight: 800, fontSize: 18, color: T.text }}>{isEdit ? "Edit Product" : "Add Product"}</div>
             <button onClick={onClose} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer" }}>×</button>
@@ -168,8 +176,8 @@ function ProductDetailModal({ product, onClose, onAddCart, isAdmin, onEdit }) {
     ? Math.round(((product.compare_price - product.price) / product.price) * 100) : 0;
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000e", zIndex: 650, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,640px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
+    <div onClick={onClose} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: HOST_NAV_HEIGHT, background: "#000e", zIndex: 650, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,640px)", maxHeight: "100%", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
         <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 16px", flexShrink: 0 }}>
           {isAdmin
@@ -179,7 +187,7 @@ function ProductDetailModal({ product, onClose, onAddCart, isAdmin, onEdit }) {
           <button onClick={onClose} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer" }}>×</button>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", touchAction: "pan-y", minHeight: 0 }}>
           <div style={{ width: "100%", height: 260, background: T.bgInput, overflow: "hidden", position: "relative" }}>
             {product.image_url
               ? <img src={product.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -254,15 +262,15 @@ function CartDrawer({ cart, onClose, onUpdateQty, onRemove, onCheckout, checking
   const count = cart.reduce((s, i) => s + i.qty, 0);
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 900, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height:"90vh", maxHeight:"90vh",display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
+    <div onClick={onClose} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: HOST_NAV_HEIGHT, background: "#000d", zIndex: 900, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,680px)", maxHeight: "100%", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
         <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ fontWeight: 800, fontSize: 18, color: T.text }}>🛒 Cart <span style={{ fontSize: 13, color: T.textMid, fontWeight: 500 }}>({count} item{count !== 1 ? "s" : ""})</span></div>
           <button onClick={onClose} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer" }}>×</button>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 20px 120px", minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", touchAction: "pan-y", padding: "16px 20px", minHeight: 0 }}>
           {cart.length === 0 ? (
             <div style={{ textAlign: "center", padding: "50px 0" }}>
               <div style={{ fontSize: 56, marginBottom: 14 }}>🛒</div>
@@ -296,8 +304,7 @@ function CartDrawer({ cart, onClose, onUpdateQty, onRemove, onCheckout, checking
         </div>
 
         {cart.length > 0 && (
-          <div style={{ padding: "16px 20px calc(28px + env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard, position: "sticky", bottom: 0, zIndex: 10 }}>
-
+          <div style={{ padding: "16px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <span style={{ fontSize: 13, color: T.textMid }}>Subtotal</span>
               <span style={{ fontSize: 16, fontWeight: 700, color: T.text }}>₹{total.toFixed(2)}</span>
@@ -345,10 +352,10 @@ function ShippingModal({ onClose, onConfirm }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 950, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, height: "min(75vh,560px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
+    <div onClick={onClose} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: HOST_NAV_HEIGHT, background: "#000d", zIndex: 950, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, height: "min(75vh,560px)", maxHeight: "100%", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "20px 20px 0", minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", touchAction: "pan-y", padding: "20px 20px 0", minHeight: 0 }}>
           <div style={{ fontWeight: 800, fontSize: 18, color: T.text, marginBottom: 6 }}>📦 Shipping Details</div>
           <div style={{ fontSize: 12, color: T.textMid, marginBottom: 20 }}>Enter your delivery address to proceed to payment</div>
           {error && <div style={{ color: T.error, fontSize: 12, marginBottom: 12, background: T.errorLo, padding: "8px 12px", borderRadius: 8 }}>⚠ {error}</div>}
