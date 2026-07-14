@@ -16,6 +16,11 @@ const T = {
 
 const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
 
+// The host app (outside this component) renders its own fixed bottom nav bar
+// on top of this page's webview. Full-screen modals below leave this much
+// room at the bottom so their content/buttons are never hidden behind it.
+const HOST_NAV_HEIGHT = 90;
+
 function PrimeBadge() {
   return (
     <span style={{ fontSize: 9, color: T.amber, background: "#fbbf2418", border: "1px solid #fbbf2444", borderRadius: 20, padding: "1px 6px", fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 2 }}>
@@ -24,7 +29,7 @@ function PrimeBadge() {
   );
 }
 
-/* ── Member Row Card ── */
+/* ── Member Row Card (normal, non-admin members) ── */
 function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
   const isMe = member.id === currentUserId;
   const { status, connection, isSender } = connectionProps.getStatus(member.id);
@@ -175,6 +180,211 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
   );
 }
 
+/* ── Admin Member Row — replaces Connect with moderation actions ── */
+function AdminMemberRow({ member, onViewProfile, adminActions }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const initials = (member.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+
+  const isVerified   = !!member.is_verified;
+  const isSuspended  = !!member.is_suspended;
+  const isMuted      = !!member.is_muted;
+  const isPending    = member.is_approved === false; // only "pending" if explicitly false
+
+  const run = async (fn) => {
+    setMenuOpen(false);
+    setBusy(true);
+    try { await fn(member); } finally { setBusy(false); }
+  };
+
+  const avatarColors = ["linear-gradient(135deg,#f97316,#ea6008)", "linear-gradient(135deg,#7c3aed,#a78bfa)", "linear-gradient(135deg,#0369a1,#38bdf8)", "linear-gradient(135deg,#15803d,#22c55e)", "linear-gradient(135deg,#be123c,#f43f5e)"];
+  const avatarBg = avatarColors[(member.name || "").charCodeAt(0) % avatarColors.length];
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 12,
+      padding: "14px 16px",
+      background: isSuspended ? "linear-gradient(135deg,#2e050510,#0b0d17)" : T.bgCard,
+      border: `1px solid ${isSuspended ? T.error + "44" : isPending ? T.amber + "44" : T.border}`,
+      borderRadius: 16,
+      opacity: busy ? 0.6 : 1,
+      transition: "all .2s",
+    }}>
+      {/* Avatar */}
+      <div onClick={() => onViewProfile(member.id)} style={{ position: "relative", flexShrink: 0, cursor: "pointer" }}>
+        <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800, color: "#fff", overflow: "hidden", border: `2px solid ${isVerified ? T.info + "66" : "transparent"}` }}>
+          {member.photo ? <img src={member.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
+        </div>
+        {isSuspended && (
+          <div style={{ position: "absolute", bottom: -2, right: -2, background: T.error, borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, border: `2px solid ${T.bgCard}` }}>🚫</div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div onClick={() => onViewProfile(member.id)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{member.name || "—"}</span>
+          {member.is_premium && <PrimeBadge />}
+          {isVerified && <span style={{ fontSize: 9, color: T.info, background: T.info + "18", border: `1px solid ${T.info}44`, borderRadius: 20, padding: "1px 6px", fontWeight: 800 }}>🛡️ VERIFIED</span>}
+          {isPending && <span style={{ fontSize: 9, color: T.amber, background: "#fbbf2418", border: "1px solid #fbbf2444", borderRadius: 20, padding: "1px 6px", fontWeight: 800 }}>⏳ PENDING</span>}
+          {isSuspended && <span style={{ fontSize: 9, color: T.error, background: T.errorLo, border: `1px solid ${T.error}44`, borderRadius: 20, padding: "1px 6px", fontWeight: 800 }}>🚫 SUSPENDED</span>}
+          {isMuted && <span style={{ fontSize: 9, color: T.textMid, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 20, padding: "1px 6px", fontWeight: 700 }}>🔇 MUTED</span>}
+        </div>
+        <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>{member.designation || member.company || "TezConnect Member"}</div>
+        <div style={{ fontSize: 10, color: T.textLow, marginTop: 3 }}>
+          Joined {member.created_at ? new Date(member.created_at).toLocaleDateString() : "—"}
+          {member.reports_count > 0 && <span style={{ color: T.error, fontWeight: 700 }}> · 🚩 {member.reports_count} report{member.reports_count !== 1 ? "s" : ""}</span>}
+          {member.warning_count > 0 && <span style={{ color: T.amber, fontWeight: 700 }}> · ⚠️ {member.warning_count} warning{member.warning_count !== 1 ? "s" : ""}</span>}
+        </div>
+      </div>
+
+      {/* Admin actions menu */}
+      <div style={{ flexShrink: 0, position: "relative" }}>
+        <button onClick={() => setMenuOpen(o => !o)} disabled={busy}
+          style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", color: T.text, fontSize: 12, fontWeight: 700, cursor: busy ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          🛡️ Manage <span style={{ fontSize: 10 }}>▾</span>
+        </button>
+
+        {menuOpen && (
+          <>
+            <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
+            <div style={{ position: "absolute", top: 42, right: 0, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 12, zIndex: 11, minWidth: 210, boxShadow: "0 12px 32px #000000aa", overflow: "hidden" }}>
+              <AdminMenuItem icon="👁️" label="View Profile" onClick={() => { setMenuOpen(false); onViewProfile(member.id); }} />
+              <AdminMenuItem icon="🛡️" label={isVerified ? "Unverify Member" : "Verify Member"} onClick={() => run(adminActions.toggleVerify)} />
+              <AdminMenuItem icon="✅" label="Approve" onClick={() => run(adminActions.approveMember)} disabled={member.is_approved === true} />
+              <AdminMenuItem icon="❌" label="Reject" onClick={() => run(adminActions.rejectMember)} disabled={member.is_approved === false} />
+              <AdminMenuItem icon="📝" label="Edit Profile" onClick={() => { setMenuOpen(false); adminActions.editProfile(member); }} />
+              <AdminMenuItem icon="📊" label="View Activity" onClick={() => { setMenuOpen(false); adminActions.viewActivity(member); }} />
+              <AdminMenuItem icon="💬" label="Send Admin Message" onClick={() => { setMenuOpen(false); adminActions.sendAdminMessage(member); }} />
+              <div style={{ height: 1, background: T.border, margin: "4px 0" }} />
+              <AdminMenuItem icon="⚠️" label="Warn User" onClick={() => run(adminActions.warnUser)} tone={T.amber} />
+              <AdminMenuItem icon="🔇" label={isMuted ? "Unmute" : "Mute"} onClick={() => run(adminActions.toggleMute)} tone={T.textMid} />
+              <AdminMenuItem icon="🚫" label={isSuspended ? "Unsuspend" : "Suspend"} onClick={() => run(adminActions.toggleSuspend)} tone={T.error} />
+              <AdminMenuItem icon="🗑️" label="Delete Account" onClick={() => run(adminActions.deleteAccount)} tone={T.error} />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminMenuItem({ icon, label, onClick, tone, disabled }) {
+  return (
+    <button onClick={disabled ? undefined : onClick} disabled={disabled}
+      style={{
+        width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 9,
+        padding: "10px 14px", background: "none", border: "none",
+        color: disabled ? T.textLow : (tone || T.text),
+        fontSize: 12.5, fontWeight: 600, cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+      }}>
+      <span style={{ fontSize: 13 }}>{icon}</span> {label}
+    </button>
+  );
+}
+
+/* ── Edit Profile Modal (admin) ── */
+function AdminEditProfileModal({ member, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    name: member.name || "", designation: member.designation || "",
+    company: member.company || "", location: member.location || "",
+    industry: member.industry || "", category: member.category || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const inputStyle = {
+    width: "100%", background: T.bgInput, border: `1px solid ${T.border}`,
+    borderRadius: 10, padding: "11px 14px", color: T.text, fontSize: 13,
+    outline: "none", boxSizing: "border-box",
+  };
+
+  const save = async () => {
+    setSaving(true); setError("");
+    try {
+      const { error: err } = await supabase.from("profiles").update(form).eq("id", member.id);
+      if (err) { setError(err.message); setSaving(false); return; }
+      onSaved({ ...member, ...form });
+      onClose();
+    } catch (e) { setError(e.message); setSaving(false); }
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: HOST_NAV_HEIGHT, background: "#000d", zIndex: 800, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "100%", height: "min(80vh,560px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
+        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", touchAction: "pan-y", padding: "16px 20px 0", minHeight: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+            <div style={{ fontWeight: 800, fontSize: 17, color: T.text }}>📝 Edit Profile</div>
+            <button onClick={onClose} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 30, height: 30, color: T.textMid, fontSize: 15, cursor: "pointer" }}>×</button>
+          </div>
+          {error && <div style={{ background: T.errorLo, border: `1px solid ${T.error}44`, borderRadius: 9, padding: "10px 14px", fontSize: 12, color: T.error, marginBottom: 14 }}>⚠ {error}</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {[
+              ["name", "Full Name"], ["designation", "Designation"], ["company", "Company"],
+              ["location", "Location"], ["industry", "Industry"], ["category", "Category"],
+            ].map(([key, label]) => (
+              <div key={key}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: T.textMid, textTransform: "uppercase", letterSpacing: ".06em", display: "block", marginBottom: 6 }}>{label}</label>
+                <input value={form[key]} onChange={e => set(key, e.target.value)} style={inputStyle} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ padding: "14px 20px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+          <button onClick={save} disabled={saving}
+            style={{ width: "100%", background: saving ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "14px", color: saving ? T.textMid : "#fff", fontSize: 14, fontWeight: 700, cursor: saving ? "wait" : "pointer" }}>
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Activity Modal (admin) — shows what we actually have on the profile row.
+   Wire this up to a real activity/audit-log table later for richer detail. */
+function AdminActivityModal({ member, onClose }) {
+  const rows = [
+    ["Joined", member.created_at ? new Date(member.created_at).toLocaleString() : "—"],
+    ["Last Updated", member.updated_at ? new Date(member.updated_at).toLocaleString() : "—"],
+    ["Prime Member", member.is_premium ? "Yes" : "No"],
+    ["Verified", member.is_verified ? "Yes" : "No"],
+    ["Approved", member.is_approved === false ? "Pending" : "Yes"],
+    ["Suspended", member.is_suspended ? "Yes" : "No"],
+    ["Muted", member.is_muted ? "Yes" : "No"],
+    ["Warnings", member.warning_count || 0],
+    ["Reports", member.reports_count || 0],
+  ];
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: HOST_NAV_HEIGHT, background: "#000d", zIndex: 800, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "100%", height: "min(70vh,520px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
+        <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", touchAction: "pan-y", padding: "16px 20px", minHeight: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <div style={{ fontWeight: 800, fontSize: 17, color: T.text }}>📊 Activity — {member.name || "Member"}</div>
+            <button onClick={onClose} style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: "50%", width: 30, height: 30, color: T.textMid, fontSize: 15, cursor: "pointer" }}>×</button>
+          </div>
+          <div style={{ fontSize: 11, color: T.textLow, marginBottom: 14 }}>
+            Based on the member's profile record. Connect a dedicated activity/audit log for login history, posts, and messages.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1, background: T.border, borderRadius: 12, overflow: "hidden" }}>
+            {rows.map(([label, value]) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: T.bgInput }}>
+                <span style={{ fontSize: 12, color: T.textMid }}>{label}</span>
+                <span style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{String(value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Requests Panel ── */
 function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewProfile, onLimitReached }) {
   if (pendingReceived.length === 0) return (
@@ -232,7 +442,15 @@ function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewPr
    set chatTarget and navigate to the Messages page. Viewing a profile is
    always free; the Message button inside UserProfileModal is what's gated:
    free users tapping it see the upgrade modal instead of opening a chat,
-   premium/admin users go straight to that person's conversation. */
+   premium/admin users go straight to that person's conversation.
+
+   For the admin account, this page renders a distinct moderation view:
+   AdminMemberRow (with a Manage menu) instead of MemberRow (Connect),
+   and an admin stats banner instead of the connections/requests summary.
+   Some admin actions (verify, approve, suspend, mute, warn) write to
+   columns on `profiles` — is_verified, is_approved, is_suspended, is_muted,
+   warning_count — that need to exist in your schema. Missing columns will
+   surface as a clear "Action failed" alert rather than failing silently. */
 export default function NetworkPage({ session, onMessage }) {
   const [members, setMembers]         = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -244,6 +462,8 @@ export default function NetworkPage({ session, onMessage }) {
   const [viewingUser, setViewingUser] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [editingMember, setEditingMember] = useState(null);
+  const [activityMember, setActivityMember] = useState(null);
 
   const isAdmin = session?.userId === ADMIN_USER_ID;
 
@@ -253,10 +473,12 @@ export default function NetworkPage({ session, onMessage }) {
   } = useConnections(session.userId);
   const isUnlimited = isAdmin || isPremium;
 
-  useEffect(() => {
+  const fetchMembers = () => {
     supabase.from("profiles").select("*").not("name", "is", null).order("created_at", { ascending: false })
       .then(({ data }) => { setMembers(data || []); setLoading(false); });
-  }, []);
+  };
+
+  useEffect(() => { fetchMembers(); }, []);
 
   const industries = [...new Set(members.map(m => m.industry).filter(Boolean))];
   const categories = [...new Set(members.map(m => m.category).filter(Boolean))];
@@ -307,67 +529,140 @@ export default function NetworkPage({ session, onMessage }) {
     }
   };
 
+  /* ── Admin action handlers ──
+     Each updates local state optimistically after a successful write, and
+     surfaces a plain alert if the underlying column/table isn't there yet. */
+  const patchMemberLocal = (id, patch) => setMembers(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m));
+
+  const updateProfileField = async (member, patch) => {
+    const { error } = await supabase.from("profiles").update(patch).eq("id", member.id);
+    if (error) { alert("Action failed: " + error.message + "\n\nThis usually means the matching column doesn't exist yet on the profiles table."); return false; }
+    patchMemberLocal(member.id, patch);
+    return true;
+  };
+
+  const adminActions = {
+    toggleVerify: (member) => updateProfileField(member, { is_verified: !member.is_verified }),
+    approveMember: (member) => updateProfileField(member, { is_approved: true }),
+    rejectMember: (member) => updateProfileField(member, { is_approved: false }),
+    toggleSuspend: async (member) => {
+      if (!member.is_suspended && !window.confirm(`Suspend ${member.name || "this member"}? They won't be able to use the platform until unsuspended.`)) return;
+      await updateProfileField(member, { is_suspended: !member.is_suspended });
+    },
+    toggleMute: (member) => updateProfileField(member, { is_muted: !member.is_muted }),
+    warnUser: async (member) => {
+      const reason = window.prompt(`Warning reason for ${member.name || "this member"} (optional):`, "");
+      if (reason === null) return; // cancelled
+      await updateProfileField(member, { warning_count: (member.warning_count || 0) + 1 });
+    },
+    deleteAccount: async (member) => {
+      if (!window.confirm(`Permanently delete ${member.name || "this member"}'s account? This cannot be undone.`)) return;
+      const { error } = await supabase.from("profiles").delete().eq("id", member.id);
+      if (error) { alert("Delete failed: " + error.message); return; }
+      setMembers(prev => prev.filter(m => m.id !== member.id));
+    },
+    editProfile: (member) => setEditingMember(member),
+    viewActivity: (member) => setActivityMember(member),
+    sendAdminMessage: (member) => {
+      if (onMessage) onMessage(member);
+      else console.warn("NetworkPage: no onMessage prop provided — can't open chat.");
+    },
+  };
+
+  // Admin stat helpers — these read optional columns that default safely to
+  // 0/false if the column doesn't exist on a given row.
+  const newTodayCount = members.filter(m => m.created_at && (Date.now() - new Date(m.created_at)) < 24 * 60 * 60 * 1000).length;
+  const onlineCount = members.filter(m => m.is_online).length; // needs an is_online column/presence system to be meaningful
+  const pendingVerificationCount = members.filter(m => !m.is_verified).length;
+  const reportsCount = members.reduce((sum, m) => sum + (m.reports_count || 0), 0);
+  const blockedCount = members.filter(m => m.is_suspended).length;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
       {/* ── Hero Banner ── */}
-      <div style={{ borderRadius: 24, padding: "24px 22px", position: "relative", overflow: "hidden", background: "linear-gradient(135deg,#0a0f2e,#0d1545,#0a1628)", border: "1px solid #1e2d6b", minHeight: 200 }}>
-        <div style={{ position: "absolute", top: -10, right: -20, fontSize: 130, opacity: 0.18, userSelect: "none", filter: "hue-rotate(40deg)" }}>🌐</div>
-        <div style={{ position: "absolute", top: 20, right: 40, fontSize: 28, opacity: 0.7, animation: "pulse 2s ease infinite" }}>👤</div>
-        <div style={{ position: "absolute", top: 60, right: 100, fontSize: 20, opacity: 0.5, animation: "pulse 2.5s ease infinite" }}>👤</div>
-        <div style={{ position: "absolute", bottom: 30, right: 30, fontSize: 22, opacity: 0.5, animation: "pulse 3s ease infinite" }}>👤</div>
-        <div style={{ position: "absolute", bottom: 60, right: 110, fontSize: 18, opacity: 0.4, animation: "pulse 1.8s ease infinite" }}>👤</div>
-        <div style={{ position: "absolute", top: -20, right: 60, width: 180, height: 180, borderRadius: "50%", background: "radial-gradient(circle,#f9731615 0%,transparent 70%)", pointerEvents: "none" }} />
+      <div style={{ borderRadius: 24, padding: "24px 22px", position: "relative", overflow: "hidden", background: isAdmin ? "linear-gradient(135deg,#1a0a2e,#0a0f2e,#0a1628)" : "linear-gradient(135deg,#0a0f2e,#0d1545,#0a1628)", border: `1px solid ${isAdmin ? "#7c3aed44" : "#1e2d6b"}`, minHeight: 200 }}>
+        <div style={{ position: "absolute", top: -10, right: -20, fontSize: 130, opacity: 0.18, userSelect: "none", filter: "hue-rotate(40deg)" }}>{isAdmin ? "🛡️" : "🌐"}</div>
+        {!isAdmin && (
+          <>
+            <div style={{ position: "absolute", top: 20, right: 40, fontSize: 28, opacity: 0.7, animation: "pulse 2s ease infinite" }}>👤</div>
+            <div style={{ position: "absolute", top: 60, right: 100, fontSize: 20, opacity: 0.5, animation: "pulse 2.5s ease infinite" }}>👤</div>
+            <div style={{ position: "absolute", bottom: 30, right: 30, fontSize: 22, opacity: 0.5, animation: "pulse 3s ease infinite" }}>👤</div>
+            <div style={{ position: "absolute", bottom: 60, right: 110, fontSize: 18, opacity: 0.4, animation: "pulse 1.8s ease infinite" }}>👤</div>
+          </>
+        )}
+        <div style={{ position: "absolute", top: -20, right: 60, width: 180, height: 180, borderRadius: "50%", background: `radial-gradient(circle,${isAdmin ? "#7c3aed15" : "#f9731615"} 0%,transparent 70%)`, pointerEvents: "none" }} />
 
         <div style={{ position: "relative" }}>
-          <div style={{ fontSize: 10, color: T.purple, fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", marginBottom: 8 }}>Member Directory</div>
+          <div style={{ fontSize: 10, color: T.purple, fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", marginBottom: 8 }}>{isAdmin ? "Admin Dashboard" : "Member Directory"}</div>
           <h2 style={{ fontWeight: 800, fontSize: 28, letterSpacing: "-.03em", lineHeight: 1.1, marginBottom: 6 }}>
-            <span style={{ color: T.text }}>The </span>
-            <span style={{ color: T.orange }}>Network</span>
+            <span style={{ color: T.text }}>{isAdmin ? "The " : "The "}</span>
+            <span style={{ color: T.orange }}>{isAdmin ? "Network" : "Network"}</span>
           </h2>
           <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 16 }}>{filtered.length} of {members.length} members</div>
 
-          {/* Stat pills */}
-          <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-            <div style={{ background: "#3b82f622", border: "1px solid #3b82f644", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 22 }}>👥</span>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 18, color: T.text, lineHeight: 1 }}>{members.length}</div>
-                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>Total Members</div>
+          {/* Stat pills — admin sees moderation stats, everyone else sees connection stats */}
+          {isAdmin ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 20 }}>
+              {[
+                { icon: "👥", value: members.length, label: "Total Members", color: "#3b82f6" },
+                { icon: "🟢", value: onlineCount, label: "Online Now", color: "#22c55e" },
+                { icon: "🆕", value: newTodayCount, label: "New Today", color: "#38bdf8" },
+                { icon: "⏳", value: pendingVerificationCount, label: "Pending Verify", color: "#fbbf24" },
+                { icon: "🚩", value: reportsCount, label: "Reports", color: "#f87171" },
+                { icon: "🚫", value: blockedCount, label: "Blocked", color: "#f87171" },
+              ].map(s => (
+                <div key={s.label} style={{ background: s.color + "1c", border: `1px solid ${s.color}44`, borderRadius: 12, padding: "9px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 16 }}>{s.icon}</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: T.text, marginTop: 2 }}>{s.value}</div>
+                  <div style={{ fontSize: 8.5, color: "#94a3b8", marginTop: 1, lineHeight: 1.2 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+              <div style={{ background: "#3b82f622", border: "1px solid #3b82f644", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 22 }}>👥</span>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 18, color: T.text, lineHeight: 1 }}>{members.length}</div>
+                  <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>Total Members</div>
+                </div>
+              </div>
+              <div style={{ background: "#22c55e22", border: "1px solid #22c55e44", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 22 }}>✅</span>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 18, color: T.text, lineHeight: 1 }}>{totalConnected}</div>
+                  <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>Connected{!isUnlimited ? " (3 free)" : ""}</div>
+                </div>
               </div>
             </div>
-            <div style={{ background: "#22c55e22", border: "1px solid #22c55e44", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 22 }}>✅</span>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 18, color: T.text, lineHeight: 1 }}>{totalConnected}</div>
-                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>Connected{!isUnlimited ? " (3 free)" : ""}</div>
-              </div>
-            </div>
-          </div>
+          )}
 
-          {/* Tabs */}
+          {/* Tabs — Requests tab only makes sense for the connection flow, so it's hidden for admin */}
           <div style={{ display: "flex", gap: 10 }}>
             <button
               onClick={() => setTab("discover")}
               style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: `1.5px solid ${tab === "discover" ? T.orange : "#ffffff22"}`, borderRadius: 10, padding: "9px 18px", color: tab === "discover" ? T.orange : "#94a3b8", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-              <span>🔭</span> Discover
+              <span>{isAdmin ? "🛡️" : "🔭"}</span> {isAdmin ? "Manage Members" : "Discover"}
             </button>
-            <button
-              onClick={() => setTab("requests")}
-              style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: `1.5px solid ${tab === "requests" ? T.orange : "#ffffff22"}`, borderRadius: 10, padding: "9px 18px", color: tab === "requests" ? T.orange : "#94a3b8", fontSize: 13, fontWeight: 700, cursor: "pointer", position: "relative" }}>
-              <span>🤝</span> Requests
-              {pendingReceived.length > 0 && (
-                <span style={{ background: T.error, color: "#fff", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, position: "absolute", top: -6, right: -6 }}>
-                  {pendingReceived.length}
-                </span>
-              )}
-            </button>
+            {!isAdmin && (
+              <button
+                onClick={() => setTab("requests")}
+                style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: `1.5px solid ${tab === "requests" ? T.orange : "#ffffff22"}`, borderRadius: 10, padding: "9px 18px", color: tab === "requests" ? T.orange : "#94a3b8", fontSize: 13, fontWeight: 700, cursor: "pointer", position: "relative" }}>
+                <span>🤝</span> Requests
+                {pendingReceived.length > 0 && (
+                  <span style={{ background: T.error, color: "#fff", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, position: "absolute", top: -6, right: -6 }}>
+                    {pendingReceived.length}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── Requests Tab ── */}
-      {tab === "requests" && (
+      {/* ── Requests Tab (non-admin only) ── */}
+      {!isAdmin && tab === "requests" && (
         <RequestsPanel
           pendingReceived={pendingReceived}
           acceptRequest={acceptRequest}
@@ -377,7 +672,7 @@ export default function NetworkPage({ session, onMessage }) {
         />
       )}
 
-      {/* ── Discover Tab ── */}
+      {/* ── Discover / Manage Tab ── */}
       {tab === "discover" && (
         <>
           {/* Search + filter toggle */}
@@ -387,7 +682,7 @@ export default function NetworkPage({ session, onMessage }) {
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name, skill, company, location…"
+                placeholder={isAdmin ? "Search members to manage…" : "Search by name, skill, company, location…"}
                 style={{ width: "100%", background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 14px 12px 42px", color: T.text, fontSize: 13, outline: "none", boxSizing: "border-box" }}
                 onFocus={e => e.target.style.borderColor = T.orange}
                 onBlur={e => e.target.style.borderColor = T.border}
@@ -455,20 +750,29 @@ export default function NetworkPage({ session, onMessage }) {
           {/* Member list */}
           {!loading && filtered.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {filtered.map(member => (
-                <MemberRow
-                  key={member.id}
-                  member={member}
-                  currentUserId={session.userId}
-                  connectionProps={connectionProps}
-                  onViewProfile={setViewingUser}
-                />
-              ))}
+              {filtered.map(member =>
+                isAdmin ? (
+                  <AdminMemberRow
+                    key={member.id}
+                    member={member}
+                    onViewProfile={setViewingUser}
+                    adminActions={adminActions}
+                  />
+                ) : (
+                  <MemberRow
+                    key={member.id}
+                    member={member}
+                    currentUserId={session.userId}
+                    connectionProps={connectionProps}
+                    onViewProfile={setViewingUser}
+                  />
+                )
+              )}
             </div>
           )}
 
-          {/* Grow your network / upgrade banner */}
-          {!loading && (
+          {/* Grow your network / upgrade banner — not relevant to the admin's job */}
+          {!loading && !isAdmin && (
             <div style={{ display: "flex", alignItems: "center", gap: 14, background: "linear-gradient(135deg,#1a0a2e,#2d1854)", border: "1px solid #7c3aed44", borderRadius: 16, padding: "16px 18px", marginTop: 4 }}>
               <span style={{ fontSize: 32, flexShrink: 0 }}>👑</span>
               <div style={{ flex: 1 }}>
@@ -517,6 +821,20 @@ export default function NetworkPage({ session, onMessage }) {
           onClose={() => setShowUpgrade(false)}
           onSuccess={() => { setShowUpgrade(false); refresh(); }}
         />
+      )}
+
+      {/* Admin: edit profile modal */}
+      {editingMember && (
+        <AdminEditProfileModal
+          member={editingMember}
+          onClose={() => setEditingMember(null)}
+          onSaved={(updated) => setMembers(prev => prev.map(m => m.id === updated.id ? updated : m))}
+        />
+      )}
+
+      {/* Admin: activity modal */}
+      {activityMember && (
+        <AdminActivityModal member={activityMember} onClose={() => setActivityMember(null)} />
       )}
     </div>
   );
