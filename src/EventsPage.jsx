@@ -11,10 +11,7 @@ const T = {
   amber: "#fbbf24", amberLo: "#fbbf2412",
 };
 
-/* ── CHANGE THIS to Lekhakraj's real user ID — same as LeadsPage.jsx ── */
 const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
-const ADMIN_UPI = "tezconnect@upi"; // for QR/manual payment fallback
-const ADMIN_PHONE = "917396180986";
 
 function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" });
@@ -23,32 +20,118 @@ function formatTime(dateStr) {
   return new Date(dateStr).toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit" });
 }
 
+/* Fire-and-forget WhatsApp trigger. Safe to call for both free & paid events —
+   the server no-ops if the event has no zoom_link. */
+async function triggerWhatsAppInvite(eventId, userId) {
+  try {
+    await fetch("/api/send-event-whatsapp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventId, userId }),
+    });
+  } catch (err) {
+    console.error("[TezConnect Events] WhatsApp trigger failed:", err);
+  }
+}
+
+/* ── Reusable: editable string-list (objectives / activities / benefits / what-to-bring) ── */
+function TagListEditor({ label, items, setItems, placeholder }) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const v = draft.trim();
+    if (!v) return;
+    setItems([...items, v]);
+    setDraft("");
+  };
+  return (
+    <div>
+      <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>{label}</label>
+      <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+        <input
+          value={draft}
+          onChange={e=>setDraft(e.target.value)}
+          onKeyDown={e=>{ if (e.key==="Enter") { e.preventDefault(); add(); } }}
+          placeholder={placeholder}
+          style={{ flex:1, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px 12px", color:T.text, fontSize:13, outline:"none", fontFamily:"'Plus Jakarta Sans',sans-serif" }}
+        />
+        <button onClick={add} type="button" style={{ background:T.orangeMd, border:`1px solid ${T.orange}44`, borderRadius:10, padding:"0 16px", color:T.orange, fontWeight:700, cursor:"pointer" }}>Add</button>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        {items.map((it, i) => (
+          <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:9, padding:"8px 12px" }}>
+            <span style={{ fontSize:12, color:T.text }}>{it}</span>
+            <button onClick={()=>setItems(items.filter((_,idx)=>idx!==i))} type="button" style={{ background:"transparent", border:"none", color:T.textLow, fontSize:14, cursor:"pointer" }}>×</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Reusable: editable agenda timeline ── */
+function AgendaEditor({ agenda, setAgenda }) {
+  const [draft, setDraft] = useState({ time:"", title:"", bullets:"" });
+  const add = () => {
+    if (!draft.time.trim() || !draft.title.trim()) return;
+    setAgenda([...agenda, {
+      time: draft.time.trim(),
+      title: draft.title.trim(),
+      bullets: draft.bullets.split("\n").map(b=>b.trim()).filter(Boolean),
+    }]);
+    setDraft({ time:"", title:"", bullets:"" });
+  };
+  const inputStyle = { width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:9, padding:"9px 12px", color:T.text, fontSize:12, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" };
+  return (
+    <div>
+      <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Agenda</label>
+      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        {agenda.map((a, i) => (
+          <div key={i} style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:9, padding:"10px 12px" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+              <div>
+                <div style={{ fontSize:11, color:T.orange, fontWeight:700 }}>{a.time}</div>
+                <div style={{ fontSize:13, color:T.text, fontWeight:700, marginTop:2 }}>{a.title}</div>
+                {a.bullets?.length > 0 && (
+                  <ul style={{ margin:"4px 0 0", paddingLeft:16 }}>
+                    {a.bullets.map((b,bi)=><li key={bi} style={{ fontSize:11, color:T.textMid }}>{b}</li>)}
+                  </ul>
+                )}
+              </div>
+              <button onClick={()=>setAgenda(agenda.filter((_,idx)=>idx!==i))} type="button" style={{ background:"transparent", border:"none", color:T.textLow, fontSize:14, cursor:"pointer" }}>×</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:10, background:T.bg, border:`1px dashed ${T.border}`, borderRadius:10, padding:10 }}>
+        <div style={{ display:"flex", gap:6 }}>
+          <input value={draft.time} onChange={e=>setDraft({...draft,time:e.target.value})} placeholder="10:00 AM – 10:30 AM" style={inputStyle}/>
+          <input value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})} placeholder="Session title" style={inputStyle}/>
+        </div>
+        <textarea value={draft.bullets} onChange={e=>setDraft({...draft,bullets:e.target.value})} placeholder="One bullet per line" rows={2} style={{ ...inputStyle, resize:"vertical" }}/>
+        <button onClick={add} type="button" style={{ background:T.orangeMd, border:`1px solid ${T.orange}44`, borderRadius:9, padding:"8px", color:T.orange, fontWeight:700, cursor:"pointer", fontSize:12 }}>+ Add Agenda Item</button>
+      </div>
+    </div>
+  );
+}
+
 /* ── Payment Modal ── */
 function PaymentModal({ event, session, profile, onClose, onPaid }) {
-  const [step, setStep]     = useState("confirm"); // confirm | processing | success | failed
+  const [step, setStep]     = useState("confirm");
   const [error, setError]   = useState("");
   const [txnRef, setTxnRef] = useState("");
 
   const handlePay = async () => {
     setStep("processing");
     setError("");
-
     try {
-      // 1. Create order on backend
       const orderRes = await fetch("/api/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: event.registration_fee,
-          eventId: event.id,
-          userId: session.userId,
-        }),
+        body: JSON.stringify({ amount: event.registration_fee, eventId: event.id, userId: session.userId }),
       });
-
       const orderData = await orderRes.json();
       if (!orderRes.ok) throw new Error(orderData.error || "Failed to create order");
 
-      // 2. Open Razorpay checkout
       const options = {
         key: orderData.keyId,
         amount: orderData.amount,
@@ -56,14 +139,9 @@ function PaymentModal({ event, session, profile, onClose, onPaid }) {
         name: "TezConnect",
         description: event.title,
         order_id: orderData.orderId,
-        prefill: {
-          name: profile?.name || session.name || "",
-          email: session.email || "",
-          contact: profile?.mobile || "",
-        },
+        prefill: { name: profile?.name || session.name || "", email: session.email || "", contact: profile?.mobile || "" },
         theme: { color: "#f97316" },
         handler: async function (response) {
-          // 3. Verify payment on backend
           try {
             const verifyRes = await fetch("/api/verify-payment", {
               method: "POST",
@@ -72,28 +150,22 @@ function PaymentModal({ event, session, profile, onClose, onPaid }) {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                eventId: event.id,
-                userId: session.userId,
-                amount: event.registration_fee,
+                eventId: event.id, userId: session.userId, amount: event.registration_fee,
               }),
             });
-
             const verifyData = await verifyRes.json();
             if (!verifyRes.ok) throw new Error(verifyData.error || "Verification failed");
 
             setTxnRef(response.razorpay_payment_id);
             setStep("success");
+            triggerWhatsAppInvite(event.id, session.userId); // fire-and-forget
             setTimeout(() => { onPaid(); onClose(); }, 2000);
           } catch (err) {
             setError(err.message);
             setStep("failed");
           }
         },
-        modal: {
-          ondismiss: function () {
-            setStep("confirm");
-          },
-        },
+        modal: { ondismiss: function () { setStep("confirm"); } },
       };
 
       const rzp = new window.Razorpay(options);
@@ -102,10 +174,7 @@ function PaymentModal({ event, session, profile, onClose, onPaid }) {
         setStep("failed");
       });
       rzp.open();
-
-      // Reset to confirm step since modal is now controlled by Razorpay's own UI
       setStep("confirm");
-
     } catch (err) {
       setError(err.message);
       setStep("confirm");
@@ -116,22 +185,18 @@ function PaymentModal({ event, session, profile, onClose, onPaid }) {
     <div onClick={step==="confirm"?onClose:undefined} style={{ position:"fixed", inset:0, background:"#000d", zIndex:600, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:480, padding:"20px 20px 40px", animation:"slideUp .3s ease" }}>
         <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"0 auto 20px" }}/>
-
         {(step === "confirm" || step === "failed") && (
           <>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
               <div style={{ fontWeight:800, fontSize:18, color:T.text }}>💳 Event Registration</div>
               <button onClick={onClose} style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:"50%", width:30, height:30, color:T.textMid, fontSize:15, cursor:"pointer" }}>×</button>
             </div>
-
             {error && <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"10px 14px", fontSize:12, color:T.error, marginBottom:16 }}>⚠ {error}</div>}
-
             <div style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:14, padding:"18px", marginBottom:20 }}>
               <div style={{ fontWeight:700, fontSize:15, color:T.text, marginBottom:6 }}>{event.title}</div>
               <div style={{ fontSize:12, color:T.textMid, marginBottom:4 }}>📅 {formatDate(event.event_date)} · {formatTime(event.event_date)}</div>
               {event.location && <div style={{ fontSize:12, color:T.textMid }}>📍 {event.location}</div>}
             </div>
-
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 18px", background:T.orangeMd, border:`1px solid ${T.orange}44`, borderRadius:14, marginBottom:20 }}>
               <div>
                 <div style={{ fontSize:11, color:T.textLow, textTransform:"uppercase", letterSpacing:".08em" }}>Registration Fee</div>
@@ -139,12 +204,9 @@ function PaymentModal({ event, session, profile, onClose, onPaid }) {
               </div>
               <div style={{ fontSize:36 }}>🎟️</div>
             </div>
-
-            <button onClick={handlePay}
-              style={{ width:"100%", background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"15px", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 20px #f9731440" }}>
+            <button onClick={handlePay} style={{ width:"100%", background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"15px", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 20px #f9731440" }}>
               Pay ₹{event.registration_fee} & Register
             </button>
-
             <div style={{ display:"flex", gap:8, justifyContent:"center", marginTop:14 }}>
               <span style={{ fontSize:10, color:T.textLow }}>🔒 Secured by Razorpay</span>
               <span style={{ fontSize:10, color:T.textLow }}>·</span>
@@ -152,13 +214,13 @@ function PaymentModal({ event, session, profile, onClose, onPaid }) {
             </div>
           </>
         )}
-
         {step === "success" && (
           <div style={{ textAlign:"center", padding:"30px 0" }}>
             <div style={{ width:72, height:72, borderRadius:"50%", background:T.successLo, border:`2px solid ${T.success}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, margin:"0 auto 16px" }}>✓</div>
             <div style={{ fontWeight:800, fontSize:18, color:T.text, marginBottom:8 }}>Registration Confirmed!</div>
             <div style={{ fontSize:13, color:T.textMid, marginBottom:4 }}>You're all set for {event.title}</div>
             <div style={{ fontSize:11, color:T.textLow, marginTop:8 }}>Payment ID: {txnRef}</div>
+            {event.zoom_link && <div style={{ fontSize:11, color:T.success, marginTop:8 }}>📲 Zoom link sent to your WhatsApp</div>}
           </div>
         )}
       </div>
@@ -172,8 +234,15 @@ function EventModal({ event, session, onClose, onSaved }) {
   const [form, setForm] = useState({
     title:"", description:"", location:"", event_date:"",
     event_type:"offline", max_attendees:"", registration_fee:"0",
+    theme:"", tagline:"", banner_url:"", duration_text:"", zoom_link:"",
+    organizer_name:"Tez Connect Ecosystem",
     ...event,
   });
+  const [objectives, setObjectives]     = useState(event?.objectives || []);
+  const [activities, setActivities]     = useState(event?.activities || []);
+  const [benefits, setBenefits]         = useState(event?.benefits || []);
+  const [whatToBring, setWhatToBring]   = useState(event?.what_to_bring || []);
+  const [agenda, setAgenda]             = useState(event?.agenda || []);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -193,7 +262,16 @@ function EventModal({ event, session, onClose, onSaved }) {
       max_attendees: form.max_attendees ? parseInt(form.max_attendees) : null,
       registration_fee: fee,
       is_paid: fee > 0,
-      creator_id:ADMIN_USER_ID,
+      creator_id: ADMIN_USER_ID,
+      theme: form.theme.trim(),
+      tagline: form.tagline.trim(),
+      banner_url: form.banner_url.trim(),
+      duration_text: form.duration_text.trim(),
+      zoom_link: form.zoom_link.trim(),
+      organizer_name: form.organizer_name.trim() || "Tez Connect Ecosystem",
+      objectives, activities, benefits,
+      what_to_bring: whatToBring,
+      agenda,
     };
 
     let err;
@@ -208,15 +286,12 @@ function EventModal({ event, session, onClose, onSaved }) {
     onSaved(); onClose();
   };
 
-  const inputStyle = {
-    width:"100%", background:T.bgInput, border:`1px solid ${T.border}`,
-    borderRadius:10, padding:"11px 14px", color:T.text, fontSize:13,
-    outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif",
-  };
+  const inputStyle = { width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"11px 14px", color:T.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" };
+  const labelStyle = { fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 };
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:500, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:520, maxHeight:"92vh", overflowY:"auto", animation:"slideUp .3s ease" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:560, maxHeight:"92vh", overflowY:"auto", animation:"slideUp .3s ease" }}>
         <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0" }}/>
         <div style={{ padding:"16px 20px 40px" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
@@ -228,28 +303,50 @@ function EventModal({ event, session, onClose, onSaved }) {
 
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <div>
-              <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Event Title *</label>
-              <input value={form.title} onChange={e=>set("title",e.target.value)} placeholder="e.g. B2B Networking Summit 2026" style={inputStyle}/>
-            </div>
-
-            <div>
-              <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Description</label>
-              <textarea value={form.description} onChange={e=>set("description",e.target.value)} placeholder="What's this event about?" rows={3} style={{ ...inputStyle, resize:"vertical" }}/>
-            </div>
-
-            <div>
-              <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Date & Time *</label>
-              <input type="datetime-local" value={form.event_date} onChange={e=>set("event_date",e.target.value)} style={inputStyle}/>
-            </div>
-
-            <div>
-              <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Location</label>
-              <input value={form.location} onChange={e=>set("location",e.target.value)} placeholder="e.g. Hyderabad / Zoom Link" style={inputStyle}/>
+              <label style={labelStyle}>Event Title *</label>
+              <input value={form.title} onChange={e=>set("title",e.target.value)} placeholder="e.g. Bangalore Business Networking Meet 2026" style={inputStyle}/>
             </div>
 
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
               <div>
-                <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Event Type</label>
+                <label style={labelStyle}>Theme</label>
+                <input value={form.theme} onChange={e=>set("theme",e.target.value)} placeholder="Tez Connect Ecosystem" style={inputStyle}/>
+              </div>
+              <div>
+                <label style={labelStyle}>Tagline</label>
+                <input value={form.tagline} onChange={e=>set("tagline",e.target.value)} placeholder="Connect • Collaborate • Grow" style={inputStyle}/>
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Description</label>
+              <textarea value={form.description} onChange={e=>set("description",e.target.value)} placeholder="What's this event about?" rows={3} style={{ ...inputStyle, resize:"vertical" }}/>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Banner Image URL</label>
+              <input value={form.banner_url} onChange={e=>set("banner_url",e.target.value)} placeholder="https://…" style={inputStyle}/>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Date & Time *</label>
+              <input type="datetime-local" value={form.event_date} onChange={e=>set("event_date",e.target.value)} style={inputStyle}/>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              <div>
+                <label style={labelStyle}>Location</label>
+                <input value={form.location} onChange={e=>set("location",e.target.value)} placeholder="e.g. Bangalore" style={inputStyle}/>
+              </div>
+              <div>
+                <label style={labelStyle}>Duration</label>
+                <input value={form.duration_text} onChange={e=>set("duration_text",e.target.value)} placeholder="3 Hours" style={inputStyle}/>
+              </div>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              <div>
+                <label style={labelStyle}>Event Type</label>
                 <select value={form.event_type} onChange={e=>set("event_type",e.target.value)} style={{ ...inputStyle, appearance:"none" }}>
                   <option value="offline">Offline</option>
                   <option value="online">Online</option>
@@ -257,24 +354,41 @@ function EventModal({ event, session, onClose, onSaved }) {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Max Attendees</label>
-                <input type="number" value={form.max_attendees} onChange={e=>set("max_attendees",e.target.value)} placeholder="e.g. 100" style={inputStyle}/>
+                <label style={labelStyle}>Max Attendees</label>
+                <input type="number" value={form.max_attendees} onChange={e=>set("max_attendees",e.target.value)} placeholder="e.g. 60" style={inputStyle}/>
               </div>
             </div>
 
-            {/* Registration Fee */}
+            {(form.event_type === "online" || form.event_type === "hybrid") && (
+              <div>
+                <label style={labelStyle}>Zoom Link</label>
+                <input value={form.zoom_link} onChange={e=>set("zoom_link",e.target.value)} placeholder="https://zoom.us/j/…" style={inputStyle}/>
+                <div style={{ fontSize:11, color:T.textLow, marginTop:6 }}>Sent automatically over WhatsApp when someone registers.</div>
+              </div>
+            )}
+
             <div>
-              <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Registration Fee (₹)</label>
+              <label style={labelStyle}>Registration Fee (₹)</label>
               <input type="number" value={form.registration_fee} onChange={e=>set("registration_fee",e.target.value)} placeholder="0 for free event" style={inputStyle}/>
               <div style={{ display:"flex", gap:8, marginTop:8 }}>
                 {[0, 499, 999, 1999].map(amt => (
-                  <button key={amt} onClick={()=>set("registration_fee", amt.toString())}
+                  <button key={amt} onClick={()=>set("registration_fee", amt.toString())} type="button"
                     style={{ flex:1, background:form.registration_fee===amt.toString()?T.orangeMd:T.bgInput, border:`1px solid ${form.registration_fee===amt.toString()?T.orange+"55":T.border}`, borderRadius:8, padding:"7px 0", color:form.registration_fee===amt.toString()?T.orange:T.textMid, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
                     {amt === 0 ? "Free" : `₹${amt}`}
                   </button>
                 ))}
               </div>
-              <div style={{ fontSize:11, color:T.textLow, marginTop:6 }}>Set 0 for a free event. Non-admins will need to pay this amount to register for paid events.</div>
+            </div>
+
+            <TagListEditor label="Objectives" items={objectives} setItems={setObjectives} placeholder="Build meaningful business connections"/>
+            <AgendaEditor agenda={agenda} setAgenda={setAgenda}/>
+            <TagListEditor label="Activities" items={activities} setItems={setActivities} placeholder="Business Card Exchange"/>
+            <TagListEditor label="Participant Benefits" items={benefits} setItems={setBenefits} placeholder="High-quality business networking"/>
+            <TagListEditor label="What Participants Should Bring" items={whatToBring} setItems={setWhatToBring} placeholder="Business Cards"/>
+
+            <div>
+              <label style={labelStyle}>Organizer Name</label>
+              <input value={form.organizer_name} onChange={e=>set("organizer_name",e.target.value)} style={inputStyle}/>
             </div>
 
             <button onClick={save} disabled={saving}
@@ -297,32 +411,16 @@ function AttendeesModal({ event, session, onClose }) {
     let cancelled = false;
     (async () => {
       const { data: rsvpRows, error: rsvpErr } = await supabase
-        .from("event_rsvps")
-        .select("*")
-        .eq("event_id", event.id)
-        .order("created_at", { ascending: true });
-
-      if (rsvpErr) {
-        console.error("[TezConnect Events] fetch attendees failed:", rsvpErr);
-        if (!cancelled) setLoading(false);
-        return;
-      }
+        .from("event_rsvps").select("*").eq("event_id", event.id).order("created_at", { ascending: true });
+      if (rsvpErr) { console.error("[TezConnect Events] fetch attendees failed:", rsvpErr); if (!cancelled) setLoading(false); return; }
 
       const userIds = (rsvpRows || []).map(r => r.user_id);
       let profileMap = {};
       if (userIds.length) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, name, photo, mobile, email, company, designation")
-          .in("id", userIds);
+        const { data: profiles } = await supabase.from("profiles").select("id, name, photo, mobile, email, company, designation").in("id", userIds);
         (profiles || []).forEach(p => { profileMap[p.id] = p; });
       }
-
-      const merged = (rsvpRows || []).map(r => ({
-        ...r,
-        profile: profileMap[r.user_id] || null,
-      }));
-
+      const merged = (rsvpRows || []).map(r => ({ ...r, profile: profileMap[r.user_id] || null }));
       if (!cancelled) { setAttendees(merged); setLoading(false); }
     })();
     return () => { cancelled = true; };
@@ -331,21 +429,14 @@ function AttendeesModal({ event, session, onClose }) {
   const exportCsv = () => {
     const header = ["Name", "Mobile", "Email", "Company", "Payment Status", "Amount Paid", "Registered At"];
     const rows = attendees.map(a => [
-      a.profile?.name || "Unknown",
-      a.profile?.mobile || "",
-      a.profile?.email || "",
-      a.profile?.company || "",
-      a.payment_status || "",
-      a.amount_paid ?? 0,
-      a.created_at ? new Date(a.created_at).toLocaleString("en-IN") : "",
+      a.profile?.name || "Unknown", a.profile?.mobile || "", a.profile?.email || "", a.profile?.company || "",
+      a.payment_status || "", a.amount_paid ?? 0, a.created_at ? new Date(a.created_at).toLocaleString("en-IN") : "",
     ]);
     const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `${event.title.replace(/[^a-z0-9]/gi, "_")}_attendees.csv`;
-    a.click();
+    a.href = url; a.download = `${event.title.replace(/[^a-z0-9]/gi, "_")}_attendees.csv`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -353,7 +444,6 @@ function AttendeesModal({ event, session, onClose }) {
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:600, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:520, maxHeight:"85vh", display:"flex", flexDirection:"column", animation:"slideUp .3s ease" }}>
         <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0", flexShrink:0 }}/>
-
         <div style={{ padding:"16px 20px 12px", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
             <div style={{ fontWeight:800, fontSize:17, color:T.text }}>👥 Attendees</div>
@@ -361,7 +451,6 @@ function AttendeesModal({ event, session, onClose }) {
           </div>
           <div style={{ fontSize:12, color:T.textMid }}>{event.title} · {attendees.length} registered</div>
         </div>
-
         <div style={{ flex:1, overflowY:"auto", padding:"12px 20px" }}>
           {loading && (
             <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 0", gap:12 }}>
@@ -369,11 +458,9 @@ function AttendeesModal({ event, session, onClose }) {
               <span style={{ color:T.textMid, fontSize:13 }}>Loading attendees…</span>
             </div>
           )}
-
           {!loading && attendees.length === 0 && (
             <div style={{ textAlign:"center", padding:"40px 20px", color:T.textLow, fontSize:13 }}>No one has registered yet.</div>
           )}
-
           {!loading && attendees.map(a => {
             const p = a.profile || {};
             const initials = (p.name || "?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase();
@@ -396,11 +483,9 @@ function AttendeesModal({ event, session, onClose }) {
             );
           })}
         </div>
-
         {!loading && attendees.length > 0 && (
           <div style={{ padding:"14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop:`1px solid ${T.border}`, flexShrink:0 }}>
-            <button onClick={exportCsv}
-              style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:12, padding:"12px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+            <button onClick={exportCsv} style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:12, padding:"12px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
               📥 Export as CSV
             </button>
           </div>
@@ -410,8 +495,198 @@ function AttendeesModal({ event, session, onClose }) {
   );
 }
 
+/* ── Event Detail Page (full-screen, matches the reference design) ── */
+function EventDetailPage({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData, onBack, onEdit, onPay, onRsvp, onCancelRsvp, rsvpingId, rsvpError }) {
+  const isPast = new Date(event.event_date) < new Date();
+  const isFull = event.max_attendees && attendeeCount >= event.max_attendees;
+  const isPaid = event.registration_fee > 0;
+  const isRsvping = rsvpingId === event.id;
+  const [copied, setCopied] = useState(false);
+
+  const share = async () => {
+    const url = `${window.location.origin}${window.location.pathname}?event=${event.id}`;
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(()=>setCopied(false), 2000); } catch {}
+  };
+
+  const card = { background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:16, padding:18, marginBottom:16 };
+  const sectionTitle = { fontWeight:800, fontSize:14, color:T.text, marginBottom:14, display:"flex", alignItems:"center", gap:8 };
+  const checkRow = { display:"flex", alignItems:"flex-start", gap:8, fontSize:13, color:T.text, marginBottom:10, lineHeight:1.4 };
+
+  const overviewRows = [
+    ["Event Name", event.title],
+    ["Organizer", event.organizer_name || "Tez Connect Ecosystem"],
+    ["Date", formatDate(event.event_date)],
+    ["Time", formatTime(event.event_date)],
+    ["Venue", event.location || "—"],
+    ["Participants", event.max_attendees ? `Up to ${event.max_attendees}` : "Open"],
+    ["Status", isPast ? "Past" : "Upcoming"],
+  ];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      <style>{`@media (max-width:860px){ .evtd-grid{ grid-template-columns:1fr !important; } }`}</style>
+
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+        <button onClick={onBack} style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"9px 16px", color:T.textMid, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>← Back to Events</button>
+        <div style={{ display:"flex", gap:8 }}>
+          {isAdmin && (
+            <button onClick={()=>onEdit(event)} style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"9px 16px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>✏️ Edit Event</button>
+          )}
+          <button onClick={share} style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"9px 16px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+            {copied ? "✓ Link Copied" : "🔗 Share Event"}
+          </button>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <div style={{ position:"relative", borderRadius:18, overflow:"hidden", minHeight:200, display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", textAlign:"center", padding:"30px 20px", background: event.banner_url ? `linear-gradient(180deg,#06070dcc,#06070dee), url(${event.banner_url}) center/cover` : "radial-gradient(circle at 30% 20%, #f9731633, transparent 60%), linear-gradient(135deg,#0b0d17,#06070d)", border:`1px solid ${T.border}` }}>
+        {!isPast && <span style={{ position:"absolute", top:14, left:14, background:T.orangeMd, border:`1px solid ${T.orange}55`, color:T.orange, fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:20 }}>Upcoming Event</span>}
+        <div style={{ fontSize:12, color:T.orange, fontWeight:700, letterSpacing:".08em", textTransform:"uppercase", marginBottom:10 }}>{event.theme || event.organizer_name || "Tez Connect Ecosystem"}</div>
+        <div style={{ fontWeight:800, fontSize:28, color:"#fff", lineHeight:1.25, maxWidth:520 }}>{event.title}</div>
+        {event.tagline && (
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:16, color:T.text, fontSize:13, fontWeight:600 }}>
+            <span style={{ width:24, height:1, background:T.textLow }}/>Theme<span style={{ width:24, height:1, background:T.textLow }}/>
+          </div>
+        )}
+        {event.tagline && <div style={{ marginTop:6, fontSize:15, fontWeight:700, color:T.text }}>{event.tagline}</div>}
+      </div>
+
+      <div className="evtd-grid" style={{ display:"grid", gridTemplateColumns:"minmax(0,2fr) minmax(280px,1fr)", gap:16 }}>
+
+        {/* Main column */}
+        <div>
+          {event.objectives?.length > 0 && (
+            <div style={card}>
+              <div style={sectionTitle}>🎯 Objective</div>
+              {event.objectives.map((o,i)=>(
+                <div key={i} style={checkRow}><span style={{ color:T.orange }}>✓</span>{o}</div>
+              ))}
+            </div>
+          )}
+
+          <div style={card}>
+            <div style={sectionTitle}>📋 Event Details</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:14 }}>
+              <div>
+                <div style={{ fontSize:11, color:T.textLow, marginBottom:4 }}>📅 Duration</div>
+                <div style={{ fontSize:14, fontWeight:700, color:T.text }}>{event.duration_text || "—"}</div>
+              </div>
+              <div>
+                <div style={{ fontSize:11, color:T.textLow, marginBottom:4 }}>📍 Venue</div>
+                <div style={{ fontSize:14, fontWeight:700, color:T.text }}>{event.location || "—"}</div>
+              </div>
+              <div>
+                <div style={{ fontSize:11, color:T.textLow, marginBottom:4 }}>👥 Expected Participants</div>
+                <div style={{ fontSize:14, fontWeight:700, color:T.text }}>{attendeeCount}{event.max_attendees ? ` / ${event.max_attendees}` : ""}</div>
+              </div>
+            </div>
+          </div>
+
+          {event.agenda?.length > 0 && (
+            <div style={card}>
+              <div style={sectionTitle}>🕐 Agenda</div>
+              <div style={{ position:"relative", paddingLeft:18, borderLeft:`2px solid ${T.border}` }}>
+                {event.agenda.map((a,i)=>(
+                  <div key={i} style={{ position:"relative", marginBottom:20 }}>
+                    <div style={{ position:"absolute", left:-24, top:2, width:10, height:10, borderRadius:"50%", background:T.orange, border:`2px solid ${T.bgCard}` }}/>
+                    <div style={{ fontSize:11, color:T.orange, fontWeight:700 }}>{a.time}</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:T.text, marginTop:2 }}>{a.title}</div>
+                    {a.bullets?.length > 0 && (
+                      <ul style={{ margin:"6px 0 0", paddingLeft:16 }}>
+                        {a.bullets.map((b,bi)=><li key={bi} style={{ fontSize:12, color:T.textMid, marginBottom:2 }}>{b}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ ...card, textAlign:"center" }}>
+            <div style={{ width:56, height:56, borderRadius:"50%", background:T.orangeMd, border:`1px solid ${T.orange}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, margin:"0 auto 10px" }}>🏢</div>
+            <div style={{ fontWeight:800, fontSize:15, color:T.text }}>{event.organizer_name || "Tez Connect Ecosystem"}</div>
+            <div style={{ fontSize:11, color:T.textLow, marginTop:4 }}>Organizer</div>
+          </div>
+        </div>
+
+        {/* Sidebar */}
+        <div>
+          <div style={card}>
+            <div style={sectionTitle}>📅 Event Overview</div>
+            {overviewRows.map(([k,v])=>(
+              <div key={k} style={{ display:"flex", justifyContent:"space-between", gap:10, fontSize:12, marginBottom:10 }}>
+                <span style={{ color:T.textLow }}>{k}</span>
+                <span style={{ color:T.text, fontWeight:600, textAlign:"right" }}>{v}</span>
+              </div>
+            ))}
+          </div>
+
+          {event.activities?.length > 0 && (
+            <div style={card}>
+              <div style={sectionTitle}>⭐ Activities</div>
+              {event.activities.map((a,i)=>(
+                <div key={i} style={checkRow}><span style={{ color:T.orange }}>•</span>{a}</div>
+              ))}
+            </div>
+          )}
+
+          {event.benefits?.length > 0 && (
+            <div style={card}>
+              <div style={sectionTitle}>🏅 Participant Benefits</div>
+              {event.benefits.map((b,i)=>(
+                <div key={i} style={checkRow}><span style={{ color:T.success }}>✓</span>{b}</div>
+              ))}
+            </div>
+          )}
+
+          {event.what_to_bring?.length > 0 && (
+            <div style={card}>
+              <div style={sectionTitle}>🎒 What to Bring</div>
+              {event.what_to_bring.map((w,i)=>(
+                <div key={i} style={checkRow}><span style={{ color:T.info }}>▪</span>{w}</div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ ...card, textAlign:"center" }}>
+            <div style={{ fontWeight:800, fontSize:14, color:T.text, marginBottom:14 }}>Join. Connect. Collaborate. Grow.</div>
+
+            {!isRsvping && rsvpError && rsvpError.eventId === event.id && (
+              <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"9px 12px", fontSize:12, color:T.error, marginBottom:10, textAlign:"left" }}>⚠ {rsvpError.message}</div>
+            )}
+
+            {isAdmin ? (
+              <div style={{ padding:"11px 14px", background:T.orangeMd, border:`1px solid ${T.orange}33`, borderRadius:10, color:T.orange, fontWeight:700, fontSize:13 }}>👤 You're the organizer</div>
+            ) : isPast ? (
+              <div style={{ textAlign:"center", padding:"10px", background:T.bgInput, borderRadius:10, color:T.textLow, fontSize:12, fontWeight:600 }}>Event has ended</div>
+            ) : isRsvped ? (
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                <div style={{ background:T.successLo, border:`1px solid ${T.success}44`, borderRadius:10, padding:"11px", color:T.success, fontSize:13, fontWeight:700 }}>
+                  ✓ {rsvpData?.payment_status === "paid" ? "Registered & Paid" : "Registered"}
+                </div>
+                {event.zoom_link && <a href={event.zoom_link} target="_blank" rel="noreferrer" style={{ background:T.infoLo, border:`1px solid ${T.info}44`, borderRadius:10, padding:"11px", color:T.info, fontSize:13, fontWeight:700, textDecoration:"none" }}>🔗 Join Zoom Meeting</a>}
+                <button onClick={()=>onCancelRsvp(event.id)} style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.textMid, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Cancel Registration</button>
+              </div>
+            ) : isFull ? (
+              <div style={{ padding:"11px", background:T.errorLo, borderRadius:10, color:T.error, fontSize:13, fontWeight:700 }}>Event Full</div>
+            ) : isPaid ? (
+              <button onClick={()=>onPay(event)} style={{ width:"100%", background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"14px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440" }}>
+                Register Now — ₹{event.registration_fee} →
+              </button>
+            ) : (
+              <button onClick={()=>onRsvp(event.id)} disabled={isRsvping} style={{ width:"100%", background:isRsvping?"#1a1f35":"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"14px", color:isRsvping?T.textMid:"#fff", fontSize:14, fontWeight:700, cursor:isRsvping?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:isRsvping?"none":"0 4px 16px #f9731440" }}>
+                {isRsvping ? "Registering…" : "Register Now →"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Event Card ── */
-function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData, onRsvp, onCancelRsvp, onPay, onEdit, onDelete, onViewAttendees, rsvpingId, rsvpError }) {
+function EventCard({ event, isAdmin, attendeeCount, isRsvped, rsvpData, onRsvp, onCancelRsvp, onPay, onEdit, onDelete, onViewAttendees, onOpenDetail, rsvpingId, rsvpError }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const isPast = new Date(event.event_date) < new Date();
   const isFull = event.max_attendees && attendeeCount >= event.max_attendees;
@@ -420,19 +695,15 @@ function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData,
 
   return (
     <div style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:16, overflow:"hidden" }}>
-      {/* Header bar */}
       <div style={{ height:4, background: isPaid ? `linear-gradient(90deg,${T.amber},${T.orange})` : `linear-gradient(90deg,${T.success},${T.info})` }}/>
-
       <div style={{ padding:"18px" }}>
         <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10, marginBottom:12 }}>
-          <div style={{ flex:1 }}>
+          <div style={{ flex:1, cursor:"pointer" }} onClick={()=>onOpenDetail(event)}>
             <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
               <span style={{ background:isPaid?T.amberLo:T.successLo, border:`1px solid ${isPaid?T.amber:T.success}44`, color:isPaid?T.amber:T.success, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>
                 {isPaid ? `₹${event.registration_fee}` : "Free"}
               </span>
-              <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700, textTransform:"capitalize" }}>
-                {event.event_type}
-              </span>
+              <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700, textTransform:"capitalize" }}>{event.event_type}</span>
               {isPast && <span style={{ background:T.errorLo, border:`1px solid ${T.error}44`, color:T.error, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>Past</span>}
             </div>
             <div style={{ fontWeight:800, fontSize:16, color:T.text, lineHeight:1.3 }}>{event.title}</div>
@@ -445,80 +716,60 @@ function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData,
           )}
         </div>
 
-        {event.description && <p style={{ fontSize:13, color:T.textMid, lineHeight:1.6, marginBottom:14 }}>{event.description}</p>}
+        {event.description && <p onClick={()=>onOpenDetail(event)} style={{ fontSize:13, color:T.textMid, lineHeight:1.6, marginBottom:14, cursor:"pointer" }}>{event.description}</p>}
 
         <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:14 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:T.text }}>
-            <span>📅</span>{formatDate(event.event_date)} · {formatTime(event.event_date)}
-          </div>
-          {event.location && (
-            <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:T.text }}>
-              <span>📍</span>{event.location}
-            </div>
-          )}
-          <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:T.text }}>
-            <span>👥</span>{attendeeCount} registered{event.max_attendees ? ` / ${event.max_attendees}` : ""}
-          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:T.text }}><span>📅</span>{formatDate(event.event_date)} · {formatTime(event.event_date)}</div>
+          {event.location && <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:T.text }}><span>📍</span>{event.location}</div>}
+          <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:T.text }}><span>👥</span>{attendeeCount} registered{event.max_attendees ? ` / ${event.max_attendees}` : ""}</div>
         </div>
 
-        {/* Capacity bar */}
         {event.max_attendees && (
           <div style={{ height:6, background:T.bgInput, borderRadius:4, overflow:"hidden", marginBottom:14 }}>
             <div style={{ height:"100%", width:`${Math.min(100,(attendeeCount/event.max_attendees)*100)}%`, background: isFull ? T.error : "linear-gradient(90deg,#f97316,#ea6008)", borderRadius:4, transition:"width .5s" }}/>
           </div>
         )}
 
-        {/* RSVP error, shown right above the action button */}
+        <button onClick={()=>onOpenDetail(event)} style={{ width:"100%", marginBottom:10, background:"transparent", border:`1px solid ${T.border}`, borderRadius:10, padding:"9px", color:T.textMid, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+          View Full Details →
+        </button>
+
         {!isRsvping && rsvpError && rsvpError.eventId === event.id && (
-          <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"9px 12px", fontSize:12, color:T.error, marginBottom:10 }}>
-            ⚠ {rsvpError.message}
-          </div>
+          <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"9px 12px", fontSize:12, color:T.error, marginBottom:10 }}>⚠ {rsvpError.message}</div>
         )}
 
-       {/* Action button */}
-{isAdmin ? (
-  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", background:T.orangeMd, border:`1px solid ${T.orange}33`, borderRadius:10 }}>
-    <div style={{ fontSize:12, color:T.orange, fontWeight:700 }}>
-      👤 You're the organizer
-    </div>
-    <div style={{ fontSize:13, fontWeight:800, color:T.orange }}>
-      {attendeeCount} registered
-    </div>
-  </div>
-) : isPast ? (
-  <div style={{ textAlign:"center", padding:"10px", background:T.bgInput, borderRadius:10, color:T.textLow, fontSize:12, fontWeight:600 }}>Event has ended</div>
-) : isRsvped ? (
-  <div style={{ display:"flex", gap:8 }}>
-    <div style={{ flex:1, background:T.successLo, border:`1px solid ${T.success}44`, borderRadius:10, padding:"11px", color:T.success, fontSize:13, fontWeight:700, textAlign:"center" }}>
-      ✓ {rsvpData?.payment_status === "paid" ? "Registered & Paid" : "Registered"}
-    </div>
-    <button onClick={()=>onCancelRsvp(event.id)}
-      style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"11px 16px", color:T.textMid, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-      Cancel
-    </button>
-  </div>
-) : isFull ? (
-  <div style={{ textAlign:"center", padding:"11px", background:T.errorLo, borderRadius:10, color:T.error, fontSize:13, fontWeight:700 }}>Event Full</div>
-) : isPaid ? (
-  <button onClick={()=>onPay(event)}
-    style={{ width:"100%", background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"12px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440" }}>
-    💳 Pay ₹{event.registration_fee} & Register
-  </button>
-) : (
-  <button onClick={()=>onRsvp(event.id)} disabled={isRsvping}
-    style={{ width:"100%", background:isRsvping?"#1a1f35":"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"12px", color:isRsvping?T.textMid:"#fff", fontSize:14, fontWeight:700, cursor:isRsvping?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:isRsvping?"none":"0 4px 16px #f9731440" }}>
-    {isRsvping ? "Registering…" : "Register"}
-  </button>
-)}
-{isAdmin && attendeeCount > 0 && (
-  <button onClick={()=>onViewAttendees(event)}
-    style={{ width:"100%", marginTop:8, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.textMid, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-    👥 View {attendeeCount} Attendee{attendeeCount!==1?"s":""}
-  </button>
-)}
+        {isAdmin ? (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", background:T.orangeMd, border:`1px solid ${T.orange}33`, borderRadius:10 }}>
+            <div style={{ fontSize:12, color:T.orange, fontWeight:700 }}>👤 You're the organizer</div>
+            <div style={{ fontSize:13, fontWeight:800, color:T.orange }}>{attendeeCount} registered</div>
+          </div>
+        ) : isPast ? (
+          <div style={{ textAlign:"center", padding:"10px", background:T.bgInput, borderRadius:10, color:T.textLow, fontSize:12, fontWeight:600 }}>Event has ended</div>
+        ) : isRsvped ? (
+          <div style={{ display:"flex", gap:8 }}>
+            <div style={{ flex:1, background:T.successLo, border:`1px solid ${T.success}44`, borderRadius:10, padding:"11px", color:T.success, fontSize:13, fontWeight:700, textAlign:"center" }}>
+              ✓ {rsvpData?.payment_status === "paid" ? "Registered & Paid" : "Registered"}
+            </div>
+            <button onClick={()=>onCancelRsvp(event.id)} style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"11px 16px", color:T.textMid, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Cancel</button>
+          </div>
+        ) : isFull ? (
+          <div style={{ textAlign:"center", padding:"11px", background:T.errorLo, borderRadius:10, color:T.error, fontSize:13, fontWeight:700 }}>Event Full</div>
+        ) : isPaid ? (
+          <button onClick={()=>onPay(event)} style={{ width:"100%", background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"12px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440" }}>
+            💳 Pay ₹{event.registration_fee} & Register
+          </button>
+        ) : (
+          <button onClick={()=>onRsvp(event.id)} disabled={isRsvping} style={{ width:"100%", background:isRsvping?"#1a1f35":"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:10, padding:"12px", color:isRsvping?T.textMid:"#fff", fontSize:14, fontWeight:700, cursor:isRsvping?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:isRsvping?"none":"0 4px 16px #f9731440" }}>
+            {isRsvping ? "Registering…" : "Register"}
+          </button>
+        )}
+        {isAdmin && attendeeCount > 0 && (
+          <button onClick={()=>onViewAttendees(event)} style={{ width:"100%", marginTop:8, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.textMid, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+            👥 View {attendeeCount} Attendee{attendeeCount!==1?"s":""}
+          </button>
+        )}
       </div>
 
-      {/* Confirm delete */}
       {confirmDel && (
         <div onClick={()=>setConfirmDel(false)} style={{ position:"fixed", inset:0, background:"#000d", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
           <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:16, padding:"24px", maxWidth:300, width:"100%", textAlign:"center" }}>
@@ -537,7 +788,7 @@ function EventCard({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData,
 }
 
 /* ── Main EventsPage ── */
-export default function EventsPage({ session, profile}) {
+export default function EventsPage({ session, profile }) {
   const isAdmin = session.userId === ADMIN_USER_ID;
 
   const [events, setEvents]       = useState([]);
@@ -549,8 +800,9 @@ export default function EventsPage({ session, profile}) {
   const [editEvent, setEditEvent] = useState(null);
   const [payEvent, setPayEvent]   = useState(null);
   const [rsvpingId, setRsvpingId] = useState(null);
-  const [rsvpError, setRsvpError] = useState(null); // { eventId, message }
+  const [rsvpError, setRsvpError] = useState(null);
   const [attendeesEvent, setAttendeesEvent] = useState(null);
+  const [detailEvent, setDetailEvent] = useState(null);
 
   const fetchData = useCallback(async () => {
     const [{ data: evts }, { data: rsvpData }] = await Promise.all([
@@ -560,6 +812,8 @@ export default function EventsPage({ session, profile}) {
     setEvents(evts || []);
     setRsvps(rsvpData || []);
     setLoading(false);
+    // keep the open detail view's event object fresh (e.g. after RSVP/payment)
+    setDetailEvent(prev => prev ? (evts || []).find(e => e.id === prev.id) || prev : prev);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -567,7 +821,6 @@ export default function EventsPage({ session, profile}) {
   const handleRsvp = async (eventId) => {
     setRsvpError(null);
     setRsvpingId(eventId);
-    console.log("[TezConnect Events] RSVP attempt", { eventId, userId: session.userId });
 
     const { error, data } = await supabase.from("event_rsvps").insert({
       event_id: eventId, user_id: session.userId, payment_status: "free", amount_paid: 0,
@@ -587,7 +840,8 @@ export default function EventsPage({ session, profile}) {
       return;
     }
 
-    console.log("[TezConnect Events] RSVP success:", data);
+    const evt = events.find(e => e.id === eventId);
+    if (evt?.zoom_link) triggerWhatsAppInvite(eventId, session.userId); // free events with an online link too
     fetchData();
   };
 
@@ -603,6 +857,7 @@ export default function EventsPage({ session, profile}) {
 
   const handleDelete = async (id) => {
     await supabase.from("events").delete().eq("id", id);
+    if (detailEvent?.id === id) setDetailEvent(null);
     fetchData();
   };
 
@@ -619,47 +874,56 @@ export default function EventsPage({ session, profile}) {
     return true;
   });
 
+  if (detailEvent) {
+    return (
+      <>
+        <EventDetailPage
+          event={detailEvent}
+          session={session}
+          isAdmin={isAdmin}
+          attendeeCount={getAttendeeCount(detailEvent.id)}
+          isRsvped={!!getMyRsvp(detailEvent.id)}
+          rsvpData={getMyRsvp(detailEvent.id)}
+          onBack={()=>setDetailEvent(null)}
+          onEdit={setEditEvent}
+          onPay={setPayEvent}
+          onRsvp={handleRsvp}
+          onCancelRsvp={handleCancelRsvp}
+          rsvpingId={rsvpingId}
+          rsvpError={rsvpError}
+        />
+        {isAdmin && editEvent && <EventModal event={editEvent} session={session} onClose={()=>setEditEvent(null)} onSaved={fetchData}/>}
+        {payEvent && <PaymentModal event={payEvent} session={session} profile={profile} onClose={()=>setPayEvent(null)} onPaid={fetchData}/>}
+      </>
+    );
+  }
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-
-      {/* Header */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
         <div>
           <div style={{ fontSize:11, color:T.textLow, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase", marginBottom:6 }}>📅 Events</div>
-          <h2 style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-.03em" }}>
-            TezConnect <span style={{ color:T.orange }}>Events</span>
-          </h2>
-          {!isAdmin && (
-            <div style={{ fontSize:11, color:T.textLow, marginTop:4 }}>👁️ Browse and register — only admin can create events</div>
-          )}
+          <h2 style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-.03em" }}>TezConnect <span style={{ color:T.orange }}>Events</span></h2>
+          {!isAdmin && <div style={{ fontSize:11, color:T.textLow, marginTop:4 }}>👁️ Browse and register — only admin can create events</div>}
         </div>
         {isAdmin && (
-          <button onClick={()=>setShowCreate(true)}
-            style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"11px 20px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440", display:"flex", alignItems:"center", gap:7 }}>
+          <button onClick={()=>setShowCreate(true)} style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"11px 20px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440", display:"flex", alignItems:"center", gap:7 }}>
             <span style={{ fontSize:16 }}>+</span> Create Event
           </button>
         )}
       </div>
 
-      {/* Tabs */}
       <div style={{ display:"flex", gap:6, overflowX:"auto" }}>
         {[["upcoming","Upcoming"],["past","Past"],["myevents","My Events"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setTab(id)}
-            style={{ background:tab===id?T.orangeMd:"transparent", border:`1px solid ${tab===id?T.orange+"55":T.border}`, borderRadius:9, padding:"8px 16px", color:tab===id?T.orange:T.textMid, fontWeight:700, fontSize:13, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'Plus Jakarta Sans',sans-serif", transition:"all .2s" }}>
-            {label}
-          </button>
+          <button key={id} onClick={()=>setTab(id)} style={{ background:tab===id?T.orangeMd:"transparent", border:`1px solid ${tab===id?T.orange+"55":T.border}`, borderRadius:9, padding:"8px 16px", color:tab===id?T.orange:T.textMid, fontWeight:700, fontSize:13, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"'Plus Jakarta Sans',sans-serif", transition:"all .2s" }}>{label}</button>
         ))}
       </div>
 
-      {/* Search */}
       <div style={{ position:"relative" }}>
         <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", fontSize:14, color:T.textLow, pointerEvents:"none" }}>🔍</span>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search events…"
-          style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px 14px 10px 36px", color:T.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" }}
-        />
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search events…" style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px 14px 10px 36px", color:T.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" }}/>
       </div>
 
-      {/* Loading */}
       {loading && (
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"60px 0", gap:12 }}>
           <div style={{ width:24, height:24, border:"2px solid #f9731633", borderTopColor:"#f97316", borderRadius:"50%", animation:"spin .7s linear infinite" }}/>
@@ -667,30 +931,22 @@ export default function EventsPage({ session, profile}) {
         </div>
       )}
 
-      {/* Empty */}
       {!loading && filtered.length===0 && (
         <div style={{ textAlign:"center", padding:"60px 20px" }}>
           <div style={{ fontSize:64, marginBottom:16 }}>📅</div>
-          <div style={{ fontWeight:800, fontSize:20, color:T.text, marginBottom:8 }}>
-            {tab==="myevents" ? "You haven't registered for any events" : "No events found"}
-          </div>
+          <div style={{ fontWeight:800, fontSize:20, color:T.text, marginBottom:8 }}>{tab==="myevents" ? "You haven't registered for any events" : "No events found"}</div>
           {isAdmin && tab!=="myevents" && (
-            <button onClick={()=>setShowCreate(true)}
-              style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"12px 28px", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", marginTop:10 }}>
-              + Create First Event
-            </button>
+            <button onClick={()=>setShowCreate(true)} style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"12px 28px", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", marginTop:10 }}>+ Create First Event</button>
           )}
         </div>
       )}
 
-      {/* Events grid */}
       {!loading && filtered.length>0 && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))", gap:16 }}>
           {filtered.map(event => (
             <EventCard
               key={event.id}
               event={event}
-              session={session}
               isAdmin={isAdmin}
               attendeeCount={getAttendeeCount(event.id)}
               isRsvped={!!getMyRsvp(event.id)}
@@ -701,6 +957,7 @@ export default function EventsPage({ session, profile}) {
               onEdit={setEditEvent}
               onDelete={handleDelete}
               onViewAttendees={setAttendeesEvent}
+              onOpenDetail={setDetailEvent}
               rsvpingId={rsvpingId}
               rsvpError={rsvpError}
             />
@@ -708,12 +965,10 @@ export default function EventsPage({ session, profile}) {
         </div>
       )}
 
-      {/* Modals */}
       {isAdmin && showCreate && <EventModal session={session} onClose={()=>setShowCreate(false)} onSaved={fetchData}/>}
       {isAdmin && editEvent && <EventModal event={editEvent} session={session} onClose={()=>setEditEvent(null)} onSaved={fetchData}/>}
       {payEvent && <PaymentModal event={payEvent} session={session} profile={profile} onClose={()=>setPayEvent(null)} onPaid={fetchData}/>}
       {isAdmin && attendeesEvent && <AttendeesModal event={attendeesEvent} session={session} onClose={()=>setAttendeesEvent(null)}/>}
-
     </div>
   );
 }
