@@ -181,7 +181,7 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
 }
 
 /* ── Admin Member Row — replaces Connect with moderation actions ── */
-function AdminMemberRow({ member, onViewProfile, adminActions }) {
+function AdminMemberRow({ member, onViewProfile, adminActions, isMe }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const initials = (member.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -224,6 +224,7 @@ function AdminMemberRow({ member, onViewProfile, adminActions }) {
       <div onClick={() => onViewProfile(member.id)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <span style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{member.name || "—"}</span>
+          {isMe && <span style={{ fontSize: 9, color: "#0b0d17", background: "linear-gradient(135deg,#fbbf24,#f59e0b)", borderRadius: 20, padding: "1px 7px", fontWeight: 800 }}>👑 OWNER</span>}
           {member.is_premium && <PrimeBadge />}
           {isVerified && <span style={{ fontSize: 9, color: T.info, background: T.info + "18", border: `1px solid ${T.info}44`, borderRadius: 20, padding: "1px 6px", fontWeight: 800 }}>🛡️ VERIFIED</span>}
           {isPending && <span style={{ fontSize: 9, color: T.amber, background: "#fbbf2418", border: "1px solid #fbbf2444", borderRadius: 20, padding: "1px 6px", fontWeight: 800 }}>⏳ PENDING</span>}
@@ -238,33 +239,38 @@ function AdminMemberRow({ member, onViewProfile, adminActions }) {
         </div>
       </div>
 
-      {/* Admin actions menu */}
-      <div style={{ flexShrink: 0, position: "relative" }}>
-        <button onClick={() => setMenuOpen(o => !o)} disabled={busy}
-          style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", color: T.text, fontSize: 12, fontWeight: 700, cursor: busy ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-          🛡️ Manage <span style={{ fontSize: 10 }}>▾</span>
-        </button>
+      {/* Admin actions menu — the admin's own row has nothing to manage;
+          it just shows the Owner badge above and a plain "You" tag here. */}
+      {isMe ? (
+        <span style={{ flexShrink: 0, fontSize: 11, color: T.amber, fontWeight: 700, background: "#fbbf2412", border: "1px solid #fbbf2444", borderRadius: 8, padding: "8px 14px" }}>You</span>
+      ) : (
+        <div style={{ flexShrink: 0, position: "relative" }}>
+          <button onClick={() => setMenuOpen(o => !o)} disabled={busy}
+            style={{ background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", color: T.text, fontSize: 12, fontWeight: 700, cursor: busy ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            🛡️ Manage <span style={{ fontSize: 10 }}>▾</span>
+          </button>
 
-        {menuOpen && (
-          <>
-            <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
-            <div style={{ position: "absolute", top: 42, right: 0, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 12, zIndex: 11, minWidth: 210, boxShadow: "0 12px 32px #000000aa", overflow: "hidden" }}>
-              <AdminMenuItem icon="👁️" label="View Profile" onClick={() => { setMenuOpen(false); onViewProfile(member.id); }} />
-              <AdminMenuItem icon="🛡️" label={isVerified ? "Unverify Member" : "Verify Member"} onClick={() => run(adminActions.toggleVerify)} />
-              <AdminMenuItem icon="✅" label="Approve" onClick={() => run(adminActions.approveMember)} disabled={member.is_approved === true} />
-              <AdminMenuItem icon="❌" label="Reject" onClick={() => run(adminActions.rejectMember)} disabled={member.is_approved === false} />
-              <AdminMenuItem icon="📝" label="Edit Profile" onClick={() => { setMenuOpen(false); adminActions.editProfile(member); }} />
-              <AdminMenuItem icon="📊" label="View Activity" onClick={() => { setMenuOpen(false); adminActions.viewActivity(member); }} />
-              <AdminMenuItem icon="💬" label="Send Admin Message" onClick={() => { setMenuOpen(false); adminActions.sendAdminMessage(member); }} />
-              <div style={{ height: 1, background: T.border, margin: "4px 0" }} />
-              <AdminMenuItem icon="⚠️" label="Warn User" onClick={() => run(adminActions.warnUser)} tone={T.amber} />
-              <AdminMenuItem icon="🔇" label={isMuted ? "Unmute" : "Mute"} onClick={() => run(adminActions.toggleMute)} tone={T.textMid} />
-              <AdminMenuItem icon="🚫" label={isSuspended ? "Unsuspend" : "Suspend"} onClick={() => run(adminActions.toggleSuspend)} tone={T.error} />
-              <AdminMenuItem icon="🗑️" label="Delete Account" onClick={() => run(adminActions.deleteAccount)} tone={T.error} />
-            </div>
-          </>
-        )}
-      </div>
+          {menuOpen && (
+            <>
+              <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
+              <div style={{ position: "absolute", top: 42, right: 0, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 12, zIndex: 11, minWidth: 210, boxShadow: "0 12px 32px #000000aa", overflow: "hidden" }}>
+                <AdminMenuItem icon="👁️" label="View Profile" onClick={() => { setMenuOpen(false); onViewProfile(member.id); }} />
+                <AdminMenuItem icon="🛡️" label={isVerified ? "Unverify Member" : "Verify Member"} onClick={() => run(adminActions.toggleVerify)} />
+                <AdminMenuItem icon="✅" label="Approve" onClick={() => run(adminActions.approveMember)} disabled={member.is_approved === true} />
+                <AdminMenuItem icon="❌" label="Reject" onClick={() => run(adminActions.rejectMember)} disabled={member.is_approved === false} />
+                <AdminMenuItem icon="📝" label="Edit Profile" onClick={() => { setMenuOpen(false); adminActions.editProfile(member); }} />
+                <AdminMenuItem icon="📊" label="View Activity" onClick={() => { setMenuOpen(false); adminActions.viewActivity(member); }} />
+                <AdminMenuItem icon="💬" label="Send Admin Message" onClick={() => { setMenuOpen(false); adminActions.sendAdminMessage(member); }} />
+                <div style={{ height: 1, background: T.border, margin: "4px 0" }} />
+                <AdminMenuItem icon="⚠️" label="Warn User" onClick={() => run(adminActions.warnUser)} tone={T.amber} />
+                <AdminMenuItem icon="🔇" label={isMuted ? "Unmute" : "Mute"} onClick={() => run(adminActions.toggleMute)} tone={T.textMid} />
+                <AdminMenuItem icon="🚫" label={isSuspended ? "Unsuspend" : "Suspend"} onClick={() => run(adminActions.toggleSuspend)} tone={T.error} />
+                <AdminMenuItem icon="🗑️" label="Delete Account" onClick={() => run(adminActions.deleteAccount)} tone={T.error} />
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -492,6 +498,11 @@ export default function NetworkPage({ session, onMessage }) {
       return matchSearch && matchIndustry && matchCategory;
     })
     .sort((a, b) => {
+      // Admin's own profile always sits first — they own the platform, not
+      // one more entry to browse or connect with.
+      const aMe = a.id === session.userId ? 1 : 0;
+      const bMe = b.id === session.userId ? 1 : 0;
+      if (isAdmin && aMe !== bMe) return bMe - aMe;
       // Priority search: Prime members surface first, always
       const aPrime = a.is_premium ? 1 : 0;
       const bPrime = b.is_premium ? 1 : 0;
@@ -757,6 +768,7 @@ export default function NetworkPage({ session, onMessage }) {
                     member={member}
                     onViewProfile={setViewingUser}
                     adminActions={adminActions}
+                    isMe={member.id === session.userId}
                   />
                 ) : (
                   <MemberRow
