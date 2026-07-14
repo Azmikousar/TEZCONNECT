@@ -249,125 +249,139 @@ function AppDetailModal({ app, session, owned, onClose, onPurchased, isAdmin, on
 
   const discount = app.compare_price && app.compare_price > app.price
     ? Math.round(((app.compare_price - app.price) / app.compare_price) * 100) : 0;
+  const savings = app.compare_price && app.compare_price > app.price ? (app.compare_price - app.price) : 0;
 
   const showFooter = !owned && !isAdmin && step !== "success";
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000e", zIndex: 99999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000c", zIndex: 99999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
       {/*
         Modal shell: fixed height, column flex.
         Header (flexShrink:0) -> Scrollable body (flex:1, min-height:0) -> Footer (flexShrink:0).
-        The footer is a normal flex item now, NOT position:fixed, so it can never float over
-        content, never gets hidden behind a bottom nav bar, and always stays visible directly
-        under the scroll area — no magic "bottom: 70px" offsets needed.
+        Footer is a normal flex item, never position:fixed, so it can't float over content or
+        hide behind a bottom nav bar — it always sits directly under the scroll area.
       */}
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,640px)", maxHeight: "calc(100vh - env(safe-area-inset-top) - 16px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden", border: `1px solid ${T.border}` }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bg, borderRadius: "18px 18px 0 0", width: "100%", maxWidth: 520, height: "min(92vh,680px)", maxHeight: "calc(100vh - env(safe-area-inset-top) - 12px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden", border: `1px solid ${T.border}` }}>
 
-        {/* Drag handle + header row — flexShrink:0 keeps it pinned at top */}
-        <div style={{ flexShrink: 0 }}>
-          <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0" }} />
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 16px 0" }}>
-            <div style={{ width: 32 }} />
-            {isAdmin && (
-              <button onClick={() => { onClose(); onEdit(app); }} style={{ background: T.orangeMd, border: `1px solid ${T.orange}44`, borderRadius: 8, padding: "5px 12px", color: T.orange, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✏️ Edit</button>
-            )}
-            <button onClick={onClose} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer" }}>×</button>
-          </div>
-        </div>
-
-        {/* Scrollable body — flex:1 + minHeight:0 is what makes this scroll smoothly
-            inside a fixed-height flex column instead of pushing the footer off-screen */}
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "10px 20px", minHeight: 0 }}>
-          <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
-            <div style={{ width: 80, height: 80, borderRadius: 20, background: T.bgInput, overflow: "hidden", flexShrink: 0, border: `1px solid ${T.border}`, boxShadow: "0 4px 16px #00000044" }}>
-              {app.icon_url ? <img src={app.icon_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>📱</div>}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 20, color: T.text, lineHeight: 1.3 }}>{app.title}</div>
-              <div style={{ fontSize: 11, color: T.orange, textTransform: "uppercase", fontWeight: 700, marginTop: 3 }}>{app.category}</div>
-              {(app.version || app.size_info) && (
-                <div style={{ fontSize: 11, color: T.textLow, marginTop: 4 }}>
-                  {[app.version && `v${app.version}`, app.size_info].filter(Boolean).join(" · ")}
-                </div>
-              )}
-              <div style={{ fontSize: 11, color: T.textLow, marginTop: 2 }}>
-                📥 {app.download_count || 0} downloads
-              </div>
-            </div>
-          </div>
-
-          {error && (
-            <div style={{ background: T.errorLo, border: `1px solid ${T.error}44`, borderRadius: 10, padding: "12px 14px", fontSize: 12, color: T.error, marginBottom: 16, lineHeight: 1.5 }}>⚠ {error}</div>
-          )}
-
-          {owned ? (
-            <div style={{ background: "linear-gradient(135deg,#052e16,#0f1120)", border: `1px solid ${T.success}44`, borderRadius: 16, padding: "20px", marginBottom: 20, textAlign: "center" }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
-              <div style={{ fontWeight: 700, fontSize: 16, color: T.success, marginBottom: 4 }}>You own this app!</div>
-              <div style={{ fontSize: 12, color: T.textMid, marginBottom: 16 }}>Tap below to access your download link</div>
-              <a href={app.drive_link} target="_blank" rel="noopener noreferrer"
-                style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 10, padding: "12px 28px", color: "#fff", fontSize: 14, fontWeight: 700, textDecoration: "none", boxShadow: "0 4px 16px #22c55e44" }}>
-                📥 Open Download Link
-              </a>
-            </div>
+        {/* Slim sticky top bar — icon-only controls, no floating pills over content */}
+        <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: `1px solid ${T.border}`, background: T.bg }}>
+          <button onClick={onClose} aria-label="Close" style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "50%", width: 34, height: 34, color: T.text, fontSize: 17, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+          <div style={{ width: 34, height: 4, background: T.border, borderRadius: 4 }} />
+          {isAdmin ? (
+            <button onClick={() => { onClose(); onEdit(app); }} aria-label="Edit" style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "50%", width: 34, height: 34, color: T.orange, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>
           ) : (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", background: "linear-gradient(135deg,#1a0a00,#0f1120)", border: `1px solid ${T.orange}44`, borderRadius: 16, marginBottom: 20 }}>
-              <div>
-                <div style={{ fontSize: 11, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Price</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontWeight: 800, fontSize: 28, color: T.orange }}>₹{app.price}</span>
-                  {app.compare_price && <span style={{ fontSize: 14, color: T.textLow, textDecoration: "line-through" }}>₹{app.compare_price}</span>}
-                </div>
-              </div>
-              {discount > 0 && (
-                <div style={{ background: T.error, color: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 800, textAlign: "center" }}>
-                  -{discount}%<br /><span style={{ fontSize: 9, fontWeight: 600 }}>OFF</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {app.description && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 8 }}>About this App</div>
-              <p style={{ fontSize: 13, color: T.textMid, lineHeight: 1.8 }}>{app.description}</p>
-            </div>
-          )}
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-            {[
-              { icon: "🔒", title: "Safe & Secure", sub: "Verified by TezConnect" },
-              { icon: "⚡", title: "Instant Access", sub: "Download immediately" },
-              { icon: "♾️", title: "Lifetime Access", sub: "Buy once, use forever" },
-              { icon: "🎧", title: "Support", sub: "We're here to help" },
-            ].map(item => (
-              <div key={item.title} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center" }}>
-                <span style={{ fontSize: 18, flexShrink: 0 }}>{item.icon}</span>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{item.title}</div>
-                  <div style={{ fontSize: 10, color: T.textLow, marginTop: 1 }}>{item.sub}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {step === "success" && (
-            <div style={{ textAlign: "center", padding: "16px 0", marginBottom: 16 }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>🎉</div>
-              <div style={{ fontWeight: 700, color: T.success, fontSize: 14 }}>Purchase successful! Unlocking…</div>
-            </div>
+            <div style={{ width: 34 }} />
           )}
         </div>
 
-        {/* Footer — normal flex item, flexShrink:0. Always visible right under the
-            scroll area, never overlapping text, never hidden behind a bottom tab bar. */}
+        {/* Scrollable body — flex:1 + minHeight:0 makes this scroll smoothly inside a
+            fixed-height flex column; scrollBehavior/overscroll keeps it feeling native */}
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", scrollBehavior: "smooth", minHeight: 0 }}>
+
+          {/* Banner — full-width, category-tinted, like a store product header */}
+          <div style={{ position: "relative", padding: "28px 20px 20px", background: `linear-gradient(160deg, ${T.orange}14, ${T.bg} 70%)`, borderBottom: `1px solid ${T.border}` }}>
+            {discount > 0 && (
+              <div style={{ position: "absolute", top: 16, right: 20, background: T.error, color: "#fff", borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 800, letterSpacing: ".02em" }}>-{discount}% OFF</div>
+            )}
+            {owned && (
+              <div style={{ position: "absolute", top: 16, right: 20, background: T.successLo, border: `1px solid ${T.success}55`, borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 800, color: T.success }}>✓ OWNED</div>
+            )}
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+              <div style={{ width: 76, height: 76, borderRadius: 18, background: T.bgInput, overflow: "hidden", flexShrink: 0, border: `1px solid ${T.border}`, boxShadow: "0 6px 20px #00000055" }}>
+                {app.icon_url ? <img src={app.icon_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30 }}>📱</div>}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 19, color: T.text, lineHeight: 1.25 }}>{app.title}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: T.orange, background: T.orangeMd, border: `1px solid ${T.orange}33`, borderRadius: 6, padding: "3px 8px", textTransform: "uppercase", letterSpacing: ".04em" }}>{app.category}</span>
+                  {app.version && <span style={{ fontSize: 10, fontWeight: 600, color: T.textMid, background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 8px" }}>v{app.version}</span>}
+                  {app.size_info && <span style={{ fontSize: 10, fontWeight: 600, color: T.textMid, background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 8px" }}>{app.size_info}</span>}
+                </div>
+                <div style={{ fontSize: 11, color: T.textLow, marginTop: 8 }}>📥 {app.download_count || 0} downloads</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ padding: "18px 20px 0" }}>
+            {error && (
+              <div style={{ background: T.errorLo, border: `1px solid ${T.error}44`, borderRadius: 10, padding: "12px 14px", fontSize: 12, color: T.error, marginBottom: 16, lineHeight: 1.5 }}>⚠ {error}</div>
+            )}
+
+            {owned ? (
+              <div style={{ background: "linear-gradient(135deg,#052e16,#0f1120)", border: `1px solid ${T.success}44`, borderRadius: 16, padding: "22px 18px", marginBottom: 22, textAlign: "center" }}>
+                <div style={{ fontSize: 38, marginBottom: 8 }}>🎉</div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: T.success, marginBottom: 4 }}>You own this app!</div>
+                <div style={{ fontSize: 12, color: T.textMid, marginBottom: 16 }}>Tap below to access your download link</div>
+                <a href={app.drive_link} target="_blank" rel="noopener noreferrer"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 10, padding: "12px 28px", color: "#fff", fontSize: 14, fontWeight: 700, textDecoration: "none", boxShadow: "0 4px 16px #22c55e44" }}>
+                  📥 Open Download Link
+                </a>
+              </div>
+            ) : (
+              /* Buy-box, Amazon-style: label / big price / MRP strike / savings line */
+              <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px 18px", marginBottom: 22 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>One-time price</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 800, fontSize: 30, color: T.text }}>₹{app.price}</span>
+                  {app.compare_price && <span style={{ fontSize: 14, color: T.textLow, textDecoration: "line-through" }}>₹{app.compare_price}</span>}
+                  {discount > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: T.error }}>-{discount}%</span>}
+                </div>
+                {savings > 0 && (
+                  <div style={{ fontSize: 11, color: T.success, fontWeight: 600, marginTop: 6 }}>You save ₹{savings} on this deal</div>
+                )}
+              </div>
+            )}
+
+            {app.description && (
+              <div style={{ marginBottom: 22 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.textLow, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 8 }}>About this App</div>
+                <p style={{ fontSize: 13, color: T.textMid, lineHeight: 1.8 }}>{app.description}</p>
+              </div>
+            )}
+
+            {/* Trust strip — compact horizontal row with dividers, like a store's
+                "secure transaction / easy returns" strip, instead of a bulky 2x2 card grid */}
+            <div style={{ display: "flex", alignItems: "stretch", marginBottom: 22, background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
+              {[
+                { icon: "🔒", label: "Safe & Secure" },
+                { icon: "⚡", label: "Instant Access" },
+                { icon: "♾️", label: "Lifetime" },
+                { icon: "🎧", label: "Support" },
+              ].map((item, i) => (
+                <div key={item.label} style={{ flex: 1, padding: "12px 6px", textAlign: "center", borderLeft: i > 0 ? `1px solid ${T.border}` : "none" }}>
+                  <div style={{ fontSize: 16 }}>{item.icon}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 700, color: T.textMid, marginTop: 4, lineHeight: 1.3 }}>{item.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {step === "success" && (
+              <div style={{ textAlign: "center", padding: "16px 0", marginBottom: 16 }}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>🎉</div>
+                <div style={{ fontWeight: 700, color: T.success, fontSize: 14 }}>Purchase successful! Unlocking…</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer — normal flex item, flexShrink:0, split price+button like a checkout
+            bar (Flipkart/Meesho pattern), always visible right under the scroll area */}
         {showFooter && (
-          <div style={{ padding: "14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, flexShrink: 0, background: T.bgCard }}>
-            <button onClick={handlePay} disabled={step === "processing"}
-              style={{ width: "100%", background: step === "processing" ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "15px", color: step === "processing" ? T.textMid : "#fff", fontSize: 15, fontWeight: 700, cursor: step === "processing" ? "wait" : "pointer", boxShadow: step === "processing" ? "none" : "0 4px 20px #f9731440" }}>
-              {step === "processing" ? "⏳ Opening Payment…" : `🛒 Buy Now — ₹${app.price}`}
-            </button>
-            <div style={{ textAlign: "center", marginTop: 8, fontSize: 10, color: T.textLow }}>
+          <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border}`, background: T.bgCard, padding: "12px 16px calc(12px + env(safe-area-inset-bottom))" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ flexShrink: 0 }}>
+                <div style={{ fontSize: 9, color: T.textLow, textTransform: "uppercase", letterSpacing: ".06em" }}>Total</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                  <span style={{ fontWeight: 800, fontSize: 18, color: T.text }}>₹{app.price}</span>
+                  {app.compare_price && <span style={{ fontSize: 11, color: T.textLow, textDecoration: "line-through" }}>₹{app.compare_price}</span>}
+                </div>
+              </div>
+              <button onClick={handlePay} disabled={step === "processing"}
+                style={{ flex: 1, background: step === "processing" ? "#1a1f35" : "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 12, padding: "14px", color: step === "processing" ? T.textMid : "#fff", fontSize: 14, fontWeight: 700, cursor: step === "processing" ? "wait" : "pointer", boxShadow: step === "processing" ? "none" : "0 4px 20px #f9731440" }}>
+                {step === "processing" ? "⏳ Opening Payment…" : "🛒 Buy Now"}
+              </button>
+            </div>
+            <div style={{ textAlign: "center", marginTop: 8, fontSize: 9.5, color: T.textLow }}>
               🔒 Secured by Razorpay · UPI · Cards · Net Banking · Wallets
             </div>
           </div>
