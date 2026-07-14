@@ -9,6 +9,14 @@ const T = {
   error: "#f87171", errorLo: "#f8717112",
 };
 
+// The host app (outside this component) renders its own fixed bottom nav bar
+// (Home / Network / Messages / Profile / More) on top of this page's webview.
+// Every full-screen modal below must leave room for it, or their last bit of
+// content and their action button end up hidden behind it. If the host nav
+// bar's height ever changes, update this one number — every modal reads from
+// it, so there's nothing else to hunt down.
+const HOST_NAV_HEIGHT = 90;
+
 const CATEGORIES = [
   { id: "All", icon: "⊞", label: "All Categories" },
   { id: "Digital Product", icon: "💾", label: "Digital Product" },
@@ -71,8 +79,8 @@ function BuyModal({ product, session, onClose, onPaid }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000d", zIndex: 800, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, animation: "slideUp .3s ease", overflow: "hidden" }}>
+    <div onClick={onClose} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: HOST_NAV_HEIGHT, background: "#000d", zIndex: 800, display: "flex", alignItems: "flex-end", justifyContent: "center", overflowY: "auto" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", touchAction: "pan-y", animation: "slideUp .3s ease" }}>
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0" }} />
         <div style={{ padding: "16px 20px 32px" }}>
           {step === "success" ? (
@@ -122,14 +130,14 @@ function ProductDetailModal({ product, session, onClose, onBuy }) {
   const sellerInitials = (seller.name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "#000e", zIndex: 700, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,680px)", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
+    <div onClick={onClose} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: HOST_NAV_HEIGHT, background: "#000e", zIndex: 700, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, height: "min(90vh,680px)", maxHeight: "100%", display: "flex", flexDirection: "column", animation: "slideUp .3s ease", overflow: "hidden" }}>
         <div style={{ width: 40, height: 4, background: T.border, borderRadius: 4, margin: "12px auto 0", flexShrink: 0 }} />
         <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 16px 0", flexShrink: 0 }}>
           <button onClick={onClose} style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: "50%", width: 32, height: 32, color: T.textMid, fontSize: 16, cursor: "pointer" }}>×</button>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", touchAction: "pan-y", minHeight: 0 }}>
           {/* Image */}
           {product.image_url && (
             <div style={{ width: "100%", height: 240, overflow: "hidden", position: "relative" }}>
