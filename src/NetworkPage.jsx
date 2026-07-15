@@ -30,11 +30,10 @@ function PrimeBadge() {
 }
 
 /* ── Member Row Card (normal, non-admin members) ── */
-function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
+function MemberRow({ member, currentUserId, connectionProps, onViewProfile, isOnline }) {
   const isMe = member.id === currentUserId;
   const { status, connection, isSender } = connectionProps.getStatus(member.id);
   const [loading, setLoading] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const initials = (member.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
   const handle = async (action) => {
@@ -125,7 +124,7 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
         </div>
         {/* Online dot — reflects the real is_online value now, not a hardcoded
             "always green" placeholder. Only lights up green when actually online. */}
-        {member.is_online && (
+        {isOnline && (
           <div style={{ position: "absolute", bottom: 1, right: 1, width: 12, height: 12, borderRadius: "50%", background: T.success, border: `2px solid ${T.bgCard}`, boxShadow: `0 0 6px ${T.success}` }} />
         )}
       </div>
@@ -158,35 +157,13 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
       {/* Action button */}
       <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
         {renderButton()}
-        {!isMe && (
-          <div style={{ position: "relative" }}>
-            <button onClick={() => setMenuOpen(o => !o)} style={{ background: "none", border: "none", color: T.textLow, fontSize: 18, cursor: "pointer", padding: "4px 6px", lineHeight: 1 }}>⋯</button>
-            {menuOpen && (
-              <>
-                <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
-                <div style={{ position: "absolute", top: 28, right: 0, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, zIndex: 11, minWidth: 160, boxShadow: "0 8px 24px #00000066", overflow: "hidden" }}>
-                  <button onClick={() => { setMenuOpen(false); onViewProfile(member.id); }}
-                    style={{ width: "100%", textAlign: "left", padding: "10px 14px", background: "none", border: "none", color: T.text, fontSize: 13, fontWeight: 600, cursor: "pointer", borderBottom: `1px solid ${T.border}` }}>
-                    👤 View Profile
-                  </button>
-                  {member.whatsapp && (
-                    <a href={`https://wa.me/${member.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}
-                      style={{ display: "block", padding: "10px 14px", color: "#25d366", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
-                      💬 WhatsApp
-                    </a>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
 /* ── Admin Member Row — replaces Connect with moderation actions ── */
-function AdminMemberRow({ member, onViewProfile, adminActions, isMe }) {
+function AdminMemberRow({ member, onViewProfile, adminActions, isMe, isOnline }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const initials = (member.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -226,7 +203,7 @@ function AdminMemberRow({ member, onViewProfile, adminActions, isMe }) {
           // Green = is_online true. Gray = offline/unknown (this column only
           // reflects reality once something in your app actually updates it —
           // see the presence note in the SQL migration).
-          <div style={{ position: "absolute", bottom: 1, right: 1, width: 12, height: 12, borderRadius: "50%", background: member.is_online ? T.success : T.textLow, border: `2px solid ${T.bgCard}`, boxShadow: member.is_online ? `0 0 6px ${T.success}` : "none" }} />
+          <div style={{ position: "absolute", bottom: 1, right: 1, width: 12, height: 12, borderRadius: "50%", background: isOnline ? T.success : T.textLow, border: `2px solid ${T.bgCard}`, boxShadow: isOnline ? `0 0 6px ${T.success}` : "none" }} />
         )}
       </div>
 
@@ -372,6 +349,7 @@ function AdminActivityModal({ member, onClose }) {
     ["Suspended", member.is_suspended ? "Yes" : "No"],
     ["Muted", member.is_muted ? "Yes" : "No"],
     ["Warnings", member.warning_count || 0],
+    ["Last Warning Reason", member.last_warning_reason || "—"],
     ["Reports", member.reports_count || 0],
   ];
 
@@ -480,6 +458,8 @@ export default function NetworkPage({ session, onMessage }) {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [activityMember, setActivityMember] = useState(null);
+  const [onlineIds, setOnlineIds]     = useState(() => new Set());
+  const [showWarningDetail, setShowWarningDetail] = useState(false);
 
   const isAdmin = session?.userId === ADMIN_USER_ID;
 
@@ -495,6 +475,32 @@ export default function NetworkPage({ session, onMessage }) {
   };
 
   useEffect(() => { fetchMembers(); }, []);
+
+  /* Real-time "who's online" — every user of this page joins the same
+     Supabase Realtime Presence channel and tracks themselves on it. Anyone
+     viewing the page (including admin) sees the live set of user IDs
+     currently present. This replaces the old `is_online` column, which only
+     changes if something explicitly writes to it — presence updates itself
+     the moment someone opens or closes the app, no extra backend needed. */
+  useEffect(() => {
+    if (!session?.userId) return;
+    const channel = supabase.channel("network-presence", {
+      config: { presence: { key: session.userId } },
+    });
+
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        setOnlineIds(new Set(Object.keys(state)));
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({ online_at: new Date().toISOString() });
+        }
+      });
+
+    return () => { supabase.removeChannel(channel); };
+  }, [session?.userId]);
 
   const industries = [...new Set(members.map(m => m.industry).filter(Boolean))];
   const categories = [...new Set(members.map(m => m.category).filter(Boolean))];
@@ -591,9 +597,10 @@ export default function NetworkPage({ session, onMessage }) {
     },
     toggleMute: (member) => updateProfileField(member, { is_muted: !member.is_muted }),
     warnUser: async (member) => {
-      const reason = window.prompt(`Warning reason for ${member.name || "this member"} (optional):`, "");
+      const reason = window.prompt(`Warning reason for ${member.name || "this member"}:`, "");
       if (reason === null) return; // cancelled
-      await updateProfileField(member, { warning_count: (member.warning_count || 0) + 1 });
+      if (!reason.trim()) { alert("A reason is required so the member knows what to fix."); return; }
+      await updateProfileField(member, { warning_count: (member.warning_count || 0) + 1, last_warning_reason: reason.trim() });
     },
     deleteAccount: async (member) => {
       if (!window.confirm(`Permanently delete ${member.name || "this member"}'s account? This cannot be undone.`)) return;
@@ -616,7 +623,7 @@ export default function NetworkPage({ session, onMessage }) {
   // Admin stat helpers — these read optional columns that default safely to
   // 0/false if the column doesn't exist on a given row.
   const newTodayCount = members.filter(m => m.created_at && (Date.now() - new Date(m.created_at)) < 24 * 60 * 60 * 1000).length;
-  const onlineCount = members.filter(m => m.is_online).length; // needs an is_online column/presence system to be meaningful
+  const onlineCount = members.filter(m => onlineIds.has(m.id)).length; // live count from Realtime Presence, not a stored column
   const pendingVerificationCount = members.filter(m => !m.is_verified).length;
   const reportsCount = members.reduce((sum, m) => sum + (m.reports_count || 0), 0);
   const blockedCount = members.filter(m => m.is_suspended).length;
@@ -730,14 +737,30 @@ export default function NetworkPage({ session, onMessage }) {
         </div>
       )}
       {!isAdmin && myProfile?.warning_count > 0 && (
-        <div style={{ background: "#fbbf2412", border: "1px solid #fbbf2444", borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 24, flexShrink: 0 }}>⚠️</span>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 13, color: T.amber }}>
-              You have {myProfile.warning_count} warning{myProfile.warning_count !== 1 ? "s" : ""} from an admin
+        <div
+          onClick={() => setShowWarningDetail(s => !s)}
+          style={{ background: "#fbbf2412", border: "1px solid #fbbf2444", borderRadius: 14, padding: "14px 16px", cursor: "pointer" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 24, flexShrink: 0 }}>⚠️</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: T.amber }}>
+                You have {myProfile.warning_count} warning{myProfile.warning_count !== 1 ? "s" : ""} from an admin
+              </div>
+              <div style={{ fontSize: 11, color: T.textMid, marginTop: 2 }}>
+                {showWarningDetail ? "Tap to hide details" : "Tap to see why"}
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: T.textMid, marginTop: 2 }}>Please review the community guidelines to avoid further action.</div>
+            <span style={{ fontSize: 12, color: T.amber, flexShrink: 0, transform: showWarningDetail ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
           </div>
+          {showWarningDetail && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #fbbf2433" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.textLow, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Most recent warning</div>
+              <div style={{ fontSize: 13, color: T.text, lineHeight: 1.6 }}>
+                {myProfile.last_warning_reason || "No reason was recorded for this warning."}
+              </div>
+              <div style={{ fontSize: 11, color: T.textMid, marginTop: 10 }}>Please review the community guidelines to avoid further action.</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -838,6 +861,7 @@ export default function NetworkPage({ session, onMessage }) {
                     onViewProfile={setViewingUser}
                     adminActions={adminActions}
                     isMe={member.id === session.userId}
+                    isOnline={onlineIds.has(member.id)}
                   />
                 ) : (
                   <MemberRow
@@ -846,6 +870,7 @@ export default function NetworkPage({ session, onMessage }) {
                     currentUserId={session.userId}
                     connectionProps={connectionProps}
                     onViewProfile={setViewingUser}
+                    isOnline={onlineIds.has(member.id)}
                   />
                 )
               )}
