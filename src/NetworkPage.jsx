@@ -123,8 +123,11 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
         <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800, color: "#fff", overflow: "hidden", border: `2px solid ${status === "accepted" ? T.success + "66" : member.is_premium ? T.amber + "66" : "transparent"}` }}>
           {member.photo ? <img src={member.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
         </div>
-        {/* Online dot */}
-        <div style={{ position: "absolute", bottom: 1, right: 1, width: 12, height: 12, borderRadius: "50%", background: T.success, border: `2px solid ${T.bgCard}`, boxShadow: `0 0 6px ${T.success}` }} />
+        {/* Online dot — reflects the real is_online value now, not a hardcoded
+            "always green" placeholder. Only lights up green when actually online. */}
+        {member.is_online && (
+          <div style={{ position: "absolute", bottom: 1, right: 1, width: 12, height: 12, borderRadius: "50%", background: T.success, border: `2px solid ${T.bgCard}`, boxShadow: `0 0 6px ${T.success}` }} />
+        )}
       </div>
 
       {/* Info */}
@@ -132,10 +135,12 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile }) {
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <span style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{member.name || "—"}</span>
           {member.is_premium && <PrimeBadge />}
+          {member.is_verified && <span style={{ fontSize: 9, color: T.info, background: T.info + "18", border: `1px solid ${T.info}44`, borderRadius: 20, padding: "1px 6px", fontWeight: 800 }}>🛡️ Verified</span>}
           {isMe && <span style={{ fontSize: 9, color: T.orange, background: T.orangeLo, border: `1px solid ${T.orange}33`, borderRadius: 20, padding: "1px 6px", fontWeight: 700 }}>You</span>}
           {isNew && !isMe && <span style={{ fontSize: 9, color: T.purple, background: T.purpleLo, border: `1px solid ${T.purple}33`, borderRadius: 20, padding: "1px 6px", fontWeight: 700 }}>New</span>}
         </div>
         <div style={{ fontSize: 12, color: T.textMid, marginTop: 2 }}>{member.designation || member.company || "TezConnect Member"}</div>
+
         {member.location && (
           <div style={{ fontSize: 11, color: T.textLow, marginTop: 3, display: "flex", alignItems: "center", gap: 3 }}>
             <span>📍</span>{member.location}
@@ -519,6 +524,12 @@ export default function NetworkPage({ session, onMessage }) {
 
   const totalConnected = accepted.length;
 
+  // The logged-in user's own row, used to show them their own moderation
+  // status (warnings/suspension/mute) — set by an admin action elsewhere on
+  // this page — since scrolling to find yourself in the list isn't a real
+  // notification.
+  const myProfile = members.find(m => m.id === session.userId);
+
   const connectionProps = {
     getStatus, sendRequest, acceptRequest, rejectRequest, removeConnection,
     onLimitReached: () => setShowUpgrade(true),
@@ -694,7 +705,43 @@ export default function NetworkPage({ session, onMessage }) {
         </div>
       </div>
 
-      {/* ── Requests Tab (non-admin only) ── */}
+      {/* ── Personal moderation status banner (non-admin) ──
+          Surfaces admin actions taken on YOUR account directly, instead of
+          you having to scroll and find your own row to notice anything
+          changed. Suspended/muted show as urgent; a fresh warning shows
+          until dismissed for this session; verified shows as a quiet
+          confirmation. */}
+      {!isAdmin && myProfile?.is_suspended && (
+        <div style={{ background: T.errorLo, border: `1px solid ${T.error}55`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 24, flexShrink: 0 }}>🚫</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: T.error }}>Your account has been suspended</div>
+            <div style={{ fontSize: 11, color: T.textMid, marginTop: 2 }}>Contact support if you believe this is a mistake.</div>
+          </div>
+        </div>
+      )}
+      {!isAdmin && !myProfile?.is_suspended && myProfile?.is_muted && (
+        <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 24, flexShrink: 0 }}>🔇</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>You've been muted by an admin</div>
+            <div style={{ fontSize: 11, color: T.textMid, marginTop: 2 }}>Some actions may be limited until this is lifted.</div>
+          </div>
+        </div>
+      )}
+      {!isAdmin && myProfile?.warning_count > 0 && (
+        <div style={{ background: "#fbbf2412", border: "1px solid #fbbf2444", borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 24, flexShrink: 0 }}>⚠️</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: T.amber }}>
+              You have {myProfile.warning_count} warning{myProfile.warning_count !== 1 ? "s" : ""} from an admin
+            </div>
+            <div style={{ fontSize: 11, color: T.textMid, marginTop: 2 }}>Please review the community guidelines to avoid further action.</div>
+          </div>
+        </div>
+      )}
+
+
       {!isAdmin && tab === "requests" && (
         <RequestsPanel
           pendingReceived={pendingReceived}
