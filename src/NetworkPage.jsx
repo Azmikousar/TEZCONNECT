@@ -215,8 +215,13 @@ function AdminMemberRow({ member, onViewProfile, adminActions, isMe }) {
         <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800, color: "#fff", overflow: "hidden", border: `2px solid ${isVerified ? T.info + "66" : "transparent"}` }}>
           {member.photo ? <img src={member.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
         </div>
-        {isSuspended && (
+        {isSuspended ? (
           <div style={{ position: "absolute", bottom: -2, right: -2, background: T.error, borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, border: `2px solid ${T.bgCard}` }}>🚫</div>
+        ) : (
+          // Green = is_online true. Gray = offline/unknown (this column only
+          // reflects reality once something in your app actually updates it —
+          // see the presence note in the SQL migration).
+          <div style={{ position: "absolute", bottom: 1, right: 1, width: 12, height: 12, borderRadius: "50%", background: member.is_online ? T.success : T.textLow, border: `2px solid ${T.bgCard}`, boxShadow: member.is_online ? `0 0 6px ${T.success}` : "none" }} />
         )}
       </div>
 
@@ -542,12 +547,25 @@ export default function NetworkPage({ session, onMessage }) {
 
   /* ── Admin action handlers ──
      Each updates local state optimistically after a successful write, and
-     surfaces a plain alert if the underlying column/table isn't there yet. */
+     surfaces a plain alert if the write didn't actually take effect.
+
+     Important: Supabase Row Level Security does NOT throw an error when a
+     policy blocks a write — it just quietly updates/deletes 0 rows. That
+     looks identical to success unless we explicitly ask for the affected
+     rows back with .select() and check whether anything came back. That's
+     what the checks below are for. If you see the "no permission" alert,
+     it means your `profiles` RLS policies only allow a user to write their
+     own row — you need an admin policy (see the SQL provided separately)
+     to let this account update/delete other members' rows. */
   const patchMemberLocal = (id, patch) => setMembers(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m));
 
   const updateProfileField = async (member, patch) => {
-    const { error } = await supabase.from("profiles").update(patch).eq("id", member.id);
+    const { data, error } = await supabase.from("profiles").update(patch).eq("id", member.id).select();
     if (error) { alert("Action failed: " + error.message + "\n\nThis usually means the matching column doesn't exist yet on the profiles table."); return false; }
+    if (!data || data.length === 0) {
+      alert("Nothing was saved.\n\nSupabase's Row Level Security blocked this update — it likely only allows a user to edit their own profile. The admin account needs an RLS policy that allows updating any row in `profiles`. Ask for the SQL to add that policy.");
+      return false;
+    }
     patchMemberLocal(member.id, patch);
     return true;
   };
@@ -568,8 +586,12 @@ export default function NetworkPage({ session, onMessage }) {
     },
     deleteAccount: async (member) => {
       if (!window.confirm(`Permanently delete ${member.name || "this member"}'s account? This cannot be undone.`)) return;
-      const { error } = await supabase.from("profiles").delete().eq("id", member.id);
+      const { data, error } = await supabase.from("profiles").delete().eq("id", member.id).select();
       if (error) { alert("Delete failed: " + error.message); return; }
+      if (!data || data.length === 0) {
+        alert("Nothing was deleted.\n\nSupabase's Row Level Security blocked this delete — the admin account needs an RLS policy allowing it to delete any row in `profiles`.");
+        return;
+      }
       setMembers(prev => prev.filter(m => m.id !== member.id));
     },
     editProfile: (member) => setEditingMember(member),
