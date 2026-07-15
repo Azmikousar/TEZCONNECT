@@ -34,6 +34,59 @@ async function triggerWhatsAppInvite(eventId, userId) {
   }
 }
 
+/* Uploads an image file to the 'event-media' storage bucket and returns its public URL. */
+async function uploadEventImage(file, folder = "banners") {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+  const { error } = await supabase.storage.from("event-media").upload(path, file, { cacheControl: "3600", upsert: false });
+  if (error) throw error;
+  const { data } = supabase.storage.from("event-media").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/* ── Reusable: image field with URL input + gallery upload + preview ── */
+function ImageUploadField({ label, url, setUrl, folder, hint }) {
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+  const inputId = `upload-${folder}-${label.replace(/\s+/g,"")}`;
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setErr("");
+    try {
+      const publicUrl = await uploadEventImage(file, folder);
+      setUrl(publicUrl);
+    } catch (ex) {
+      console.error("[TezConnect Events] image upload failed:", ex);
+      setErr(ex.message || "Upload failed — check the event-media storage bucket & policies.");
+    }
+    setUploading(false);
+  };
+
+  return (
+    <div>
+      <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>{label}</label>
+      {url && (
+        <div style={{ position:"relative", marginBottom:8, borderRadius:10, overflow:"hidden", border:`1px solid ${T.border}` }}>
+          <img src={url} alt="" style={{ width:"100%", maxHeight:140, objectFit:"cover", display:"block" }}/>
+          <button onClick={()=>setUrl("")} type="button" style={{ position:"absolute", top:6, right:6, background:"#000a", border:"none", borderRadius:"50%", width:26, height:26, color:"#fff", fontSize:14, cursor:"pointer" }}>×</button>
+        </div>
+      )}
+      <div style={{ display:"flex", gap:8 }}>
+        <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://… or upload from gallery" style={{ flex:1, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px 12px", color:T.text, fontSize:12, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" }}/>
+        <label htmlFor={inputId} style={{ background:T.orangeMd, border:`1px solid ${T.orange}44`, borderRadius:10, padding:"0 14px", color:T.orange, fontWeight:700, cursor:uploading?"wait":"pointer", fontSize:12, display:"flex", alignItems:"center", whiteSpace:"nowrap" }}>
+          {uploading ? "Uploading…" : "📁 Upload"}
+        </label>
+        <input id={inputId} type="file" accept="image/*" onChange={handleFile} disabled={uploading} style={{ display:"none" }}/>
+      </div>
+      {hint && <div style={{ fontSize:11, color:T.textLow, marginTop:6 }}>{hint}</div>}
+      {err && <div style={{ fontSize:11, color:T.error, marginTop:6 }}>⚠ {err}</div>}
+    </div>
+  );
+}
+
 /* ── Reusable: editable string-list (objectives / activities / benefits / what-to-bring) ── */
 function TagListEditor({ label, items, setItems, placeholder }) {
   const [draft, setDraft] = useState("");
@@ -235,7 +288,7 @@ function EventModal({ event, session, onClose, onSaved }) {
     title:"", description:"", location:"", event_date:"",
     event_type:"offline", max_attendees:"", registration_fee:"0",
     theme:"", tagline:"", banner_url:"", duration_text:"", zoom_link:"",
-    organizer_name:"Tez Connect Ecosystem",
+    organizer_name:"Tez Connect Ecosystem", organizer_photo_url:"", organizer_link:"",
     ...event,
   });
   const [objectives, setObjectives]     = useState(event?.objectives || []);
@@ -269,21 +322,28 @@ function EventModal({ event, session, onClose, onSaved }) {
       duration_text: form.duration_text.trim(),
       zoom_link: form.zoom_link.trim(),
       organizer_name: form.organizer_name.trim() || "Tez Connect Ecosystem",
+      organizer_photo_url: form.organizer_photo_url.trim(),
+      organizer_link: form.organizer_link.trim(),
       objectives, activities, benefits,
       what_to_bring: whatToBring,
       agenda,
     };
 
-    let err;
-    if (isEdit) {
-      ({ error: err } = await supabase.from("events").update(payload).eq("id", event.id));
-    } else {
-      ({ error: err } = await supabase.from("events").insert(payload));
+    try {
+      let err;
+      if (isEdit) {
+        ({ error: err } = await supabase.from("events").update(payload).eq("id", event.id));
+      } else {
+        ({ error: err } = await supabase.from("events").insert(payload));
+      }
+      if (err) { setSaving(false); setError(err.message); return; }
+      setSaving(false);
+      onSaved(); onClose();
+    } catch (err) {
+      console.error("[TezConnect Events] save failed:", err);
+      setSaving(false);
+      setError(err.message || "Save failed — likely blocked by a row-level security policy on the events table.");
     }
-
-    setSaving(false);
-    if (err) { setError(err.message); return; }
-    onSaved(); onClose();
   };
 
   const inputStyle = { width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"11px 14px", color:T.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" };
@@ -323,10 +383,13 @@ function EventModal({ event, session, onClose, onSaved }) {
               <textarea value={form.description} onChange={e=>set("description",e.target.value)} placeholder="What's this event about?" rows={3} style={{ ...inputStyle, resize:"vertical" }}/>
             </div>
 
-            <div>
-              <label style={labelStyle}>Banner Image URL</label>
-              <input value={form.banner_url} onChange={e=>set("banner_url",e.target.value)} placeholder="https://…" style={inputStyle}/>
-            </div>
+            <ImageUploadField
+              label="Banner Image"
+              url={form.banner_url}
+              setUrl={(v)=>set("banner_url",v)}
+              folder="banners"
+              hint="Shown at the top of the event page. Upload from your gallery or paste a URL."
+            />
 
             <div>
               <label style={labelStyle}>Date & Time *</label>
@@ -389,6 +452,20 @@ function EventModal({ event, session, onClose, onSaved }) {
             <div>
               <label style={labelStyle}>Organizer Name</label>
               <input value={form.organizer_name} onChange={e=>set("organizer_name",e.target.value)} style={inputStyle}/>
+            </div>
+
+            <ImageUploadField
+              label="Organizer Profile Photo"
+              url={form.organizer_photo_url}
+              setUrl={(v)=>set("organizer_photo_url",v)}
+              folder="organizers"
+              hint="Shown as the organizer's avatar on the event page."
+            />
+
+            <div>
+              <label style={labelStyle}>Organizer Register / Contact Link</label>
+              <input value={form.organizer_link} onChange={e=>set("organizer_link",e.target.value)} placeholder="https://wa.me/91… or your website" style={inputStyle}/>
+              <div style={{ fontSize:11, color:T.textLow, marginTop:6 }}>Optional — shown as a button under the organizer's name.</div>
             </div>
 
             <button onClick={save} disabled={saving}
@@ -539,16 +616,34 @@ function EventDetailPage({ event, session, isAdmin, attendeeCount, isRsvped, rsv
       </div>
 
       {/* Hero */}
-      <div style={{ position:"relative", borderRadius:18, overflow:"hidden", minHeight:200, display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", textAlign:"center", padding:"30px 20px", background: event.banner_url ? `linear-gradient(180deg,#06070dcc,#06070dee), url(${event.banner_url}) center/cover` : "radial-gradient(circle at 30% 20%, #f9731633, transparent 60%), linear-gradient(135deg,#0b0d17,#06070d)", border:`1px solid ${T.border}` }}>
-        {!isPast && <span style={{ position:"absolute", top:14, left:14, background:T.orangeMd, border:`1px solid ${T.orange}55`, color:T.orange, fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:20 }}>Upcoming Event</span>}
-        <div style={{ fontSize:12, color:T.orange, fontWeight:700, letterSpacing:".08em", textTransform:"uppercase", marginBottom:10 }}>{event.theme || event.organizer_name || "Tez Connect Ecosystem"}</div>
-        <div style={{ fontWeight:800, fontSize:28, color:"#fff", lineHeight:1.25, maxWidth:520 }}>{event.title}</div>
-        {event.tagline && (
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:16, color:T.text, fontSize:13, fontWeight:600 }}>
-            <span style={{ width:24, height:1, background:T.textLow }}/>Theme<span style={{ width:24, height:1, background:T.textLow }}/>
-          </div>
-        )}
-        {event.tagline && <div style={{ marginTop:6, fontSize:15, fontWeight:700, color:T.text }}>{event.tagline}</div>}
+      <div style={{ borderRadius:18, overflow:"hidden", border:`1px solid ${T.border}` }}>
+        <div style={{ position:"relative", width:"100%", aspectRatio:"16/7", minHeight:160, background: event.banner_url ? `url(${event.banner_url}) center/cover no-repeat` : "radial-gradient(circle at 30% 20%, #f9731633, transparent 60%), linear-gradient(135deg,#0b0d17,#06070d)" }}>
+          <span style={{ position:"absolute", top:14, left:14, background:"#000000aa", backdropFilter:"blur(4px)", border:`1px solid ${isPast?T.error:T.orange}55`, color:isPast?T.error:T.orange, fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:20 }}>
+            {isPast ? "Past Event" : "Upcoming Event"}
+          </span>
+          {!event.banner_url && (
+            <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", justifyContent:"center", alignItems:"center", textAlign:"center", padding:"20px" }}>
+              <div style={{ fontSize:12, color:T.orange, fontWeight:700, letterSpacing:".08em", textTransform:"uppercase", marginBottom:10 }}>{event.theme || event.organizer_name || "Tez Connect Ecosystem"}</div>
+              <div style={{ fontWeight:800, fontSize:24, color:"#fff", lineHeight:1.25, maxWidth:480 }}>{event.title}</div>
+            </div>
+          )}
+        </div>
+        <div style={{ padding:"18px 20px", background:T.bgCard, textAlign:"center" }}>
+          {event.banner_url && (
+            <>
+              <div style={{ fontSize:12, color:T.orange, fontWeight:700, letterSpacing:".08em", textTransform:"uppercase", marginBottom:6 }}>{event.theme || event.organizer_name || "Tez Connect Ecosystem"}</div>
+              <div style={{ fontWeight:800, fontSize:22, color:T.text, lineHeight:1.3 }}>{event.title}</div>
+            </>
+          )}
+          {event.tagline && (
+            <>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, marginTop:14, color:T.textMid, fontSize:12, fontWeight:600 }}>
+                <span style={{ width:24, height:1, background:T.textLow }}/>Theme<span style={{ width:24, height:1, background:T.textLow }}/>
+              </div>
+              <div style={{ marginTop:6, fontSize:14, fontWeight:700, color:T.text }}>{event.tagline}</div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="evtd-grid" style={{ display:"grid", gridTemplateColumns:"minmax(0,2fr) minmax(280px,1fr)", gap:16 }}>
@@ -603,9 +698,16 @@ function EventDetailPage({ event, session, isAdmin, attendeeCount, isRsvped, rsv
           )}
 
           <div style={{ ...card, textAlign:"center" }}>
-            <div style={{ width:56, height:56, borderRadius:"50%", background:T.orangeMd, border:`1px solid ${T.orange}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, margin:"0 auto 10px" }}>🏢</div>
+            <div style={{ width:56, height:56, borderRadius:"50%", background:T.orangeMd, border:`1px solid ${T.orange}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, margin:"0 auto 10px", overflow:"hidden" }}>
+              {event.organizer_photo_url ? <img src={event.organizer_photo_url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : "🏢"}
+            </div>
             <div style={{ fontWeight:800, fontSize:15, color:T.text }}>{event.organizer_name || "Tez Connect Ecosystem"}</div>
             <div style={{ fontSize:11, color:T.textLow, marginTop:4 }}>Organizer</div>
+            {event.organizer_link && (
+              <a href={event.organizer_link} target="_blank" rel="noreferrer" style={{ display:"inline-block", marginTop:12, background:T.orangeMd, border:`1px solid ${T.orange}44`, borderRadius:20, padding:"7px 16px", color:T.orange, fontSize:12, fontWeight:700, textDecoration:"none" }}>
+                🔗 Contact Organizer
+              </a>
+            )}
           </div>
         </div>
 
