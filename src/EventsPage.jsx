@@ -235,7 +235,7 @@ function PaymentModal({ event, session, profile, onClose, onPaid }) {
   };
 
   return (
-    <div onClick={step==="confirm"?onClose:undefined} style={{ position:"fixed", inset:0, background:"#000d", zIndex:600, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+    <div onClick={step==="confirm"?onClose:undefined} style={{ position:"fixed", inset:0, background:"#000d", zIndex:100000, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:480, padding:"20px 20px 40px", animation:"slideUp .3s ease" }}>
         <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"0 auto 20px" }}/>
         {(step === "confirm" || step === "failed") && (
@@ -350,8 +350,9 @@ function EventModal({ event, session, onClose, onSaved }) {
   const labelStyle = { fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 };
 
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:500, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:560, maxHeight:"92vh", display:"flex", flexDirection:"column", animation:"slideUp .3s ease" }}>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:99999, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+      <style>{`.evtmodal-sheet{max-height:92vh;max-height:92dvh;}`}</style>
+      <div onClick={e=>e.stopPropagation()} className="evtmodal-sheet" style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:560, display:"flex", flexDirection:"column", animation:"slideUp .3s ease" }}>
         <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0", flexShrink:0 }}/>
 
         <div style={{ padding:"16px 20px 0", flexShrink:0 }}>
@@ -362,8 +363,8 @@ function EventModal({ event, session, onClose, onSaved }) {
           {error && <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"10px 14px", fontSize:12, color:T.error, marginBottom:14 }}>⚠ {error}</div>}
         </div>
 
-        <div style={{ flex:1, overflowY:"auto", padding:"0 20px 20px" }}>
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <div style={{ flex:1, overflowY:"auto", padding:"0 20px", minHeight:0 }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:14, paddingBottom:14 }}>
             <div>
               <label style={labelStyle}>Event Title *</label>
               <input value={form.title} onChange={e=>set("title",e.target.value)} placeholder="e.g. Bangalore Business Networking Meet 2026" style={inputStyle}/>
@@ -470,13 +471,13 @@ function EventModal({ event, session, onClose, onSaved }) {
               <div style={{ fontSize:11, color:T.textLow, marginTop:6 }}>Optional — shown as a button under the organizer's name.</div>
             </div>
           </div>
-        </div>
 
-        <div style={{ padding:"14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop:`1px solid ${T.border}`, flexShrink:0, background:T.bgCard }}>
-          <button onClick={save} disabled={saving}
-            style={{ width:"100%", background:saving?"#1a1f35":"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"14px", color:saving?T.textMid:"#fff", fontSize:15, fontWeight:700, cursor:saving?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:saving?"none":"0 4px 20px #f9731440" }}>
-            {saving?"Saving…":isEdit?"Update Event":"Create Event 📅"}
-          </button>
+          <div style={{ position:"sticky", bottom:0, margin:"0 -20px", padding:"14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop:`1px solid ${T.border}`, background:T.bgCard }}>
+            <button onClick={save} disabled={saving}
+              style={{ width:"100%", background:saving?"#1a1f35":"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"14px", color:saving?T.textMid:"#fff", fontSize:15, fontWeight:700, cursor:saving?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:saving?"none":"0 4px 20px #f9731440" }}>
+              {saving?"Saving…":isEdit?"Update Event":"Create Event 📅"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -484,7 +485,7 @@ function EventModal({ event, session, onClose, onSaved }) {
 }
 
 /* ── Attendees Modal (admin only) ── */
-function AttendeesModal({ event, session, onClose }) {
+function AttendeesModal({ event, session, isAdmin, onClose }) {
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -522,8 +523,9 @@ function AttendeesModal({ event, session, onClose }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:600, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:520, maxHeight:"85vh", display:"flex", flexDirection:"column", animation:"slideUp .3s ease" }}>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:100000, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+      <style>{`.attnmodal-sheet{max-height:85vh;max-height:85dvh;}`}</style>
+      <div onClick={e=>e.stopPropagation()} className="attnmodal-sheet" style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:520, display:"flex", flexDirection:"column", animation:"slideUp .3s ease" }}>
         <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0", flexShrink:0 }}/>
         <div style={{ padding:"16px 20px 12px", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
@@ -532,7 +534,7 @@ function AttendeesModal({ event, session, onClose }) {
           </div>
           <div style={{ fontSize:12, color:T.textMid }}>{event.title} · {attendees.length} registered</div>
         </div>
-        <div style={{ flex:1, overflowY:"auto", padding:"12px 20px" }}>
+        <div style={{ flex:1, overflowY:"auto", padding:"12px 20px 0", minHeight:0 }}>
           {loading && (
             <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 0", gap:12 }}>
               <div style={{ width:20, height:20, border:"2px solid #f9731633", borderTopColor:"#f97316", borderRadius:"50%", animation:"spin .7s linear infinite" }}/>
@@ -563,21 +565,21 @@ function AttendeesModal({ event, session, onClose }) {
               </div>
             );
           })}
+          {isAdmin && !loading && attendees.length > 0 && (
+            <div style={{ position:"sticky", bottom:0, margin:"0 -20px", padding:"14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop:`1px solid ${T.border}`, background:T.bgCard }}>
+              <button onClick={exportCsv} style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:12, padding:"12px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                📥 Export as CSV
+              </button>
+            </div>
+          )}
         </div>
-        {!loading && attendees.length > 0 && (
-          <div style={{ padding:"14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop:`1px solid ${T.border}`, flexShrink:0 }}>
-            <button onClick={exportCsv} style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:12, padding:"12px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-              📥 Export as CSV
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
 /* ── Event Detail Page (full-screen, matches the reference design) ── */
-function EventDetailPage({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData, onBack, onEdit, onPay, onRsvp, onCancelRsvp, rsvpingId, rsvpError }) {
+function EventDetailPage({ event, session, isAdmin, attendeeCount, isRsvped, rsvpData, onBack, onEdit, onPay, onRsvp, onCancelRsvp, onViewAttendees, rsvpingId, rsvpError }) {
   const isPast = new Date(event.event_date) < new Date();
   const isFull = event.max_attendees && attendeeCount >= event.max_attendees;
   const isPaid = event.registration_fee > 0;
@@ -784,6 +786,12 @@ function EventDetailPage({ event, session, isAdmin, attendeeCount, isRsvped, rsv
                 {isRsvping ? "Registering…" : "Register Now →"}
               </button>
             )}
+
+            {(isAdmin || isRsvped) && attendeeCount > 0 && (
+              <button onClick={()=>onViewAttendees(event)} style={{ width:"100%", marginTop:10, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"11px", color:T.textMid, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                👥 View {attendeeCount} Attendee{attendeeCount!==1?"s":""}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -869,7 +877,7 @@ function EventCard({ event, isAdmin, attendeeCount, isRsvped, rsvpData, onRsvp, 
             {isRsvping ? "Registering…" : "Register"}
           </button>
         )}
-        {isAdmin && attendeeCount > 0 && (
+        {(isAdmin || isRsvped) && attendeeCount > 0 && (
           <button onClick={()=>onViewAttendees(event)} style={{ width:"100%", marginTop:8, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px", color:T.textMid, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
             👥 View {attendeeCount} Attendee{attendeeCount!==1?"s":""}
           </button>
@@ -877,7 +885,7 @@ function EventCard({ event, isAdmin, attendeeCount, isRsvped, rsvpData, onRsvp, 
       </div>
 
       {confirmDel && (
-        <div onClick={()=>setConfirmDel(false)} style={{ position:"fixed", inset:0, background:"#000d", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+        <div onClick={()=>setConfirmDel(false)} style={{ position:"fixed", inset:0, background:"#000d", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
           <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:16, padding:"24px", maxWidth:300, width:"100%", textAlign:"center" }}>
             <div style={{ fontSize:36, marginBottom:12 }}>🗑️</div>
             <div style={{ fontWeight:800, fontSize:16, color:T.text, marginBottom:8 }}>Delete Event?</div>
@@ -995,11 +1003,13 @@ export default function EventsPage({ session, profile }) {
           onPay={setPayEvent}
           onRsvp={handleRsvp}
           onCancelRsvp={handleCancelRsvp}
+          onViewAttendees={setAttendeesEvent}
           rsvpingId={rsvpingId}
           rsvpError={rsvpError}
         />
         {isAdmin && editEvent && <EventModal event={editEvent} session={session} onClose={()=>setEditEvent(null)} onSaved={fetchData}/>}
         {payEvent && <PaymentModal event={payEvent} session={session} profile={profile} onClose={()=>setPayEvent(null)} onPaid={fetchData}/>}
+        {attendeesEvent && <AttendeesModal event={attendeesEvent} session={session} isAdmin={isAdmin} onClose={()=>setAttendeesEvent(null)}/>}
       </>
     );
   }
@@ -1074,7 +1084,7 @@ export default function EventsPage({ session, profile }) {
       {isAdmin && showCreate && <EventModal session={session} onClose={()=>setShowCreate(false)} onSaved={fetchData}/>}
       {isAdmin && editEvent && <EventModal event={editEvent} session={session} onClose={()=>setEditEvent(null)} onSaved={fetchData}/>}
       {payEvent && <PaymentModal event={payEvent} session={session} profile={profile} onClose={()=>setPayEvent(null)} onPaid={fetchData}/>}
-      {isAdmin && attendeesEvent && <AttendeesModal event={attendeesEvent} session={session} onClose={()=>setAttendeesEvent(null)}/>}
+      {attendeesEvent && <AttendeesModal event={attendeesEvent} session={session} isAdmin={isAdmin} onClose={()=>setAttendeesEvent(null)}/>}
     </div>
   );
 }
