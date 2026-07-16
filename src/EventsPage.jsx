@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 
 const T = {
@@ -234,7 +235,7 @@ function PaymentModal({ event, session, profile, onClose, onPaid }) {
     }
   };
 
-  return (
+  return createPortal(
     <div onClick={step==="confirm"?onClose:undefined} style={{ position:"fixed", inset:0, background:"#000d", zIndex:100000, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:480, padding:"20px 20px 40px", animation:"slideUp .3s ease" }}>
         <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"0 auto 20px" }}/>
@@ -277,7 +278,8 @@ function PaymentModal({ event, session, profile, onClose, onPaid }) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -349,7 +351,7 @@ function EventModal({ event, session, onClose, onSaved }) {
   const inputStyle = { width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"11px 14px", color:T.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" };
   const labelStyle = { fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 };
 
-  return (
+  return createPortal(
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:99999, overflowY:"auto", WebkitOverflowScrolling:"touch", display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:560, margin:"40px auto 0", animation:"slideUp .3s ease" }}>
         <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0" }}/>
@@ -479,7 +481,8 @@ function EventModal({ event, session, onClose, onSaved }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -521,7 +524,7 @@ function AttendeesModal({ event, session, isAdmin, onClose }) {
     URL.revokeObjectURL(url);
   };
 
-  return (
+  return createPortal(
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:100000, overflowY:"auto", WebkitOverflowScrolling:"touch", display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:520, margin:"40px auto 0", animation:"slideUp .3s ease" }}>
         <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0" }}/>
@@ -572,7 +575,8 @@ function AttendeesModal({ event, session, isAdmin, onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -882,7 +886,7 @@ function EventCard({ event, isAdmin, attendeeCount, isRsvped, rsvpData, onRsvp, 
         )}
       </div>
 
-      {confirmDel && (
+      {confirmDel && createPortal(
         <div onClick={()=>setConfirmDel(false)} style={{ position:"fixed", inset:0, background:"#000d", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
           <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:16, padding:"24px", maxWidth:300, width:"100%", textAlign:"center" }}>
             <div style={{ fontSize:36, marginBottom:12 }}>🗑️</div>
@@ -893,7 +897,8 @@ function EventCard({ event, isAdmin, attendeeCount, isRsvped, rsvpData, onRsvp, 
               <button onClick={()=>{setConfirmDel(false);onDelete(event.id);}} style={{ flex:1, background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"10px", color:T.error, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Delete</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
