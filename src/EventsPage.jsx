@@ -350,12 +350,11 @@ function EventModal({ event, session, onClose, onSaved }) {
   const labelStyle = { fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 };
 
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:99999, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-      <style>{`.evtmodal-sheet{max-height:92vh;max-height:92dvh;}`}</style>
-      <div onClick={e=>e.stopPropagation()} className="evtmodal-sheet" style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:560, display:"flex", flexDirection:"column", animation:"slideUp .3s ease" }}>
-        <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0", flexShrink:0 }}/>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:99999, overflowY:"auto", WebkitOverflowScrolling:"touch", display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:560, margin:"40px auto 0", animation:"slideUp .3s ease" }}>
+        <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0" }}/>
 
-        <div style={{ padding:"16px 20px 0", flexShrink:0 }}>
+        <div style={{ padding:"16px 20px 0" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
             <div style={{ fontWeight:800, fontSize:18, color:T.text }}>{isEdit?"Edit Event":"Create Event"}</div>
             <button onClick={onClose} style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:"50%", width:32, height:32, color:T.textMid, fontSize:16, cursor:"pointer" }}>×</button>
@@ -363,7 +362,7 @@ function EventModal({ event, session, onClose, onSaved }) {
           {error && <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"10px 14px", fontSize:12, color:T.error, marginBottom:14 }}>⚠ {error}</div>}
         </div>
 
-        <div style={{ flex:1, overflowY:"auto", padding:"0 20px", minHeight:0 }}>
+        <div style={{ padding:"0 20px" }}>
           <div style={{ display:"flex", flexDirection:"column", gap:14, paddingBottom:14 }}>
             <div>
               <label style={labelStyle}>Event Title *</label>
@@ -472,7 +471,7 @@ function EventModal({ event, session, onClose, onSaved }) {
             </div>
           </div>
 
-          <div style={{ position:"sticky", bottom:0, margin:"0 -20px", padding:"14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop:`1px solid ${T.border}`, background:T.bgCard }}>
+          <div style={{ padding:"6px 0 calc(20px + env(safe-area-inset-bottom))" }}>
             <button onClick={save} disabled={saving}
               style={{ width:"100%", background:saving?"#1a1f35":"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"14px", color:saving?T.textMid:"#fff", fontSize:15, fontWeight:700, cursor:saving?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:saving?"none":"0 4px 20px #f9731440" }}>
               {saving?"Saving…":isEdit?"Update Event":"Create Event 📅"}
@@ -523,18 +522,17 @@ function AttendeesModal({ event, session, isAdmin, onClose }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:100000, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-      <style>{`.attnmodal-sheet{max-height:85vh;max-height:85dvh;}`}</style>
-      <div onClick={e=>e.stopPropagation()} className="attnmodal-sheet" style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:520, display:"flex", flexDirection:"column", animation:"slideUp .3s ease" }}>
-        <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0", flexShrink:0 }}/>
-        <div style={{ padding:"16px 20px 12px", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:100000, overflowY:"auto", WebkitOverflowScrolling:"touch", display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:520, margin:"40px auto 0", animation:"slideUp .3s ease" }}>
+        <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0" }}/>
+        <div style={{ padding:"16px 20px 12px", borderBottom:`1px solid ${T.border}` }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
             <div style={{ fontWeight:800, fontSize:17, color:T.text }}>👥 Attendees</div>
             <button onClick={onClose} style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:"50%", width:30, height:30, color:T.textMid, fontSize:15, cursor:"pointer" }}>×</button>
           </div>
           <div style={{ fontSize:12, color:T.textMid }}>{event.title} · {attendees.length} registered</div>
         </div>
-        <div style={{ flex:1, overflowY:"auto", padding:"12px 20px 0", minHeight:0 }}>
+        <div style={{ padding:"12px 20px 0" }}>
           {loading && (
             <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"40px 0", gap:12 }}>
               <div style={{ width:20, height:20, border:"2px solid #f9731633", borderTopColor:"#f97316", borderRadius:"50%", animation:"spin .7s linear infinite" }}/>
@@ -566,7 +564,7 @@ function AttendeesModal({ event, session, isAdmin, onClose }) {
             );
           })}
           {isAdmin && !loading && attendees.length > 0 && (
-            <div style={{ position:"sticky", bottom:0, margin:"0 -20px", padding:"14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop:`1px solid ${T.border}`, background:T.bgCard }}>
+            <div style={{ margin:"14px 0 calc(20px + env(safe-area-inset-bottom))", paddingTop:14, borderTop:`1px solid ${T.border}` }}>
               <button onClick={exportCsv} style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:12, padding:"12px", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
                 📥 Export as CSV
               </button>
