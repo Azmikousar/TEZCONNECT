@@ -503,7 +503,7 @@ function AttendeesModal({ event, session, isAdmin, onClose }) {
       let profileMap = {};
       let profileErr = null;
       if (userIds.length) {
-        const { data: profiles, error } = await supabase.from("profiles").select("id, name, photo, mobile, email, company, designation").in("id", userIds);
+        const { data: profiles, error } = await supabase.from("profiles").select("id, name, photo, mobile, company, designation").in("id", userIds);
         if (error) { console.error("[TezConnect Events] fetch attendee profiles failed:", error); profileErr = error; }
         (profiles || []).forEach(p => { profileMap[p.id] = p; });
       }
@@ -514,9 +514,9 @@ function AttendeesModal({ event, session, isAdmin, onClose }) {
   }, [event.id]);
 
   const exportCsv = () => {
-    const header = ["Name", "Mobile", "Email", "Company", "Payment Status", "Amount Paid", "Registered At"];
+    const header = ["Name", "Mobile", "Company", "Payment Status", "Amount Paid", "Registered At"];
     const rows = attendees.map(a => [
-      a.profile?.name || "Unknown", a.profile?.mobile || "", a.profile?.email || "", a.profile?.company || "",
+      a.profile?.name || "Unknown", a.profile?.mobile || "", a.profile?.company || "",
       a.payment_status || "", a.amount_paid ?? 0, a.created_at ? new Date(a.created_at).toLocaleString("en-IN") : "",
     ]);
     const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
