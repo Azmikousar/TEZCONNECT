@@ -216,24 +216,30 @@ function AdminMemberRow({ member, onViewProfile, adminActions, isMe, isOnline, c
   };
 
   const connectButton = () => {
+    // Sized and shaped like the small pill badges (👑 OWNER, 🛡️ VERIFIED) elsewhere
+    // on this row — tiny, unobtrusive — but these are real <button>s, not
+    // decorative spans, so tapping "Connect" actually sends a request the
+    // other person then accepts, same as the regular member flow.
+    const pillBase = { fontSize: 9.5, fontWeight: 800, borderRadius: 20, padding: "5px 10px", whiteSpace: "nowrap" };
+
     if (status === "accepted") return (
       <button onClick={() => handleConnect("remove")} disabled={connecting}
-        style={{ background: T.successLo, border: `1.5px solid ${T.success}66`, borderRadius: 10, padding: "9px 12px", color: T.success, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+        style={{ ...pillBase, background: T.successLo, border: `1px solid ${T.success}55`, color: T.success, cursor: "pointer" }}>
         {connecting ? "…" : "✓ Connected"}
       </button>
     );
     if (status === "pending" && isSender) return (
-      <span style={{ fontSize: 11, color: T.orange, fontWeight: 700, background: T.orangeLo, border: `1px solid ${T.orange}33`, borderRadius: 10, padding: "9px 12px", whiteSpace: "nowrap" }}>Requested</span>
+      <span style={{ ...pillBase, color: T.orange, background: T.orangeLo, border: `1px solid ${T.orange}33`, display: "inline-block" }}>Requested</span>
     );
     if (status === "pending" && !isSender) return (
       <button onClick={() => handleConnect("accept")} disabled={connecting}
-        style={{ background: T.successLo, border: `1.5px solid ${T.success}66`, borderRadius: 10, padding: "9px 12px", color: T.success, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+        style={{ ...pillBase, background: T.successLo, border: `1px solid ${T.success}55`, color: T.success, cursor: "pointer" }}>
         {connecting ? "…" : "✓ Accept"}
       </button>
     );
     return (
       <button onClick={() => handleConnect("send")} disabled={connecting}
-        style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 10, padding: "9px 12px", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+        style={{ ...pillBase, background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", color: "#fff", cursor: "pointer" }}>
         {connecting ? "…" : "🤝 Connect"}
       </button>
     );
