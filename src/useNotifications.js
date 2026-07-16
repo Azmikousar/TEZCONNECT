@@ -1,94 +1,201 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
 
-export function useNotifications(userId) {
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount]     = useState(0);
-  const [loading, setLoading]             = useState(true);
-  const channelRef = useRef(null);
+export function useConnections(userId) {
+  const [connections, setConnections] = useState([]);
+  const [isPremium, setIsPremium] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const fetchNotifications = useCallback(async () => {
-    if (!userId) { setLoading(false); return; }
-    setLoading(true);
-
-    const { data: notifs, error } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(50);
-
-    if (error) {
-      console.error("Notifications fetch error:", error);
+  const fetchConnections = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const { data, error } = await supabase
+        .from("connections")
+        .select("*")
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
+      if (error) {
+        console.error("useConnections error:", error);
+        return;
+      }
+      setConnections(data || []);
+    } catch (err) {
+      console.error("useConnections catch:", err);
+    } finally {
       setLoading(false);
-      return;
     }
+  }, [userId]);
 
-    if (!notifs || notifs.length === 0) {
-      setNotifications([]);
-      setUnreadCount(0);
-      setLoading(false);
-      return;
-    }
-
-    const actorIds = [...new Set(notifs.map(n => n.actor_id).filter(Boolean))];
-    const { data: profiles } = await supabase
+  const fetchPremiumStatus = useCallback(async () => {
+    if (!userId) return;
+    const { data } = await supabase
       .from("profiles")
-      .select("id, name, photo")
-      .in("id", actorIds);
-
-    const profileMap = {};
-    (profiles || []).forEach(p => { profileMap[p.id] = p; });
-
-    const merged = notifs.map(n => ({ ...n, actor: profileMap[n.actor_id] || null }));
-
-    setNotifications(merged);
-    setUnreadCount(merged.filter(n => !n.read).length);
-    setLoading(false);
+      .select("is_premium, premium_expires_at")
+      .eq("id", userId)
+      .single();
+    if (data) {
+      const active = data.is_premium && (!data.premium_expires_at || new Date(data.premium_expires_at) > new Date());
+      setIsPremium(!!active);
+    }
   }, [userId]);
 
   useEffect(() => {
-    fetchNotifications();
-    if (!userId) return;
+    fetchConnections();
+    fetchPremiumStatus();
+  }, [fetchConnections, fetchPremiumStatus]);
 
-    // Unique channel name per hook instance — prevents collision when
-    // this hook is called from multiple components at the same time
-    const channelName = "notifications_channel_" + userId + "_" + Math.random().toString(36).slice(2, 8);
-
-    const sub = supabase
-      .channel(channelName)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "notifications",
-        filter: `user_id=eq.${userId}`,
-      }, () => {
-        fetchNotifications();
-      })
-      .subscribe();
-
-    channelRef.current = sub;
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
+  const getStatus = useCallback((otherUserId) => {
+    const conn = connections.find(c =>
+      (c.sender_id === userId && c.receiver_id === otherUserId) ||
+      (c.sender_id === otherUserId && c.receiver_id === userId)
+    );
+    if (!conn) return { status: "none", connection: null, isSender: false };
+    return {
+      status: conn.status,
+      connection: conn,
+      isSender: conn.sender_id === userId,
     };
-  }, [userId, fetchNotifications]);
+  }, [connections, userId]);
 
-  const markAsRead = useCallback(async (id) => {
-    await supabase.from("notifications").update({ read: true }).eq("id", id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    setUnreadCount(c => Math.max(0, c - 1));
-  }, []);
+  const accepted = connections.filter(c => c.status === "accepted");
 
-  const markAllAsRead = useCallback(async () => {
-    if (!userId) return;
-    await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    setUnreadCount(0);
-  }, [userId]);
+  /* sendRequest — two layers of defense against the duplicate-key bug:
 
-  return { notifications, unreadCount, loading, markAsRead, markAllAsRead, refresh: fetchNotifications };
+     1) Check local `connections` state first (fast path) and revive an
+        existing row instead of inserting, same as before.
+
+     2) If that check somehow misses it — local state can be stale right
+        after a page load, a race with another tab, etc. — the insert below
+        will still hit Postgres's unique constraint (error code 23505).
+        Instead of surfacing that raw error to the user, we now catch that
+        specific case, fetch the real conflicting row straight from the
+        database, and revive IT. This is what was still failing for
+        "regular user" pages even after the first fix: local state being
+        out of sync doesn't matter anymore, because this fallback always
+        checks the database directly rather than trusting the cache. */
+  const sendRequest = useCallback(async (receiverId) => {
+    // Free tier: max 2 accepted connections total
+    if (!isPremium && accepted.length >= 2) {
+      return { error: "LIMIT_REACHED" };
+    }
+
+    const existing = connections.find(c =>
+      (c.sender_id === userId && c.receiver_id === receiverId) ||
+      (c.sender_id === receiverId && c.receiver_id === userId)
+    );
+
+    const reviveRow = async (rowId) => {
+      const { error } = await supabase
+        .from("connections")
+        .update({
+          sender_id: userId,
+          receiver_id: receiverId,
+          status: "pending",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", rowId);
+      if (error) {
+        console.error("sendRequest (revive) error:", error);
+        return { error: error.message };
+      }
+      fetchConnections();
+      return { error: null };
+    };
+
+    if (existing) {
+      if (existing.status === "accepted" || existing.status === "pending") {
+        return { error: null }; // already connected or already waiting — no-op
+      }
+      return reviveRow(existing.id);
+    }
+
+    const { error } = await supabase
+      .from("connections")
+      .insert({ sender_id: userId, receiver_id: receiverId, status: "pending" });
+
+    if (!error) {
+      fetchConnections();
+      return { error: null };
+    }
+
+    // Postgres unique_violation — local state didn't know about a row that
+    // the database actually has. Go find it directly and revive it instead
+    // of failing.
+    if (error.code === "23505") {
+      const { data: conflictRows, error: lookupErr } = await supabase
+        .from("connections")
+        .select("*")
+        .or(`and(sender_id.eq.${userId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${userId})`)
+        .limit(1);
+      if (lookupErr || !conflictRows?.length) {
+        console.error("sendRequest conflict lookup failed:", lookupErr);
+        return { error: error.message };
+      }
+      const conflictRow = conflictRows[0];
+      if (conflictRow.status === "accepted" || conflictRow.status === "pending") {
+        fetchConnections();
+        return { error: null };
+      }
+      return reviveRow(conflictRow.id);
+    }
+
+    console.error("sendRequest error:", error);
+    return { error: error.message };
+  }, [userId, isPremium, accepted.length, fetchConnections, connections]);
+
+  const acceptRequest = useCallback(async (connectionId) => {
+    // Also block accepting if it would push a free user over the limit
+    if (!isPremium && accepted.length >= 2) {
+      return { error: "LIMIT_REACHED" };
+    }
+    const { error } = await supabase
+      .from("connections")
+      .update({ status: "accepted", updated_at: new Date().toISOString() })
+      .eq("id", connectionId);
+    if (error) {
+      console.error("acceptRequest error:", error);
+      return { error: error.message };
+    }
+    fetchConnections();
+    return { error: null };
+  }, [fetchConnections, isPremium, accepted.length]);
+
+  const rejectRequest = useCallback(async (connectionId) => {
+    const { error } = await supabase
+      .from("connections")
+      .update({ status: "rejected", updated_at: new Date().toISOString() })
+      .eq("id", connectionId);
+    if (error) console.error("rejectRequest error:", error);
+    else fetchConnections();
+  }, [fetchConnections]);
+
+  const removeConnection = useCallback(async (connectionId) => {
+    const { error } = await supabase
+      .from("connections")
+      .delete()
+      .eq("id", connectionId);
+    if (error) console.error("removeConnection error:", error);
+    else fetchConnections();
+  }, [fetchConnections]);
+
+  const pendingReceived = connections.filter(
+    c => c.receiver_id === userId && c.status === "pending"
+  );
+  const pendingSent = connections.filter(
+    c => c.sender_id === userId && c.status === "pending"
+  );
+
+  return {
+    connections,
+    loading,
+    isPremium,
+    getStatus,
+    sendRequest,
+    acceptRequest,
+    rejectRequest,
+    removeConnection,
+    pendingReceived,
+    pendingSent,
+    accepted,
+    refresh: fetchConnections,
+  };
 }
