@@ -351,16 +351,18 @@ function EventModal({ event, session, onClose, onSaved }) {
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:500, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:560, maxHeight:"92vh", overflowY:"auto", animation:"slideUp .3s ease" }}>
-        <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0" }}/>
-        <div style={{ padding:"16px 20px 40px" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:560, maxHeight:"92vh", display:"flex", flexDirection:"column", animation:"slideUp .3s ease" }}>
+        <div style={{ width:40, height:4, background:T.border, borderRadius:4, margin:"12px auto 0", flexShrink:0 }}/>
+
+        <div style={{ padding:"16px 20px 0", flexShrink:0 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
             <div style={{ fontWeight:800, fontSize:18, color:T.text }}>{isEdit?"Edit Event":"Create Event"}</div>
             <button onClick={onClose} style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:"50%", width:32, height:32, color:T.textMid, fontSize:16, cursor:"pointer" }}>×</button>
           </div>
-
           {error && <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"10px 14px", fontSize:12, color:T.error, marginBottom:14 }}>⚠ {error}</div>}
+        </div>
 
+        <div style={{ flex:1, overflowY:"auto", padding:"0 20px 20px" }}>
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <div>
               <label style={labelStyle}>Event Title *</label>
@@ -467,12 +469,14 @@ function EventModal({ event, session, onClose, onSaved }) {
               <input value={form.organizer_link} onChange={e=>set("organizer_link",e.target.value)} placeholder="https://wa.me/91… or your website" style={inputStyle}/>
               <div style={{ fontSize:11, color:T.textLow, marginTop:6 }}>Optional — shown as a button under the organizer's name.</div>
             </div>
-
-            <button onClick={save} disabled={saving}
-              style={{ width:"100%", background:saving?"#1a1f35":"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"14px", color:saving?T.textMid:"#fff", fontSize:15, fontWeight:700, cursor:saving?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:saving?"none":"0 4px 20px #f9731440" }}>
-              {saving?"Saving…":isEdit?"Update Event":"Create Event 📅"}
-            </button>
           </div>
+        </div>
+
+        <div style={{ padding:"14px 20px calc(14px + env(safe-area-inset-bottom))", borderTop:`1px solid ${T.border}`, flexShrink:0, background:T.bgCard }}>
+          <button onClick={save} disabled={saving}
+            style={{ width:"100%", background:saving?"#1a1f35":"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"14px", color:saving?T.textMid:"#fff", fontSize:15, fontWeight:700, cursor:saving?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:saving?"none":"0 4px 20px #f9731440" }}>
+            {saving?"Saving…":isEdit?"Update Event":"Create Event 📅"}
+          </button>
         </div>
       </div>
     </div>
@@ -650,6 +654,19 @@ function EventDetailPage({ event, session, isAdmin, attendeeCount, isRsvped, rsv
 
         {/* Main column */}
         <div>
+          <div style={{ ...card, textAlign:"center" }}>
+            <div style={{ width:56, height:56, borderRadius:"50%", background:T.orangeMd, border:`1px solid ${T.orange}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, margin:"0 auto 10px", overflow:"hidden" }}>
+              {event.organizer_photo_url ? <img src={event.organizer_photo_url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : "🏢"}
+            </div>
+            <div style={{ fontWeight:800, fontSize:15, color:T.text }}>{event.organizer_name || "Tez Connect Ecosystem"}</div>
+            <div style={{ fontSize:11, color:T.textLow, marginTop:4 }}>Organizer</div>
+            {event.organizer_link && (
+              <a href={event.organizer_link} target="_blank" rel="noreferrer" style={{ display:"inline-block", marginTop:12, background:T.orangeMd, border:`1px solid ${T.orange}44`, borderRadius:20, padding:"7px 16px", color:T.orange, fontSize:12, fontWeight:700, textDecoration:"none" }}>
+                🔗 Contact Organizer
+              </a>
+            )}
+          </div>
+
           {event.objectives?.length > 0 && (
             <div style={card}>
               <div style={sectionTitle}>🎯 Objective</div>
@@ -696,19 +713,6 @@ function EventDetailPage({ event, session, isAdmin, attendeeCount, isRsvped, rsv
               </div>
             </div>
           )}
-
-          <div style={{ ...card, textAlign:"center" }}>
-            <div style={{ width:56, height:56, borderRadius:"50%", background:T.orangeMd, border:`1px solid ${T.orange}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, margin:"0 auto 10px", overflow:"hidden" }}>
-              {event.organizer_photo_url ? <img src={event.organizer_photo_url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : "🏢"}
-            </div>
-            <div style={{ fontWeight:800, fontSize:15, color:T.text }}>{event.organizer_name || "Tez Connect Ecosystem"}</div>
-            <div style={{ fontSize:11, color:T.textLow, marginTop:4 }}>Organizer</div>
-            {event.organizer_link && (
-              <a href={event.organizer_link} target="_blank" rel="noreferrer" style={{ display:"inline-block", marginTop:12, background:T.orangeMd, border:`1px solid ${T.orange}44`, borderRadius:20, padding:"7px 16px", color:T.orange, fontSize:12, fontWeight:700, textDecoration:"none" }}>
-                🔗 Contact Organizer
-              </a>
-            )}
-          </div>
         </div>
 
         {/* Sidebar */}
