@@ -58,21 +58,65 @@ export function useConnections(userId) {
 
   const accepted = connections.filter(c => c.status === "accepted");
 
+  /* sendRequest — previously did a plain insert every time, which is fine
+     the very first time two people interact but fails permanently the
+     moment a row already exists for that pair: rejectRequest only ever sets
+     status to "rejected", it never deletes the row, so the unique
+     constraint on (sender_id, receiver_id) blocks every future request
+     between those two people forever, for anyone, not just admin.
+
+     Fix: look up any existing row between the two users first (in either
+     direction, same as getStatus does) and reuse it — reviving a rejected
+     row back to pending instead of trying to insert a duplicate. Only
+     inserts a brand-new row when there's truly no history between the two
+     users yet. */
   const sendRequest = useCallback(async (receiverId) => {
     // Free tier: max 2 accepted connections total
     if (!isPremium && accepted.length >= 2) {
       return { error: "LIMIT_REACHED" };
     }
+
+    const existing = connections.find(c =>
+      (c.sender_id === userId && c.receiver_id === receiverId) ||
+      (c.sender_id === receiverId && c.receiver_id === userId)
+    );
+
+    if (existing) {
+      if (existing.status === "accepted" || existing.status === "pending") {
+        // Nothing to do — already connected or already waiting on a
+        // response. Not an error, just a no-op.
+        return { error: null };
+      }
+      // Status is "rejected" (or anything else stale) — revive this exact
+      // row as a fresh pending request from the current sender, instead of
+      // inserting a duplicate that collides with the unique constraint.
+      const { error } = await supabase
+        .from("connections")
+        .update({
+          sender_id: userId,
+          receiver_id: receiverId,
+          status: "pending",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+      if (error) {
+        console.error("sendRequest (revive) error:", error);
+        return { error: error.message };
+      }
+      fetchConnections();
+      return { error: null };
+    }
+
     const { error } = await supabase
       .from("connections")
-      .insert({ sender_id: userId, receiver_id: receiverId });
+      .insert({ sender_id: userId, receiver_id: receiverId, status: "pending" });
     if (error) {
       console.error("sendRequest error:", error);
       return { error: error.message };
     }
     fetchConnections();
     return { error: null };
-  }, [userId, isPremium, accepted.length, fetchConnections]);
+  }, [userId, isPremium, accepted.length, fetchConnections, connections]);
 
   const acceptRequest = useCallback(async (connectionId) => {
     // Also block accepting if it would push a free user over the limit
