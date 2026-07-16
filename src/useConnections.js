@@ -1,85 +1,201 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
 
-export function useNotifications(userId) {
-  const [notifications, setNotifications] = useState([]);
+export function useConnections(userId) {
+  const [connections, setConnections] = useState([]);
+  const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchNotifications = useCallback(async () => {
-    if (!userId) { setLoading(false); return; }
+  const fetchConnections = useCallback(async () => {
+    if (!userId) return;
     try {
       const { data, error } = await supabase
-        .from("notifications")
-        .select("*, actor:actor_id(name, photo)")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .from("connections")
+        .select("*")
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
       if (error) {
-        console.error("useNotifications error:", error);
+        console.error("useConnections error:", error);
         return;
       }
-      setNotifications(data || []);
+      setConnections(data || []);
     } catch (err) {
-      console.error("useNotifications catch:", err);
+      console.error("useConnections catch:", err);
     } finally {
       setLoading(false);
     }
   }, [userId]);
 
-  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
+  const fetchPremiumStatus = useCallback(async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from("profiles")
+      .select("is_premium, premium_expires_at")
+      .eq("id", userId)
+      .single();
+    if (data) {
+      const active = data.is_premium && (!data.premium_expires_at || new Date(data.premium_expires_at) > new Date());
+      setIsPremium(!!active);
+    }
+  }, [userId]);
 
-  // Live updates — new notifications (a connection request, a like, a
-  // message, etc.) appear immediately without the user needing to reopen
-  // the panel or refresh the page.
   useEffect(() => {
-    if (!userId) return;
-    const channel = supabase
-      .channel(`notifications-${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-        () => { fetchNotifications(); }
-      )
-      .subscribe();
+    fetchConnections();
+    fetchPremiumStatus();
+  }, [fetchConnections, fetchPremiumStatus]);
 
-    return () => { supabase.removeChannel(channel); };
-  }, [userId, fetchNotifications]);
+  const getStatus = useCallback((otherUserId) => {
+    const conn = connections.find(c =>
+      (c.sender_id === userId && c.receiver_id === otherUserId) ||
+      (c.sender_id === otherUserId && c.receiver_id === userId)
+    );
+    if (!conn) return { status: "none", connection: null, isSender: false };
+    return {
+      status: conn.status,
+      connection: conn,
+      isSender: conn.sender_id === userId,
+    };
+  }, [connections, userId]);
 
-  const markAsRead = useCallback(async (notificationId) => {
-    // Optimistic — flip it locally right away, then persist.
-    setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, read: true } : n));
-    const { error } = await supabase
-      .from("notifications")
-      .update({ read: true })
-      .eq("id", notificationId);
-    if (error) {
-      console.error("markAsRead error:", error);
-      fetchNotifications(); // roll back to real state on failure
+  const accepted = connections.filter(c => c.status === "accepted");
+
+  /* sendRequest — two layers of defense against the duplicate-key bug:
+
+     1) Check local `connections` state first (fast path) and revive an
+        existing row instead of inserting, same as before.
+
+     2) If that check somehow misses it — local state can be stale right
+        after a page load, a race with another tab, etc. — the insert below
+        will still hit Postgres's unique constraint (error code 23505).
+        Instead of surfacing that raw error to the user, we now catch that
+        specific case, fetch the real conflicting row straight from the
+        database, and revive IT. This is what was still failing for
+        "regular user" pages even after the first fix: local state being
+        out of sync doesn't matter anymore, because this fallback always
+        checks the database directly rather than trusting the cache. */
+  const sendRequest = useCallback(async (receiverId) => {
+    // Free tier: max 2 accepted connections total
+    if (!isPremium && accepted.length >= 2) {
+      return { error: "LIMIT_REACHED" };
     }
-  }, [fetchNotifications]);
 
-  const markAllAsRead = useCallback(async () => {
-    if (!userId) return;
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    const { error } = await supabase
-      .from("notifications")
-      .update({ read: true })
-      .eq("user_id", userId)
-      .eq("read", false);
-    if (error) {
-      console.error("markAllAsRead error:", error);
-      fetchNotifications();
+    const existing = connections.find(c =>
+      (c.sender_id === userId && c.receiver_id === receiverId) ||
+      (c.sender_id === receiverId && c.receiver_id === userId)
+    );
+
+    const reviveRow = async (rowId) => {
+      const { error } = await supabase
+        .from("connections")
+        .update({
+          sender_id: userId,
+          receiver_id: receiverId,
+          status: "pending",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", rowId);
+      if (error) {
+        console.error("sendRequest (revive) error:", error);
+        return { error: error.message };
+      }
+      fetchConnections();
+      return { error: null };
+    };
+
+    if (existing) {
+      if (existing.status === "accepted" || existing.status === "pending") {
+        return { error: null }; // already connected or already waiting — no-op
+      }
+      return reviveRow(existing.id);
     }
-  }, [userId, fetchNotifications]);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+    const { error } = await supabase
+      .from("connections")
+      .insert({ sender_id: userId, receiver_id: receiverId, status: "pending" });
+
+    if (!error) {
+      fetchConnections();
+      return { error: null };
+    }
+
+    // Postgres unique_violation — local state didn't know about a row that
+    // the database actually has. Go find it directly and revive it instead
+    // of failing.
+    if (error.code === "23505") {
+      const { data: conflictRows, error: lookupErr } = await supabase
+        .from("connections")
+        .select("*")
+        .or(`and(sender_id.eq.${userId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${userId})`)
+        .limit(1);
+      if (lookupErr || !conflictRows?.length) {
+        console.error("sendRequest conflict lookup failed:", lookupErr);
+        return { error: error.message };
+      }
+      const conflictRow = conflictRows[0];
+      if (conflictRow.status === "accepted" || conflictRow.status === "pending") {
+        fetchConnections();
+        return { error: null };
+      }
+      return reviveRow(conflictRow.id);
+    }
+
+    console.error("sendRequest error:", error);
+    return { error: error.message };
+  }, [userId, isPremium, accepted.length, fetchConnections, connections]);
+
+  const acceptRequest = useCallback(async (connectionId) => {
+    // Also block accepting if it would push a free user over the limit
+    if (!isPremium && accepted.length >= 2) {
+      return { error: "LIMIT_REACHED" };
+    }
+    const { error } = await supabase
+      .from("connections")
+      .update({ status: "accepted", updated_at: new Date().toISOString() })
+      .eq("id", connectionId);
+    if (error) {
+      console.error("acceptRequest error:", error);
+      return { error: error.message };
+    }
+    fetchConnections();
+    return { error: null };
+  }, [fetchConnections, isPremium, accepted.length]);
+
+  const rejectRequest = useCallback(async (connectionId) => {
+    const { error } = await supabase
+      .from("connections")
+      .update({ status: "rejected", updated_at: new Date().toISOString() })
+      .eq("id", connectionId);
+    if (error) console.error("rejectRequest error:", error);
+    else fetchConnections();
+  }, [fetchConnections]);
+
+  const removeConnection = useCallback(async (connectionId) => {
+    const { error } = await supabase
+      .from("connections")
+      .delete()
+      .eq("id", connectionId);
+    if (error) console.error("removeConnection error:", error);
+    else fetchConnections();
+  }, [fetchConnections]);
+
+  const pendingReceived = connections.filter(
+    c => c.receiver_id === userId && c.status === "pending"
+  );
+  const pendingSent = connections.filter(
+    c => c.sender_id === userId && c.status === "pending"
+  );
 
   return {
-    notifications,
-    unreadCount,
+    connections,
     loading,
-    markAsRead,
-    markAllAsRead,
-    refresh: fetchNotifications,
+    isPremium,
+    getStatus,
+    sendRequest,
+    acceptRequest,
+    rejectRequest,
+    removeConnection,
+    pendingReceived,
+    pendingSent,
+    accepted,
+    refresh: fetchConnections,
   };
 }
