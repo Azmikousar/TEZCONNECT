@@ -242,7 +242,11 @@ function AdminMemberRow({ member, onViewProfile, adminActions, isMe, isOnline, c
       </button>
     );
     if (status === "pending" && isSender) return (
-      <span style={{ ...pillBase, color: T.orange, background: T.orangeLo, border: `1px solid ${T.orange}33`, display: "inline-block" }}>Requested</span>
+      <button onClick={() => handleConnect("remove")} disabled={connecting}
+        title="Tap to cancel request"
+        style={{ ...pillBase, color: T.orange, background: T.orangeLo, border: `1px solid ${T.orange}33`, cursor: "pointer" }}>
+        {connecting ? "…" : "Requested"}
+      </button>
     );
     if (status === "pending" && !isSender) return (
       <button onClick={() => handleConnect("accept")} disabled={connecting}
