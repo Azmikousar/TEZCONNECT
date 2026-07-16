@@ -190,15 +190,54 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile, isOn
 }
 
 /* ── Admin Member Row — replaces Connect with moderation actions ── */
-function AdminMemberRow({ member, onViewProfile, adminActions, isMe, isOnline }) {
+function AdminMemberRow({ member, onViewProfile, adminActions, isMe, isOnline, connectionProps }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const initials = (member.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
   const isVerified   = !!member.is_verified;
   const isSuspended  = !!member.is_suspended;
   const isMuted      = !!member.is_muted;
   const isPending    = member.is_approved === false; // only "pending" if explicitly false
+
+  const { status, connection, isSender } = connectionProps.getStatus(member.id);
+
+  const handleConnect = async (action) => {
+    setConnecting(true);
+    try {
+      if (action === "send")   await connectionProps.sendRequest(member.id);
+      if (action === "accept") await connectionProps.acceptRequest(connection.id);
+      if (action === "remove") await connectionProps.removeConnection(connection.id);
+      // Deliberately not passing through onLimitReached here — the admin
+      // account is never subject to the free-tier connection cap, so there's
+      // no upgrade prompt to show regardless of what the hook reports.
+    } finally { setConnecting(false); }
+  };
+
+  const connectButton = () => {
+    if (status === "accepted") return (
+      <button onClick={() => handleConnect("remove")} disabled={connecting}
+        style={{ background: T.successLo, border: `1.5px solid ${T.success}66`, borderRadius: 10, padding: "9px 12px", color: T.success, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+        {connecting ? "…" : "✓ Connected"}
+      </button>
+    );
+    if (status === "pending" && isSender) return (
+      <span style={{ fontSize: 11, color: T.orange, fontWeight: 700, background: T.orangeLo, border: `1px solid ${T.orange}33`, borderRadius: 10, padding: "9px 12px", whiteSpace: "nowrap" }}>Requested</span>
+    );
+    if (status === "pending" && !isSender) return (
+      <button onClick={() => handleConnect("accept")} disabled={connecting}
+        style={{ background: T.successLo, border: `1.5px solid ${T.success}66`, borderRadius: 10, padding: "9px 12px", color: T.success, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+        {connecting ? "…" : "✓ Accept"}
+      </button>
+    );
+    return (
+      <button onClick={() => handleConnect("send")} disabled={connecting}
+        style={{ background: "linear-gradient(135deg,#f97316,#ea6008)", border: "none", borderRadius: 10, padding: "9px 12px", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+        {connecting ? "…" : "🤝 Connect"}
+      </button>
+    );
+  };
 
   const run = async (fn) => {
     setMenuOpen(false);
@@ -258,7 +297,8 @@ function AdminMemberRow({ member, onViewProfile, adminActions, isMe, isOnline })
       {isMe ? (
         <span style={{ flexShrink: 0, fontSize: 11, color: T.amber, fontWeight: 700, background: "#fbbf2412", border: "1px solid #fbbf2444", borderRadius: 8, padding: "8px 14px" }}>You</span>
       ) : (
-        <>
+        <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
+          {connectButton()}
           <button onClick={() => setMenuOpen(true)} disabled={busy}
             style={{ flexShrink: 0, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 14px", color: T.text, fontSize: 12, fontWeight: 700, cursor: busy ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6 }}>
             🛡️ Manage <span style={{ fontSize: 10 }}>▾</span>
@@ -295,7 +335,7 @@ function AdminMemberRow({ member, onViewProfile, adminActions, isMe, isOnline })
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
@@ -683,7 +723,11 @@ export default function NetworkPage({ session, onMessage }) {
 
   const connectionProps = {
     getStatus, sendRequest, acceptRequest, rejectRequest, removeConnection,
-    onLimitReached: () => setShowUpgrade(true),
+    // The admin account is never subject to the free-tier connection cap.
+    // Guarding it here means even if useConnections ever reports
+    // LIMIT_REACHED for this account, nothing happens — no upgrade modal,
+    // ever, for admin.
+    onLimitReached: () => { if (!isAdmin) setShowUpgrade(true); },
   };
 
   /* Message action fired from inside UserProfileModal.
@@ -1013,6 +1057,7 @@ export default function NetworkPage({ session, onMessage }) {
                     adminActions={adminActions}
                     isMe={member.id === session.userId}
                     isOnline={onlineIds.has(member.id)}
+                    connectionProps={connectionProps}
                   />
                 ) : (
                   <MemberRow
