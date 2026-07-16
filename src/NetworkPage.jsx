@@ -65,7 +65,14 @@ function MemberRow({ member, currentUserId, connectionProps, onViewProfile, isOn
 
       if (result?.error === "LIMIT_REACHED" && connectionProps.onLimitReached) {
         connectionProps.onLimitReached();
+      } else if (result?.error) {
+        // Any other error — this used to fail silently, which is exactly why
+        // a connect that's actually blocked (RLS, a stale/duplicate request
+        // row, a suspended account, etc.) looked like nothing happened.
+        alert("Couldn't connect with " + (member.name || "this member") + ": " + (typeof result.error === "string" ? result.error : JSON.stringify(result.error)));
       }
+    } catch (e) {
+      alert("Couldn't connect with " + (member.name || "this member") + ": " + e.message);
     } finally { setLoading(false); }
   };
 
@@ -206,12 +213,18 @@ function AdminMemberRow({ member, onViewProfile, adminActions, isMe, isOnline, c
   const handleConnect = async (action) => {
     setConnecting(true);
     try {
-      if (action === "send")   await connectionProps.sendRequest(member.id);
-      if (action === "accept") await connectionProps.acceptRequest(connection.id);
-      if (action === "remove") await connectionProps.removeConnection(connection.id);
+      let result;
+      if (action === "send")   result = await connectionProps.sendRequest(member.id);
+      if (action === "accept") result = await connectionProps.acceptRequest(connection.id);
+      if (action === "remove") result = await connectionProps.removeConnection(connection.id);
       // Deliberately not passing through onLimitReached here — the admin
       // account is never subject to the free-tier connection cap, so there's
       // no upgrade prompt to show regardless of what the hook reports.
+      if (result?.error && result.error !== "LIMIT_REACHED") {
+        alert("Couldn't connect with " + (member.name || "this member") + ": " + (typeof result.error === "string" ? result.error : JSON.stringify(result.error)));
+      }
+    } catch (e) {
+      alert("Couldn't connect with " + (member.name || "this member") + ": " + e.message);
     } finally { setConnecting(false); }
   };
 
