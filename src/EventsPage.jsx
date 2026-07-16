@@ -490,6 +490,7 @@ function EventModal({ event, session, onClose, onSaved }) {
 function AttendeesModal({ event, session, isAdmin, onClose }) {
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [profileError, setProfileError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -500,12 +501,14 @@ function AttendeesModal({ event, session, isAdmin, onClose }) {
 
       const userIds = (rsvpRows || []).map(r => r.user_id);
       let profileMap = {};
+      let profileErr = null;
       if (userIds.length) {
-        const { data: profiles } = await supabase.from("profiles").select("id, name, photo, mobile, email, company, designation").in("id", userIds);
+        const { data: profiles, error } = await supabase.from("profiles").select("id, name, photo, mobile, email, company, designation").in("id", userIds);
+        if (error) { console.error("[TezConnect Events] fetch attendee profiles failed:", error); profileErr = error; }
         (profiles || []).forEach(p => { profileMap[p.id] = p; });
       }
       const merged = (rsvpRows || []).map(r => ({ ...r, profile: profileMap[r.user_id] || null }));
-      if (!cancelled) { setAttendees(merged); setLoading(false); }
+      if (!cancelled) { setAttendees(merged); setProfileError(profileErr); setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, [event.id]);
@@ -544,6 +547,11 @@ function AttendeesModal({ event, session, isAdmin, onClose }) {
           )}
           {!loading && attendees.length === 0 && (
             <div style={{ textAlign:"center", padding:"40px 20px", color:T.textLow, fontSize:13 }}>No one has registered yet.</div>
+          )}
+          {!loading && profileError && (
+            <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"10px 14px", fontSize:12, color:T.error, marginBottom:14 }}>
+              ⚠ Couldn't load attendee names/photos/numbers — likely blocked by a row-level security policy on the profiles table ({profileError.message}).
+            </div>
           )}
           {!loading && attendees.map(a => {
             const p = a.profile || {};
