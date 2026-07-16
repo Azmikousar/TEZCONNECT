@@ -506,7 +506,7 @@ function AdminReportsModal({ onClose, onResolved }) {
 }
 
 /* ── Requests Panel ── */
-function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewProfile, onLimitReached }) {
+function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewProfile, onLimitReached, members }) {
   if (pendingReceived.length === 0) return (
     <div style={{ textAlign: "center", padding: "50px 20px" }}>
       <div style={{ fontSize: 48, marginBottom: 14 }}>🤝</div>
@@ -520,10 +520,28 @@ function RequestsPanel({ pendingReceived, acceptRequest, rejectRequest, onViewPr
     if (result?.error === "LIMIT_REACHED" && onLimitReached) onLimitReached();
   };
 
+  /* Resolve the sender's real profile.
+     Whatever `useConnections` joins onto each pending-request row as
+     `r.profiles` sometimes comes back missing name/photo (hence the "?" /
+     "Member" placeholder you saw). Since this page already has every
+     member's full profile loaded in `members`, we look the sender up there
+     by id as the source of truth, and only fall back to whatever `r.profiles`
+     has if the person somehow isn't in that list. */
+  const resolveActor = (r) => {
+    const senderId = r.sender_id || r.requester_id || r.user_id || r.from_user_id || r.profiles?.id;
+    const fromMembers = members?.find(m => m.id === senderId);
+    const joined = r.profiles || {};
+    return {
+      id: senderId,
+      ...joined,
+      ...fromMembers, // members list is the reliable source — wins over a partially-empty join
+    };
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {pendingReceived.map(r => {
-        const actor = r.profiles || {};
+        const actor = resolveActor(r);
         const initials = (actor.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
         return (
           <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, background: T.bgCard, border: `1px solid ${T.orange}33`, borderRadius: 16, padding: "14px 16px" }}>
@@ -904,6 +922,7 @@ export default function NetworkPage({ session, onMessage }) {
           rejectRequest={rejectRequest}
           onViewProfile={setViewingUser}
           onLimitReached={() => setShowUpgrade(true)}
+          members={members}
         />
       )}
 
