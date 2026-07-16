@@ -1,6 +1,15 @@
 import React from "react";
 import { useNotifications } from "./useNotifications";
 
+// The host app (outside this component) renders its own fixed bottom nav bar
+// on top of this page's webview. Every full-screen modal/sheet in this app
+// leaves this much room at the bottom so it's never rendered underneath it —
+// same fix already applied to every other bottom sheet (Network, App Store,
+// Prints, Marketplace). This panel was missing it, which is why it could
+// show as a blank/empty backdrop with the real content hidden below the
+// visible area.
+const HOST_NAV_HEIGHT = 90;
+
 const TYPE_CONFIG = {
   new_post:            { icon: "📸", text: "shared a new post" },
   connection_request:  { icon: "🤝", text: "sent you a connection request" },
@@ -44,15 +53,18 @@ export default function NotificationsPanel({ session, onClose, onNavigate }) {
 
   return (
     <>
+      {/* Backdrop stops HOST_NAV_HEIGHT above the bottom of the screen, so
+          the host app's own nav bar is never covered, and the panel below
+          is never rendered underneath it either. */}
       <div
         onClick={onClose}
-        style={{ position: "fixed", inset: 0, background: "#000000aa", zIndex: 800 }}
+        style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: HOST_NAV_HEIGHT, background: "#000000aa", zIndex: 800 }}
       />
 
       <div style={{
         position: "fixed",
-        bottom: 0, left: 0, right: 0,
-        maxHeight: "75vh",
+        bottom: HOST_NAV_HEIGHT, left: 0, right: 0,
+        maxHeight: `min(75vh, calc(100vh - ${HOST_NAV_HEIGHT}px - 16px))`,
         background: T.bgCard,
         border: `1px solid ${T.border}`,
         borderRadius: "20px 20px 0 0",
@@ -62,6 +74,7 @@ export default function NotificationsPanel({ session, onClose, onNavigate }) {
         animation: "slideUp .3s ease",
         maxWidth: 600,
         margin: "0 auto",
+        overflow: "hidden",
       }}>
 
         <div style={{ padding: "12px 0 0", display: "flex", justifyContent: "center", flexShrink: 0 }}>
@@ -113,7 +126,7 @@ export default function NotificationsPanel({ session, onClose, onNavigate }) {
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", touchAction: "pan-y", minHeight: 0 }}>
 
           {loading && (
             <div style={{ padding: "40px 0", textAlign: "center" }}>
