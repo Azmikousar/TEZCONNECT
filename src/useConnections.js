@@ -1,177 +1,85 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabase";
 
-export function useConnections(userId) {
-  const [connections, setConnections] = useState([]);
-  const [isPremium, setIsPremium] = useState(false);
+export function useNotifications(userId) {
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchConnections = useCallback(async () => {
-    if (!userId) return;
+  const fetchNotifications = useCallback(async () => {
+    if (!userId) { setLoading(false); return; }
     try {
       const { data, error } = await supabase
-        .from("connections")
-        .select("*")
-        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
+        .from("notifications")
+        .select("*, actor:actor_id(name, photo)")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
       if (error) {
-        console.error("useConnections error:", error);
+        console.error("useNotifications error:", error);
         return;
       }
-      setConnections(data || []);
+      setNotifications(data || []);
     } catch (err) {
-      console.error("useConnections catch:", err);
+      console.error("useNotifications catch:", err);
     } finally {
       setLoading(false);
     }
   }, [userId]);
 
-  const fetchPremiumStatus = useCallback(async () => {
-    if (!userId) return;
-    const { data } = await supabase
-      .from("profiles")
-      .select("is_premium, premium_expires_at")
-      .eq("id", userId)
-      .single();
-    if (data) {
-      const active = data.is_premium && (!data.premium_expires_at || new Date(data.premium_expires_at) > new Date());
-      setIsPremium(!!active);
-    }
-  }, [userId]);
+  useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
 
+  // Live updates — new notifications (a connection request, a like, a
+  // message, etc.) appear immediately without the user needing to reopen
+  // the panel or refresh the page.
   useEffect(() => {
-    fetchConnections();
-    fetchPremiumStatus();
-  }, [fetchConnections, fetchPremiumStatus]);
+    if (!userId) return;
+    const channel = supabase
+      .channel(`notifications-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        () => { fetchNotifications(); }
+      )
+      .subscribe();
 
-  const getStatus = useCallback((otherUserId) => {
-    const conn = connections.find(c =>
-      (c.sender_id === userId && c.receiver_id === otherUserId) ||
-      (c.sender_id === otherUserId && c.receiver_id === userId)
-    );
-    if (!conn) return { status: "none", connection: null, isSender: false };
-    return {
-      status: conn.status,
-      connection: conn,
-      isSender: conn.sender_id === userId,
-    };
-  }, [connections, userId]);
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, fetchNotifications]);
 
-  const accepted = connections.filter(c => c.status === "accepted");
-
-  /* sendRequest — previously did a plain insert every time, which is fine
-     the very first time two people interact but fails permanently the
-     moment a row already exists for that pair: rejectRequest only ever sets
-     status to "rejected", it never deletes the row, so the unique
-     constraint on (sender_id, receiver_id) blocks every future request
-     between those two people forever, for anyone, not just admin.
-
-     Fix: look up any existing row between the two users first (in either
-     direction, same as getStatus does) and reuse it — reviving a rejected
-     row back to pending instead of trying to insert a duplicate. Only
-     inserts a brand-new row when there's truly no history between the two
-     users yet. */
-  const sendRequest = useCallback(async (receiverId) => {
-    // Free tier: max 2 accepted connections total
-    if (!isPremium && accepted.length >= 2) {
-      return { error: "LIMIT_REACHED" };
-    }
-
-    const existing = connections.find(c =>
-      (c.sender_id === userId && c.receiver_id === receiverId) ||
-      (c.sender_id === receiverId && c.receiver_id === userId)
-    );
-
-    if (existing) {
-      if (existing.status === "accepted" || existing.status === "pending") {
-        // Nothing to do — already connected or already waiting on a
-        // response. Not an error, just a no-op.
-        return { error: null };
-      }
-      // Status is "rejected" (or anything else stale) — revive this exact
-      // row as a fresh pending request from the current sender, instead of
-      // inserting a duplicate that collides with the unique constraint.
-      const { error } = await supabase
-        .from("connections")
-        .update({
-          sender_id: userId,
-          receiver_id: receiverId,
-          status: "pending",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existing.id);
-      if (error) {
-        console.error("sendRequest (revive) error:", error);
-        return { error: error.message };
-      }
-      fetchConnections();
-      return { error: null };
-    }
-
+  const markAsRead = useCallback(async (notificationId) => {
+    // Optimistic — flip it locally right away, then persist.
+    setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, read: true } : n));
     const { error } = await supabase
-      .from("connections")
-      .insert({ sender_id: userId, receiver_id: receiverId, status: "pending" });
+      .from("notifications")
+      .update({ read: true })
+      .eq("id", notificationId);
     if (error) {
-      console.error("sendRequest error:", error);
-      return { error: error.message };
+      console.error("markAsRead error:", error);
+      fetchNotifications(); // roll back to real state on failure
     }
-    fetchConnections();
-    return { error: null };
-  }, [userId, isPremium, accepted.length, fetchConnections, connections]);
+  }, [fetchNotifications]);
 
-  const acceptRequest = useCallback(async (connectionId) => {
-    // Also block accepting if it would push a free user over the limit
-    if (!isPremium && accepted.length >= 2) {
-      return { error: "LIMIT_REACHED" };
-    }
+  const markAllAsRead = useCallback(async () => {
+    if (!userId) return;
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     const { error } = await supabase
-      .from("connections")
-      .update({ status: "accepted", updated_at: new Date().toISOString() })
-      .eq("id", connectionId);
+      .from("notifications")
+      .update({ read: true })
+      .eq("user_id", userId)
+      .eq("read", false);
     if (error) {
-      console.error("acceptRequest error:", error);
-      return { error: error.message };
+      console.error("markAllAsRead error:", error);
+      fetchNotifications();
     }
-    fetchConnections();
-    return { error: null };
-  }, [fetchConnections, isPremium, accepted.length]);
+  }, [userId, fetchNotifications]);
 
-  const rejectRequest = useCallback(async (connectionId) => {
-    const { error } = await supabase
-      .from("connections")
-      .update({ status: "rejected", updated_at: new Date().toISOString() })
-      .eq("id", connectionId);
-    if (error) console.error("rejectRequest error:", error);
-    else fetchConnections();
-  }, [fetchConnections]);
-
-  const removeConnection = useCallback(async (connectionId) => {
-    const { error } = await supabase
-      .from("connections")
-      .delete()
-      .eq("id", connectionId);
-    if (error) console.error("removeConnection error:", error);
-    else fetchConnections();
-  }, [fetchConnections]);
-
-  const pendingReceived = connections.filter(
-    c => c.receiver_id === userId && c.status === "pending"
-  );
-  const pendingSent = connections.filter(
-    c => c.sender_id === userId && c.status === "pending"
-  );
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return {
-    connections,
+    notifications,
+    unreadCount,
     loading,
-    isPremium,
-    getStatus,
-    sendRequest,
-    acceptRequest,
-    rejectRequest,
-    removeConnection,
-    pendingReceived,
-    pendingSent,
-    accepted,
-    refresh: fetchConnections,
+    markAsRead,
+    markAllAsRead,
+    refresh: fetchNotifications,
   };
 }
