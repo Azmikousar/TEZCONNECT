@@ -9,6 +9,7 @@ const T = {
   error: "#f87171", errorLo: "#f8717112",
   info: "#38bdf8", infoLo: "#38bdf812",
   amber: "#fbbf24", amberLo: "#fbbf2412",
+  purple: "#a78bfa", purpleLo: "#a78bfa12",
 };
 
 const STATUS_CONFIG = {
@@ -18,6 +19,15 @@ const STATUS_CONFIG = {
   converted: { label: "Converted", color: T.success, bg: T.successLo },
   lost:      { label: "Lost",      color: T.error,   bg: T.errorLo },
 };
+
+/* How the lead reached us */
+const LEAD_TYPE_CONFIG = {
+  message:     { label: "Message",       icon: "💬", color: T.info,    short: "Connected / sent a message" },
+  marketplace: { label: "Marketplace",   icon: "🛍️", color: T.orange,  short: "Bought products/services" },
+  printstore:  { label: "Prints & Apps", icon: "🖨️", color: T.purple,  short: "Bought via Tez Prints / App Store" },
+  event:       { label: "Event",         icon: "🎫", color: T.success, short: "Registered for an event" },
+};
+
 const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69"; // same UUID as in LeadsPage.jsx
 
 function StatCard({ icon, label, value, color, change }) {
@@ -85,16 +95,71 @@ function WeeklyChart({ data }) {
   );
 }
 
+/* ── Donut / pie chart, pure SVG, no external chart lib ── */
+function DonutChart({ data, size = 168, thickness = 26 }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const radius = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+        {total === 0 ? (
+          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={T.bgInput} strokeWidth={thickness} />
+        ) : data.map((d, i) => {
+          if (d.value === 0) return null;
+          const frac = d.value / total;
+          const len = Math.max(frac * circumference - (data.filter(x=>x.value>0).length>1 ? 3 : 0), 0);
+          const el = (
+            <circle
+              key={i} cx={size / 2} cy={size / 2} r={radius} fill="none"
+              stroke={d.color} strokeWidth={thickness}
+              strokeDasharray={`${len} ${circumference - len}`}
+              strokeDashoffset={-offset}
+              strokeLinecap="round"
+              style={{ transition: "stroke-dasharray .6s ease" }}
+            />
+          );
+          offset += frac * circumference;
+          return el;
+        })}
+      </g>
+      <text x="50%" y="46%" textAnchor="middle" fontSize="24" fontWeight="800" fill={T.text} fontFamily="'Plus Jakarta Sans',sans-serif">{total}</text>
+      <text x="50%" y="61%" textAnchor="middle" fontSize="9" fontWeight="700" letterSpacing="1" fill={T.textLow} fontFamily="'Plus Jakarta Sans',sans-serif">TOTAL LEADS</text>
+    </svg>
+  );
+}
+
+/* ── Vertical bar chart comparing the 4 lead-type totals ── */
+function TypeBarChart({ data }) {
+  const max = Math.max(...data.map(d => d.value), 1);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 14, height: 150, paddingTop: 6 }}>
+      {data.map((d, i) => {
+        const h = Math.max(4, (d.value / max) * 100);
+        return (
+          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%", justifyContent: "flex-end" }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: d.color }}>{d.value}</span>
+            <div style={{ width: "100%", maxWidth: 46, height: `${h}%`, background: `linear-gradient(180deg,${d.color},${d.color}77)`, borderRadius: "8px 8px 3px 3px", minHeight: 4, transition: "height .5s ease", boxShadow: d.value>0?`0 0 14px ${d.color}33`:"none" }} />
+            <span style={{ fontSize: 15 }}>{d.icon}</span>
+            <span style={{ fontSize: 10, color: T.textLow, textAlign: "center", lineHeight: 1.3, maxWidth: 70 }}>{d.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function LeadAnalyticsPage({ session }) {
   const [leads, setLeads]     = useState([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod]   = useState("all");
-useEffect(() => {
-  supabase.from("leads").select("*").eq("user_id", ADMIN_USER_ID)
-    .order("created_at", { ascending: false })
-    .then(({ data }) => { setLeads(data || []); setLoading(false); });
-}, []);
 
+  useEffect(() => {
+    supabase.from("leads").select("*").eq("user_id", ADMIN_USER_ID)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => { setLeads(data || []); setLoading(false); });
+  }, []);
 
   const total     = leads.length;
   const converted = leads.filter(l => l.status === "converted").length;
@@ -105,6 +170,20 @@ useEffect(() => {
     acc[s] = leads.filter(l => l.status === s).length;
     return acc;
   }, {});
+
+  // Lead-type breakdown — powers the pie + bar charts
+  const typeCounts = Object.keys(LEAD_TYPE_CONFIG).reduce((acc, k) => {
+    acc[k] = leads.filter(l => l.lead_type === k).length;
+    return acc;
+  }, {});
+  const untracked = leads.filter(l => !LEAD_TYPE_CONFIG[l.lead_type]).length;
+
+  const pieData = Object.entries(LEAD_TYPE_CONFIG).map(([key, cfg]) => ({
+    key, value: typeCounts[key] || 0, color: cfg.color, label: cfg.label,
+  }));
+  const barData = Object.entries(LEAD_TYPE_CONFIG).map(([key, cfg]) => ({
+    key, value: typeCounts[key] || 0, color: cfg.color, label: cfg.label, icon: cfg.icon,
+  }));
 
   // Weekly data (last 7 days)
   const weeklyData = Array.from({ length: 7 }, (_, i) => {
@@ -124,7 +203,7 @@ useEffect(() => {
   }, {});
   const topIndustries = Object.entries(industries).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-  const industryColors = [T.orange, T.info, T.success, T.amber, "#a78bfa"];
+  const industryColors = [T.orange, T.info, T.success, T.amber, T.purple];
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 12 }}>
@@ -135,19 +214,18 @@ useEffect(() => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-{/* Header */}
-<div>
-  <div style={{ fontSize: 11, color: T.textLow, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 6 }}>📊 Lead Analytics</div>
-  <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text, letterSpacing: "-.03em" }}>
-    Lead <span style={{ color: T.orange }}>Insights</span>
-  </h2>
-  {session.userId !== ADMIN_USER_ID && (
-    <div style={{ fontSize: 11, color: T.textLow, marginTop: 6 }}>
-      👁️ Showing TezConnect team-wide lead insights
-    </div>
-  )}
-</div>
-
+      {/* Header */}
+      <div>
+        <div style={{ fontSize: 11, color: T.textLow, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 6 }}>📊 Lead Analytics</div>
+        <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text, letterSpacing: "-.03em" }}>
+          Lead <span style={{ color: T.orange }}>Insights</span>
+        </h2>
+        {session.userId !== ADMIN_USER_ID && (
+          <div style={{ fontSize: 11, color: T.textLow, marginTop: 6 }}>
+            👁️ Showing TezConnect team-wide lead insights
+          </div>
+        )}
+      </div>
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
@@ -155,6 +233,58 @@ useEffect(() => {
         <StatCard icon="✅" label="Converted"     value={converted} color={T.success} change={8}  />
         <StatCard icon="🔥" label="Active Leads"  value={active}    color={T.info}    change={-3} />
         <StatCard icon="📈" label="Conv. Rate"    value={`${convRate}%`} color={T.amber} />
+      </div>
+
+      {/* Lead sources — pie/donut chart */}
+      <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "20px" }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 4 }}>🥧 Where Leads Come From</div>
+        <div style={{ fontSize: 11, color: T.textLow, marginBottom: 16 }}>Messages · Marketplace · Prints &amp; Apps · Events</div>
+
+        {total === 0 ? (
+          <div style={{ textAlign: "center", padding: "20px 0", color: T.textLow, fontSize: 13 }}>
+            No leads yet — sources will appear here once leads come in
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+            <div style={{ flexShrink: 0, margin: "0 auto" }}>
+              <DonutChart data={pieData.map(d => ({ value: d.value, color: d.color }))} />
+            </div>
+            <div style={{ flex: 1, minWidth: 180, display: "flex", flexDirection: "column", gap: 10 }}>
+              {pieData.map(d => {
+                const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
+                const cfg = LEAD_TYPE_CONFIG[d.key];
+                return (
+                  <div key={d.key} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, color: T.text, fontWeight: 700 }}>{cfg.icon} {d.label}</div>
+                      <div style={{ fontSize: 10, color: T.textLow }}>{cfg.short}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: d.color }}>{d.value}</div>
+                      <div style={{ fontSize: 10, color: T.textLow }}>{pct}%</div>
+                    </div>
+                  </div>
+                );
+              })}
+              {untracked > 0 && (
+                <div style={{ fontSize: 10, color: T.textLow, marginTop: 2 }}>+ {untracked} lead{untracked!==1?"s":""} without a recorded source</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Lead sources — bar chart comparison */}
+      <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "20px" }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 16 }}>📊 Leads by Source Type</div>
+        {total === 0 ? (
+          <div style={{ textAlign: "center", padding: "20px 0", color: T.textLow, fontSize: 13 }}>
+            No leads yet — add leads to compare sources
+          </div>
+        ) : (
+          <TypeBarChart data={barData} />
+        )}
       </div>
 
       {/* Weekly chart */}
@@ -201,6 +331,7 @@ useEffect(() => {
         ) : (
           leads.slice(0, 5).map(lead => {
             const cfg = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new;
+            const typeCfg = LEAD_TYPE_CONFIG[lead.lead_type];
             return (
               <div key={lead.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
                 <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#f97316,#ea6008)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", flexShrink: 0 }}>
@@ -208,7 +339,7 @@ useEffect(() => {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.name}</div>
-                  <div style={{ fontSize: 11, color: T.textLow }}>{lead.company || lead.industry || "—"}</div>
+                  <div style={{ fontSize: 11, color: T.textLow }}>{typeCfg ? `${typeCfg.icon} ${typeCfg.label}` : (lead.company || lead.industry || "—")}</div>
                 </div>
                 <span style={{ background: cfg.bg, border: `1px solid ${cfg.color}44`, color: cfg.color, borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
                   {cfg.label}
