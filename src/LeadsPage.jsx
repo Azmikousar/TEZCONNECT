@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 
 const T = {
@@ -11,638 +11,213 @@ const T = {
   amber: "#fbbf24", amberLo: "#fbbf2412",
 };
 
-/* ── CHANGE THIS to Lekhakraj's real user ID ── */
-const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69";
-
 const STATUS_CONFIG = {
-  new:       { label: "New",       color: T.info,    bg: T.infoLo,    icon: "🆕" },
-  contacted: { label: "Contacted", color: T.orange,  bg: T.orangeLo,  icon: "📞" },
-  qualified: { label: "Qualified", color: T.amber,   bg: T.amberLo,   icon: "⭐" },
-  converted: { label: "Converted", color: T.success, bg: T.successLo, icon: "✅" },
-  lost:      { label: "Lost",      color: T.error,   bg: T.errorLo,   icon: "❌" },
+  new:       { label: "New",       color: T.info,    bg: T.infoLo },
+  contacted: { label: "Contacted", color: T.orange,  bg: T.orangeLo },
+  qualified: { label: "Qualified", color: T.amber,   bg: T.amberLo },
+  converted: { label: "Converted", color: T.success, bg: T.successLo },
+  lost:      { label: "Lost",      color: T.error,   bg: T.errorLo },
 };
+const ADMIN_USER_ID = "3f1ec55b-a33f-462c-8d10-0197fea18e69"; // same UUID as in LeadsPage.jsx
 
-const INDUSTRIES = ["Technology","Finance","Healthcare","Education","Real Estate","Manufacturing","Retail","Media","Consulting","Construction","Hospitality","Agriculture","Other"];
-const SOURCES = ["WhatsApp","LinkedIn","Referral","Website","Event","Cold Call","Instagram","Email","Other"];
-
-function timeAgo(ts) {
-  const d = (Date.now() - new Date(ts)) / 1000;
-  if (d < 60) return "just now";
-  if (d < 3600) return `${Math.floor(d/60)}m ago`;
-  if (d < 86400) return `${Math.floor(d/3600)}h ago`;
-  return new Date(ts).toLocaleDateString("en-IN", { day:"numeric", month:"short" });
-}
-
-/* ── Live indicator ── */
-function LiveBadge() {
+function StatCard({ icon, label, value, color, change }) {
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:6, background:T.successLo, border:`1px solid ${T.success}44`, borderRadius:20, padding:"4px 12px" }}>
-      <div style={{ width:8, height:8, borderRadius:"50%", background:T.success, boxShadow:`0 0 8px ${T.success}`, animation:"pulse 1.5s ease infinite" }}/>
-      <span style={{ fontSize:11, fontWeight:700, color:T.success }}>LIVE</span>
-    </div>
-  );
-}
-
-/* ── New lead toast ── */
-function LeadToast({ lead, onClose }) {
-  useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, []);
-  return (
-    <div style={{ position:"fixed", top:70, right:16, zIndex:999, background:T.bgCard, border:`1px solid ${T.success}55`, borderRadius:14, padding:"12px 16px", maxWidth:300, boxShadow:"0 8px 32px #00000066", animation:"slideR .3s ease", display:"flex", alignItems:"center", gap:12 }}>
-      <div style={{ width:38, height:38, borderRadius:"50%", background:"linear-gradient(135deg,#22c55e,#16a34a)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>🎯</div>
-      <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:11, fontWeight:700, color:T.success, marginBottom:2 }}>NEW LEAD</div>
-        <div style={{ fontSize:13, fontWeight:700, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{lead.name}</div>
-        <div style={{ fontSize:11, color:T.textLow }}>{lead.company||lead.industry||"New inquiry"}</div>
+    <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, padding: "16px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 10, background: color + "18", border: `1px solid ${color}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
+          {icon}
+        </div>
+        {change !== undefined && (
+          <span style={{ fontSize: 11, fontWeight: 700, color: change >= 0 ? T.success : T.error }}>
+            {change >= 0 ? "↑" : "↓"} {Math.abs(change)}%
+          </span>
+        )}
       </div>
-      <button onClick={onClose} style={{ background:"none", border:"none", color:T.textLow, fontSize:16, cursor:"pointer", flexShrink:0 }}>×</button>
+      <div style={{ fontWeight: 800, fontSize: 26, color, letterSpacing: "-.03em" }}>{value}</div>
+      <div style={{ fontSize: 11, color: T.textLow, textTransform: "uppercase", letterSpacing: ".07em", marginTop: 4 }}>{label}</div>
     </div>
   );
 }
 
-/* ── Add/Edit Lead Modal ── */
-function LeadModal({ lead, session, onClose, onSaved }) {
-  const isEdit = !!lead?.id;
-  const [form, setForm] = useState({
-    name:"", company:"", email:"", mobile:"", whatsapp:"",
-    industry:"", status:"new", source:"", notes:"",
-    ...lead,
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError]   = useState("");
-  const set = (k,v) => setForm(f=>({...f,[k]:v}));
-
-  const save = async() => {
-    if(!form.name.trim()){setError("Name is required");return;}
-    setSaving(true);
-    const payload = { ...form, user_id:ADMIN_USER_ID, updated_at:new Date().toISOString() };
-    delete payload.id; delete payload.created_at;
-    let err;
-    if(isEdit){
-      ({error:err}=await supabase.from("leads").update(payload).eq("id",lead.id));
-    } else {
-      ({error:err}=await supabase.from("leads").insert({...payload,created_at:new Date().toISOString()}));
-    }
-    setSaving(false);
-    if(err){setError(err.message);return;}
-    onSaved();onClose();
-  };
-
-  const inputStyle = {
-    width:"100%", background:T.bgInput, border:`1px solid ${T.border}`,
-    borderRadius:10, padding:"11px 14px", color:T.text, fontSize:13,
-    outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif",
-    transition:"border-color .2s",
-  };
-
+function FunnelBar({ label, value, total, color }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000d", zIndex:400, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"20px 20px 0 0", width:"100%", maxWidth:520, maxHeight:"92vh", overflowY:"auto", animation:"slideUp .3s ease" }}>
-        <div style={{ padding:"12px 0 0", display:"flex", justifyContent:"center" }}>
-          <div style={{ width:40, height:4, background:T.border, borderRadius:4 }}/>
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 10, height: 10, borderRadius: "50%", background: color }} />
+          <span style={{ fontSize: 13, color: T.text, fontWeight: 600 }}>{label}</span>
         </div>
-        <div style={{ padding:"16px 20px 40px" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
-            <div style={{ fontWeight:800, fontSize:18, color:T.text }}>{isEdit?"Edit Lead":"Add New Lead"}</div>
-            <button onClick={onClose} style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:"50%", width:32, height:32, color:T.textMid, fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
-          </div>
-
-          {error && <div style={{ background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"10px 14px", fontSize:12, color:T.error, marginBottom:14 }}>⚠ {error}</div>}
-
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div>
-              <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Full Name *</label>
-              <input value={form.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Rajesh Kumar" style={inputStyle} onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}/>
-            </div>
-
-            <div>
-              <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Company</label>
-              <input value={form.company} onChange={e=>set("company",e.target.value)} placeholder="e.g. ABC Technologies" style={inputStyle} onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}/>
-            </div>
-
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              <div>
-                <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Mobile</label>
-                <input value={form.mobile} onChange={e=>set("mobile",e.target.value)} placeholder="+91 9876543210" type="tel" style={inputStyle} onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}/>
-              </div>
-              <div>
-                <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>WhatsApp</label>
-                <input value={form.whatsapp} onChange={e=>set("whatsapp",e.target.value)} placeholder="+91 9876543210" type="tel" style={inputStyle} onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}/>
-              </div>
-            </div>
-
-            <div>
-              <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Email</label>
-              <input value={form.email} onChange={e=>set("email",e.target.value)} placeholder="contact@company.com" type="email" style={inputStyle} onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}/>
-            </div>
-
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              <div>
-                <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Industry</label>
-                <select value={form.industry} onChange={e=>set("industry",e.target.value)} style={{ ...inputStyle, appearance:"none" }}>
-                  <option value="">Select</option>
-                  {INDUSTRIES.map(i=><option key={i} value={i}>{i}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Source</label>
-                <select value={form.source} onChange={e=>set("source",e.target.value)} style={{ ...inputStyle, appearance:"none" }}>
-                  <option value="">Select</option>
-                  {SOURCES.map(s=><option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:8 }}>Status</label>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {Object.entries(STATUS_CONFIG).map(([key,cfg])=>(
-                  <button key={key} onClick={()=>set("status",key)}
-                    style={{ background:form.status===key?cfg.bg:"transparent", border:`1.5px solid ${form.status===key?cfg.color+"55":T.border}`, borderRadius:20, padding:"6px 14px", color:form.status===key?cfg.color:T.textMid, fontWeight:700, fontSize:11, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", transition:"all .15s" }}>
-                    {cfg.icon} {cfg.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label style={{ fontSize:11, fontWeight:700, color:T.textMid, textTransform:"uppercase", letterSpacing:".08em", display:"block", marginBottom:6 }}>Notes</label>
-              <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} placeholder="Add notes about this lead…" rows={3} style={{ ...inputStyle, resize:"vertical" }} onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}/>
-            </div>
-
-            <button onClick={save} disabled={saving}
-              style={{ width:"100%", background:saving?"#1a1f35":"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"14px", color:saving?T.textMid:"#fff", fontSize:15, fontWeight:700, cursor:saving?"wait":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:saving?"none":"0 4px 20px #f9731440" }}>
-              {saving?"Saving…":isEdit?"Update Lead":"Add Lead 🎯"}
-            </button>
-          </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <span style={{ fontSize: 13, fontWeight: 800, color }}>{value}</span>
+          <span style={{ fontSize: 11, color: T.textLow }}>{pct}%</span>
         </div>
+      </div>
+      <div style={{ height: 8, background: T.bgInput, borderRadius: 4, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 4, transition: "width .6s ease" }} />
       </div>
     </div>
   );
 }
 
-/* ── Lead Row (table-style for admin) ── */
-function LeadRow({ lead, onEdit, onDelete, onStatusChange, isNew }) {
-  const cfg = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new;
-  const [showMenu, setShowMenu]     = useState(false);
-  const [confirmDel, setConfirmDel] = useState(false);
-  const [showStatusPicker, setShowStatusPicker] = useState(false);
-
+function WeeklyChart({ data }) {
+  const max = Math.max(...data.map(d => d.count), 1);
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   return (
-    <div style={{
-      background:T.bgCard, border:`1px solid ${isNew?T.success+"66":T.border}`,
-      borderRadius:14, padding:"14px 16px", position:"relative",
-      animation: isNew?"fadeUp .4s ease":"none",
-      boxShadow: isNew?`0 0 20px ${T.success}22`:"none",
-      transition:"all .3s",
-    }}>
-      {isNew && (
-        <div style={{ position:"absolute", top:-8, right:14, background:T.success, color:"#fff", borderRadius:20, fontSize:9, fontWeight:800, padding:"2px 10px", letterSpacing:".05em", boxShadow:`0 2px 8px ${T.success}66` }}>NEW</div>
-      )}
-
-      <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
-        {/* Avatar */}
-        <div style={{ width:42, height:42, borderRadius:"50%", background:`linear-gradient(135deg,${cfg.color},${cfg.color}88)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", flexShrink:0 }}>
-          {(lead.name||"?")[0].toUpperCase()}
-        </div>
-
-        {/* Main info */}
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
-            <div style={{ fontWeight:800, fontSize:14, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{lead.name}</div>
-            <div style={{ position:"relative", flexShrink:0 }}>
-              <button onClick={()=>setShowMenu(s=>!s)} style={{ background:"none", border:"none", color:T.textLow, fontSize:18, cursor:"pointer", padding:2 }}>⋯</button>
-              {showMenu && (
-                <>
-                  <div onClick={()=>setShowMenu(false)} style={{ position:"fixed", inset:0, zIndex:10 }}/>
-                  <div style={{ position:"absolute", top:24, right:0, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, zIndex:11, minWidth:150, boxShadow:"0 8px 24px #00000066", overflow:"hidden" }}>
-                    {lead.whatsapp && (
-                      <a href={`https://wa.me/${lead.whatsapp.replace(/[^0-9]/g,"")}`} target="_blank" rel="noopener noreferrer" onClick={()=>setShowMenu(false)}
-                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", color:"#25d366", fontSize:13, fontWeight:600, textDecoration:"none", borderBottom:`1px solid ${T.border}` }}>
-                        💬 WhatsApp
-                      </a>
-                    )}
-                    <button onClick={()=>{setShowMenu(false);onEdit(lead);}}
-                      style={{ width:"100%", textAlign:"left", padding:"10px 14px", background:"none", border:"none", color:T.text, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", borderBottom:`1px solid ${T.border}` }}>
-                      ✏️ Edit Lead
-                    </button>
-                    <button onClick={()=>{setShowMenu(false);setConfirmDel(true);}}
-                      style={{ width:"100%", textAlign:"left", padding:"10px 14px", background:"none", border:"none", color:T.error, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-                      🗑 Delete
-                    </button>
-                  </div>
-                </>
-              )}
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100, marginBottom: 8 }}>
+        {data.map((d, i) => {
+          const h = Math.max(4, (d.count / max) * 100);
+          return (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: 10, color: T.orange, fontWeight: 700 }}>{d.count > 0 ? d.count : ""}</span>
+              <div style={{ width: "100%", height: `${h}%`, background: d.count > 0 ? `linear-gradient(180deg,${T.orange},#ea6008)` : T.bgInput, borderRadius: "4px 4px 0 0", transition: "height .5s ease", minHeight: 4 }} />
             </div>
-          </div>
-
-          {lead.company && <div style={{ fontSize:12, color:T.textMid, marginTop:2 }}>{lead.company}</div>}
-
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
-            {lead.industry && <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"2px 9px", fontSize:10, fontWeight:600 }}>🏭 {lead.industry}</span>}
-            {lead.source && <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"2px 9px", fontSize:10, fontWeight:600 }}>📍 {lead.source}</span>}
-          </div>
-
-          <div style={{ display:"flex", gap:14, marginTop:8 }}>
-            {lead.mobile && <a href={`tel:${lead.mobile}`} style={{ fontSize:11, color:T.textMid, textDecoration:"none", display:"flex", alignItems:"center", gap:4 }}>📱 {lead.mobile}</a>}
-            {lead.email && <a href={`mailto:${lead.email}`} style={{ fontSize:11, color:T.textMid, textDecoration:"none", display:"flex", alignItems:"center", gap:4 }}>✉️ {lead.email}</a>}
-          </div>
-
-          {lead.notes && (
-            <div style={{ fontSize:12, color:T.textLow, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px", marginTop:10, lineHeight:1.5, whiteSpace:"pre-line", maxHeight:60, overflowY:"auto" }}>
-              {lead.notes}
-            </div>
-          )}
-
-          {/* Status dropdown — primary action */}
-          <div style={{ marginTop:12, position:"relative" }}>
-            <button
-              onClick={()=>setShowStatusPicker(s=>!s)}
-              style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", background:cfg.bg, border:`1px solid ${cfg.color}44`, borderRadius:10, padding:"9px 12px", color:cfg.color, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}
-            >
-              <span>{cfg.icon} {cfg.label}</span>
-              <span style={{ fontSize:10 }}>{showStatusPicker?"▲":"▼"}</span>
-            </button>
-
-            {showStatusPicker && (
-              <>
-                <div onClick={()=>setShowStatusPicker(false)} style={{ position:"fixed", inset:0, zIndex:10 }}/>
-                <div style={{ position:"absolute", top:"100%", left:0, right:0, marginTop:6, background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, zIndex:11, overflow:"hidden", boxShadow:"0 8px 24px #00000066" }}>
-                  {Object.entries(STATUS_CONFIG).map(([key,c])=>(
-                    <button key={key}
-                      onClick={()=>{onStatusChange(lead.id,key);setShowStatusPicker(false);}}
-                      style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:"10px 12px", background:lead.status===key?c.bg:"transparent", border:"none", color:c.color, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", borderBottom:`1px solid ${T.border}` }}>
-                      {c.icon} {c.label} {lead.status===key && <span style={{ marginLeft:"auto" }}>✓</span>}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          <div style={{ fontSize:10, color:T.textLow, marginTop:8 }}>Added {timeAgo(lead.created_at)}</div>
-        </div>
+          );
+        })}
       </div>
-
-      {/* Confirm delete */}
-      {confirmDel && (
-        <div onClick={()=>setConfirmDel(false)} style={{ position:"fixed", inset:0, background:"#000d", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div onClick={e=>e.stopPropagation()} style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:16, padding:"24px", maxWidth:300, width:"100%", textAlign:"center" }}>
-            <div style={{ fontSize:36, marginBottom:12 }}>🗑️</div>
-            <div style={{ fontWeight:800, fontSize:16, color:T.text, marginBottom:8 }}>Delete Lead?</div>
-            <div style={{ fontSize:13, color:T.textMid, marginBottom:20 }}>{lead.name} will be permanently removed.</div>
-            <div style={{ display:"flex", gap:10 }}>
-              <button onClick={()=>setConfirmDel(false)} style={{ flex:1, background:"transparent", border:`1px solid ${T.border}`, borderRadius:9, padding:"10px", color:T.textMid, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Cancel</button>
-              <button onClick={()=>{setConfirmDel(false);onDelete(lead.id);}} style={{ flex:1, background:T.errorLo, border:`1px solid ${T.error}44`, borderRadius:9, padding:"10px", color:T.error, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <div style={{ display: "flex", gap: 8 }}>
+        {days.map((d, i) => (
+          <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 10, color: T.textLow }}>{d}</div>
+        ))}
+      </div>
     </div>
   );
 }
 
-
-/* ── Read-only view for non-admins ── */
-function LeadViewRow({ lead }) {
-  const cfg = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new;
-  return (
-    <div style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:14, padding:"14px 16px" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-        <div style={{ width:42, height:42, borderRadius:"50%", background:`linear-gradient(135deg,${cfg.color},${cfg.color}88)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff", flexShrink:0 }}>
-          {(lead.name||"?")[0].toUpperCase()}
-        </div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontWeight:800, fontSize:14, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{lead.name}</div>
-          {lead.company && <div style={{ fontSize:12, color:T.textMid, marginTop:1 }}>{lead.company}</div>}
-        </div>
-        <span style={{ background:cfg.bg, border:`1px solid ${cfg.color}44`, color:cfg.color, borderRadius:20, padding:"4px 11px", fontSize:11, fontWeight:700, flexShrink:0 }}>
-          {cfg.icon} {cfg.label}
-        </span>
-      </div>
-      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:10 }}>
-        {lead.industry && <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"2px 9px", fontSize:10, fontWeight:600 }}>🏭 {lead.industry}</span>}
-        {lead.source && <span style={{ background:T.bgInput, border:`1px solid ${T.border}`, color:T.textMid, borderRadius:20, padding:"2px 9px", fontSize:10, fontWeight:600 }}>📍 {lead.source}</span>}
-      </div>
-      <div style={{ fontSize:10, color:T.textLow, marginTop:10 }}>Added {timeAgo(lead.created_at)}</div>
-    </div>
-  );
-}
-
-function LeadsViewOnly({ session }) {
+export default function LeadAnalyticsPage({ session }) {
   const [leads, setLeads]     = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch]   = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const channelRef = useRef(null);
+  const [period, setPeriod]   = useState("all");
+useEffect(() => {
+  supabase.from("leads").select("*").eq("user_id", ADMIN_USER_ID)
+    .order("created_at", { ascending: false })
+    .then(({ data }) => { setLeads(data || []); setLoading(false); });
+}, []);
 
-  const fetchLeads = useCallback(async () => {
-    const { data } = await supabase
-      .from("leads").select("*")
-      .eq("user_id", ADMIN_USER_ID)
-      .order("created_at", { ascending: false });
-    setLeads(data || []);
-    setLoading(false);
-  }, []);
 
-  useEffect(() => {
-    fetchLeads();
-    channelRef.current = supabase
-      .channel("leads_view_only")
-      .on("postgres_changes", {
-        event: "*", schema: "public", table: "leads",
-        filter: `user_id=eq.${ADMIN_USER_ID}`,
-      }, () => fetchLeads())
-      .subscribe();
-    return () => { if (channelRef.current) supabase.removeChannel(channelRef.current); };
-  }, [fetchLeads]);
+  const total     = leads.length;
+  const converted = leads.filter(l => l.status === "converted").length;
+  const active    = leads.filter(l => !["converted","lost"].includes(l.status)).length;
+  const convRate  = total > 0 ? Math.round((converted / total) * 100) : 0;
 
-  const filtered = leads.filter(l => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || l.name?.toLowerCase().includes(q) || l.company?.toLowerCase().includes(q);
-    const matchStatus = statusFilter === "all" || l.status === statusFilter;
-    return matchSearch && matchStatus;
+  const statusCounts = Object.keys(STATUS_CONFIG).reduce((acc, s) => {
+    acc[s] = leads.filter(l => l.status === s).length;
+    return acc;
+  }, {});
+
+  // Weekly data (last 7 days)
+  const weeklyData = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const dayStr = d.toISOString().split("T")[0];
+    return {
+      day: dayStr,
+      count: leads.filter(l => l.created_at?.startsWith(dayStr)).length,
+    };
   });
 
-  const stats = Object.keys(STATUS_CONFIG).reduce((acc,s)=>{ acc[s]=leads.filter(l=>l.status===s).length; return acc; },{});
+  // Industry breakdown
+  const industries = leads.reduce((acc, l) => {
+    if (l.industry) acc[l.industry] = (acc[l.industry] || 0) + 1;
+    return acc;
+  }, {});
+  const topIndustries = Object.entries(industries).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-  return (
-    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+  const industryColors = [T.orange, T.info, T.success, T.amber, "#a78bfa"];
 
-      {/* Header */}
-      <div>
-        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
-          <div style={{ fontSize:11, color:T.textLow, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase" }}>🎯 Lead Overview</div>
-          <LiveBadge/>
-        </div>
-        <h2 style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-.03em" }}>
-          Team <span style={{ color:T.orange }}>Leads</span>
-          <span style={{ marginLeft:10, fontSize:14, color:T.textMid, fontWeight:500 }}>({leads.length})</span>
-        </h2>
-        <div style={{ fontSize:11, color:T.textLow, marginTop:6, display:"flex", alignItems:"center", gap:5 }}>
-          👁️ View only — only the TezConnect admin can add or update leads
-        </div>
-      </div>
-
-      {/* Stats row — clickable filters */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
-        {Object.entries(STATUS_CONFIG).map(([key,cfg])=>(
-          <div key={key} onClick={()=>setStatusFilter(statusFilter===key?"all":key)}
-            style={{ background:statusFilter===key?cfg.bg:T.bgCard, border:`1px solid ${statusFilter===key?cfg.color+"55":T.border}`, borderRadius:12, padding:"10px 8px", textAlign:"center", cursor:"pointer", transition:"all .2s" }}>
-            <div style={{ fontWeight:800, fontSize:20, color:cfg.color }}>{stats[key]||0}</div>
-            <div style={{ fontSize:9, color:T.textLow, textTransform:"uppercase", letterSpacing:".05em", marginTop:2 }}>{cfg.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Search */}
-      <div style={{ position:"relative" }}>
-        <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", fontSize:14, color:T.textLow, pointerEvents:"none" }}>🔍</span>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search leads…"
-          style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px 14px 10px 36px", color:T.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" }}
-          onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}
-        />
-      </div>
-
-      {/* Loading */}
-      {loading && (
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"60px 0", gap:12 }}>
-          <div style={{ width:24, height:24, border:"2px solid #f9731633", borderTopColor:"#f97316", borderRadius:"50%", animation:"spin .7s linear infinite" }}/>
-          <span style={{ color:T.textMid, fontSize:13 }}>Loading leads…</span>
-        </div>
-      )}
-
-      {/* Empty */}
-      {!loading && leads.length===0 && (
-        <div style={{ textAlign:"center", padding:"60px 20px" }}>
-          <div style={{ fontSize:64, marginBottom:16 }}>🎯</div>
-          <div style={{ fontWeight:800, fontSize:20, color:T.text, marginBottom:8 }}>No leads yet</div>
-          <div style={{ fontSize:13, color:T.textMid }}>Leads will appear here once they come in</div>
-        </div>
-      )}
-
-      {/* No results */}
-      {!loading && leads.length>0 && filtered.length===0 && (
-        <div style={{ textAlign:"center", padding:"40px 20px", color:T.textLow, fontSize:13 }}>
-          No leads match your search
-        </div>
-      )}
-
-      {/* List */}
-      {!loading && filtered.length>0 && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:14 }}>
-          {filtered.map(lead => <LeadViewRow key={lead.id} lead={lead}/>)}
-        </div>
-      )}
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 12 }}>
+      <div style={{ width: 24, height: 24, border: "2px solid #f9731633", borderTopColor: "#f97316", borderRadius: "50%", animation: "spin .7s linear infinite" }} />
+      <span style={{ color: T.textMid, fontSize: 13 }}>Loading analytics…</span>
     </div>
   );
-}
-
-
-/* ── Main LeadsPage ── */
-export default function LeadsPage({ session }) {
-  const isAdmin = session.userId === ADMIN_USER_ID;
-
-  const [leads, setLeads]         = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [newLeadIds, setNewLeadIds] = useState(new Set());
-  const [toast, setToast]         = useState(null);
-  const [showAdd, setShowAdd]     = useState(false);
-  const [editLead, setEditLead]   = useState(null);
-  const [search, setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy]       = useState("newest");
-  const [totalToday, setTotalToday] = useState(0);
-  const channelRef = useRef(null);
-
-  const fetchLeads = useCallback(async() => {
-    if (!isAdmin) { setLoading(false); return; }
-    const { data } = await supabase
-      .from("leads").select("*")
-      .eq("user_id", ADMIN_USER_ID)
-      .order("created_at", { ascending: false });
-    setLeads(data || []);
-    const today = new Date().toISOString().split("T")[0];
-    setTotalToday((data||[]).filter(l=>l.created_at?.startsWith(today)).length);
-    setLoading(false);
-  }, [isAdmin]);
-
-  useEffect(() => {
-    if (!isAdmin) { setLoading(false); return; }
-    fetchLeads();
-
-    channelRef.current = supabase
-      .channel("leads_realtime_admin")
-      .on("postgres_changes", {
-        event: "INSERT", schema: "public", table: "leads",
-        filter: `user_id=eq.${ADMIN_USER_ID}`,
-      }, (payload) => {
-        const newLead = payload.new;
-        setLeads(prev => [newLead, ...prev]);
-        setNewLeadIds(prev => new Set([...prev, newLead.id]));
-        setToast(newLead);
-        setTotalToday(c => c + 1);
-        setTimeout(() => {
-          setNewLeadIds(prev => { const n = new Set(prev); n.delete(newLead.id); return n; });
-        }, 8000);
-      })
-      .on("postgres_changes", {
-        event: "UPDATE", schema: "public", table: "leads",
-        filter: `user_id=eq.${ADMIN_USER_ID}`,
-      }, (payload) => {
-        setLeads(prev => prev.map(l => l.id === payload.new.id ? payload.new : l));
-      })
-      .on("postgres_changes", {
-        event: "DELETE", schema: "public", table: "leads",
-      }, (payload) => {
-        setLeads(prev => prev.filter(l => l.id !== payload.old.id));
-      })
-      .subscribe();
-
-    return () => { if (channelRef.current) supabase.removeChannel(channelRef.current); };
-  }, [isAdmin, fetchLeads]);
-
-  const handleStatusChange = async(id, status) => {
-    await supabase.from("leads").update({ status, updated_at:new Date().toISOString() }).eq("id", id);
-  };
-
-  const handleDelete = async(id) => {
-    await supabase.from("leads").delete().eq("id", id);
-  };
-
-  if (!isAdmin) return <LeadsViewOnly session={session}/>;
-
-
-  const filtered = leads
-    .filter(l => {
-      const q = search.toLowerCase();
-      const matchSearch = !q || l.name?.toLowerCase().includes(q) || l.company?.toLowerCase().includes(q) || l.email?.toLowerCase().includes(q) || l.mobile?.includes(q);
-      const matchStatus = statusFilter === "all" || l.status === statusFilter;
-      return matchSearch && matchStatus;
-    })
-    .sort((a, b) => {
-      if (sortBy === "newest") return new Date(b.created_at) - new Date(a.created_at);
-      if (sortBy === "oldest") return new Date(a.created_at) - new Date(b.created_at);
-      if (sortBy === "name") return (a.name||"").localeCompare(b.name||"");
-      return 0;
-    });
-
-  const stats = Object.keys(STATUS_CONFIG).reduce((acc,s)=>{ acc[s]=leads.filter(l=>l.status===s).length; return acc; },{});
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+{/* Header */}
+<div>
+  <div style={{ fontSize: 11, color: T.textLow, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 6 }}>📊 Lead Analytics</div>
+  <h2 style={{ fontWeight: 800, fontSize: 22, color: T.text, letterSpacing: "-.03em" }}>
+    Lead <span style={{ color: T.orange }}>Insights</span>
+  </h2>
+  {session.userId !== ADMIN_USER_ID && (
+    <div style={{ fontSize: 11, color: T.textLow, marginTop: 6 }}>
+      👁️ Showing TezConnect team-wide lead insights
+    </div>
+  )}
+</div>
 
-      {toast && <LeadToast lead={toast} onClose={()=>setToast(null)}/>}
 
-      {/* Header */}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
-        <div>
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
-            <div style={{ fontSize:11, color:T.textLow, fontWeight:700, letterSpacing:".1em", textTransform:"uppercase" }}>🎯 Lead Manager</div>
-            <LiveBadge/>
-          </div>
-          <h2 style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-.03em" }}>
-            My <span style={{ color:T.orange }}>Leads</span>
-            <span style={{ marginLeft:10, fontSize:14, color:T.textMid, fontWeight:500 }}>({leads.length})</span>
-          </h2>
-          {totalToday > 0 && (
-            <div style={{ fontSize:12, color:T.success, fontWeight:600, marginTop:4 }}>
-              🎉 {totalToday} new lead{totalToday!==1?"s":""} today!
-            </div>
-          )}
-        </div>
-        <button onClick={()=>setShowAdd(true)}
-          style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"11px 20px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:"0 4px 16px #f9731440", display:"flex", alignItems:"center", gap:7 }}>
-          <span style={{ fontSize:16 }}>+</span> Add Lead
-        </button>
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
+        <StatCard icon="🎯" label="Total Leads"   value={total}     color={T.orange}  change={12} />
+        <StatCard icon="✅" label="Converted"     value={converted} color={T.success} change={8}  />
+        <StatCard icon="🔥" label="Active Leads"  value={active}    color={T.info}    change={-3} />
+        <StatCard icon="📈" label="Conv. Rate"    value={`${convRate}%`} color={T.amber} />
       </div>
 
-      {/* Stats row — clickable filters */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
-        {Object.entries(STATUS_CONFIG).map(([key,cfg])=>(
-          <div key={key} onClick={()=>setStatusFilter(statusFilter===key?"all":key)}
-            style={{ background:statusFilter===key?cfg.bg:T.bgCard, border:`1px solid ${statusFilter===key?cfg.color+"55":T.border}`, borderRadius:12, padding:"10px 8px", textAlign:"center", cursor:"pointer", transition:"all .2s" }}>
-            <div style={{ fontWeight:800, fontSize:20, color:cfg.color }}>{stats[key]||0}</div>
-            <div style={{ fontSize:9, color:T.textLow, textTransform:"uppercase", letterSpacing:".05em", marginTop:2 }}>{cfg.label}</div>
-          </div>
+      {/* Weekly chart */}
+      <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "20px" }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 16 }}>📅 Leads This Week</div>
+        <WeeklyChart data={weeklyData} />
+      </div>
+
+      {/* Funnel */}
+      <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "20px" }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 16 }}>🔻 Lead Funnel</div>
+        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+          <FunnelBar key={key} label={cfg.label} value={statusCounts[key]} total={total} color={cfg.color} />
         ))}
-      </div>
-
-      {/* Search + sort */}
-      <div style={{ display:"flex", gap:10 }}>
-        <div style={{ flex:1, position:"relative" }}>
-          <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", fontSize:14, color:T.textLow, pointerEvents:"none" }}>🔍</span>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search leads…"
-            style={{ width:"100%", background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px 14px 10px 36px", color:T.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" }}
-            onFocus={e=>e.target.style.borderColor=T.orange} onBlur={e=>e.target.style.borderColor=T.border}
-          />
-        </div>
-        <select value={sortBy} onChange={e=>setSortBy(e.target.value)}
-          style={{ background:T.bgInput, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px 12px", color:T.textMid, fontSize:12, outline:"none", fontFamily:"'Plus Jakarta Sans',sans-serif", cursor:"pointer" }}>
-          <option value="newest">Newest</option>
-          <option value="oldest">Oldest</option>
-          <option value="name">Name A-Z</option>
-        </select>
-      </div>
-
-      {/* Live banner */}
-      <div style={{ background:"linear-gradient(135deg,#22c55e0a,#06070d)", border:`1px solid ${T.success}33`, borderRadius:12, padding:"10px 16px", display:"flex", alignItems:"center", gap:10 }}>
-        <div style={{ width:8, height:8, borderRadius:"50%", background:T.success, boxShadow:`0 0 8px ${T.success}`, flexShrink:0 }}/>
-        <div style={{ fontSize:12, color:T.textMid }}>
-          <strong style={{ color:T.success }}>Live mode active</strong> — Service inquiries appear here instantly.
-        </div>
-      </div>
-
-      {/* Loading */}
-      {loading && (
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"60px 0", gap:12 }}>
-          <div style={{ width:24, height:24, border:"2px solid #f9731633", borderTopColor:"#f97316", borderRadius:"50%", animation:"spin .7s linear infinite" }}/>
-          <span style={{ color:T.textMid, fontSize:13 }}>Loading leads…</span>
-        </div>
-      )}
-
-      {/* Empty */}
-      {!loading && leads.length===0 && (
-        <div style={{ textAlign:"center", padding:"60px 20px" }}>
-          <div style={{ fontSize:64, marginBottom:16 }}>🎯</div>
-          <div style={{ fontWeight:800, fontSize:20, color:T.text, marginBottom:8 }}>No leads yet</div>
-          <div style={{ fontSize:13, color:T.textMid, lineHeight:1.7, marginBottom:24, maxWidth:320, margin:"0 auto 24px" }}>
-            Add leads manually or share your Services page to receive inquiries automatically
+        {total === 0 && (
+          <div style={{ textAlign: "center", padding: "20px 0", color: T.textLow, fontSize: 13 }}>
+            No leads yet — add leads to see your funnel
           </div>
-          <button onClick={()=>setShowAdd(true)}
-            style={{ background:"linear-gradient(135deg,#f97316,#ea6008)", border:"none", borderRadius:12, padding:"12px 28px", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-            + Add First Lead
-          </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* No results */}
-      {!loading && leads.length>0 && filtered.length===0 && (
-        <div style={{ textAlign:"center", padding:"40px 20px", color:T.textLow, fontSize:13 }}>
-          No leads match your search
-          <button onClick={()=>{setSearch("");setStatusFilter("all");}} style={{ display:"block", margin:"10px auto 0", background:"none", border:"none", color:T.orange, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-            Clear filters
-          </button>
-        </div>
-      )}
-
-      {/* Lead list */}
-      {!loading && filtered.length>0 && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))", gap:14 }}>
-          {filtered.map(lead=>(
-            <LeadRow
-              key={lead.id}
-              lead={lead}
-              onEdit={setEditLead}
-              onDelete={handleDelete}
-              onStatusChange={handleStatusChange}
-              isNew={newLeadIds.has(lead.id)}
-            />
+      {/* Industry breakdown */}
+      {topIndustries.length > 0 && (
+        <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "20px" }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 16 }}>🏭 Top Industries</div>
+          {topIndustries.map(([industry, count], i) => (
+            <div key={industry} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: industryColors[i], flexShrink: 0 }} />
+              <div style={{ flex: 1, fontSize: 13, color: T.text }}>{industry}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: industryColors[i] }}>{count}</div>
+              <div style={{ width: 80, height: 6, background: T.bgInput, borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${(count / total) * 100}%`, background: industryColors[i], borderRadius: 4 }} />
+              </div>
+            </div>
           ))}
         </div>
       )}
 
-      {showAdd && <LeadModal session={session} onClose={()=>setShowAdd(false)} onSaved={fetchLeads}/>}
-      {editLead && <LeadModal lead={editLead} session={session} onClose={()=>setEditLead(null)} onSaved={fetchLeads}/>}
+      {/* Recent activity */}
+      <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: "20px" }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 16 }}>🕐 Recent Leads</div>
+        {leads.slice(0, 5).length === 0 ? (
+          <div style={{ textAlign: "center", padding: "20px 0", color: T.textLow, fontSize: 13 }}>No leads yet</div>
+        ) : (
+          leads.slice(0, 5).map(lead => {
+            const cfg = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new;
+            return (
+              <div key={lead.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#f97316,#ea6008)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff", flexShrink: 0 }}>
+                  {(lead.name||"?")[0].toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.name}</div>
+                  <div style={{ fontSize: 11, color: T.textLow }}>{lead.company || lead.industry || "—"}</div>
+                </div>
+                <span style={{ background: cfg.bg, border: `1px solid ${cfg.color}44`, color: cfg.color, borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                  {cfg.label}
+                </span>
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
